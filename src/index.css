@@ -147,6 +147,12 @@ html.is-mac .sidebar-glass {
   );
 }
 
+/* Personal presets keep every navigation pane on the same base surface. */
+html.theme-preset-dracula .sidebar-glass,
+html.theme-preset-catppuccin-frappe .sidebar-glass {
+  background: var(--color-background-base);
+}
+
 .body-glass {
   background: var(--color-background-base);
 }
