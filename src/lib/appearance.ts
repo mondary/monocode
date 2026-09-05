@@ -174,6 +174,8 @@ function isThemePreset(value: unknown): value is ThemePreset {
 export function loadThemePreset(): ThemePreset {
   try {
     const raw = localStorage.getItem(THEME_PRESET_KEY);
+    // Migrate the old MonoCode neutral default to PKmod's Frappe default.
+    if (raw === "default") return THEME_PRESET_DEFAULT;
     return isThemePreset(raw) ? raw : THEME_PRESET_DEFAULT;
   } catch {
     return THEME_PRESET_DEFAULT;
@@ -191,7 +193,9 @@ export function saveThemePreset(value: ThemePreset) {
 export function applyThemePreset(value: ThemePreset) {
   const root = document.documentElement;
   root.classList.remove("theme-preset-dracula", "theme-preset-catppuccin-frappe");
-  if (value !== THEME_PRESET_DEFAULT) root.classList.add(`theme-preset-${value}`);
+  // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
+  // literal `default` remains the explicit neutral option in Settings.
+  if (value !== "default") root.classList.add(`theme-preset-${value}`);
   window.dispatchEvent(new CustomEvent<ThemePreset>("monocode:themepresetchange", { detail: value }));
   return value;
 }
