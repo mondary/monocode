@@ -1056,16 +1056,14 @@ function ProviderRow({
       >
         {isDefault ? "Default" : "Use by default"}
       </SecondaryButton>
-      {available ? (
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-content/50">Show in picker</span>
-          <Toggle
-            label={`Show ${HARNESS_TITLE[harness]} in the model picker`}
-            on={inPicker}
-            onChange={onPickerVisible}
-          />
-        </div>
-      ) : null}
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] text-content/50">Show in picker</span>
+        <Toggle
+          label={`Show ${HARNESS_TITLE[harness]} in the model picker`}
+          on={inPicker}
+          onChange={onPickerVisible}
+        />
+      </div>
     </Row>
   );
 }
