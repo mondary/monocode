@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
-source_app="$project_dir/target/release/bundle/macos/MonoCode.app"
+source_app="$project_dir/target/release/bundle/macos/MonoCode PK.app"
 target_app="/Applications/monocodePK.app"
 
 cd "$project_dir"

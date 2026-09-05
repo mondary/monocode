@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MonoCode",
+  "productName": "MonoCode PK",
   "version": "0.1.34",
   "identifier": "com.monocode.desktop",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MonoCode",
+        "title": "MonoCode PK",
         "width": 1280,
         "height": 800,
         "minWidth": 800,
