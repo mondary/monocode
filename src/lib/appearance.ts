@@ -8,6 +8,7 @@ const BLUR_KEY = "monocode.sidebarBlur";
 const PROJECT_RAIL_OPEN_KEY = "monocode.projectRailOpen";
 const BODY_KEY = "monocode.bodyGlass";
 const SCHEME_KEY = "monocode.colorScheme";
+const THEME_PRESET_KEY = "monocode.themePreset";
 const SIDEBAR_TAB_ORDER_KEY = "monocode.sidebarTabOrder";
 const PROJECT_RAIL_WIDTH_KEY = "monocode.projectRailWidth";
 const TRANSCRIPT_LAYOUT_KEY = "monocode.transcriptLayout";
@@ -15,9 +16,11 @@ const TRANSCRIPT_ANCHOR_KEY = "monocode.transcriptAnchor";
 
 export type ColorScheme = "dark" | "light";
 export type ThemePreference = ColorScheme | "system";
+export type ThemePreset = "default" | "dracula" | "catppuccin-frappe";
 export type TranscriptLayout = "full" | "chat";
 
 export const THEME_PREFERENCE_DEFAULT: ThemePreference = "dark";
+export const THEME_PRESET_DEFAULT: ThemePreset = "default";
 
 /** Fired on `window` whenever the color scheme flips (detail: ColorScheme). */
 export const SCHEME_CHANGE_EVENT = "monocode:schemechange";
@@ -155,12 +158,42 @@ export function applyThemeTint(hue: number, saturation: number) {
 
 export function initAppearance() {
   document.documentElement.classList.toggle("is-mac", IS_MAC);
+  applyThemePreset(loadThemePreset());
   applyThemeTint(loadThemeHue(), loadThemeSaturation());
   applyThemePreference(loadThemePreference());
   watchSystemColorScheme();
   applySidebarOpacity(loadSidebarOpacity());
   applySidebarBlur(loadSidebarBlur());
   applyBodyGlass(loadBodyGlass());
+}
+
+function isThemePreset(value: unknown): value is ThemePreset {
+  return value === "default" || value === "dracula" || value === "catppuccin-frappe";
+}
+
+export function loadThemePreset(): ThemePreset {
+  try {
+    const raw = localStorage.getItem(THEME_PRESET_KEY);
+    return isThemePreset(raw) ? raw : THEME_PRESET_DEFAULT;
+  } catch {
+    return THEME_PRESET_DEFAULT;
+  }
+}
+
+export function saveThemePreset(value: ThemePreset) {
+  try {
+    localStorage.setItem(THEME_PRESET_KEY, value);
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function applyThemePreset(value: ThemePreset) {
+  const root = document.documentElement;
+  root.classList.remove("theme-preset-dracula", "theme-preset-catppuccin-frappe");
+  if (value !== THEME_PRESET_DEFAULT) root.classList.add(`theme-preset-${value}`);
+  window.dispatchEvent(new CustomEvent<ThemePreset>("monocode:themepresetchange", { detail: value }));
+  return value;
 }
 
 function isThemePreference(value: unknown): value is ThemePreference {

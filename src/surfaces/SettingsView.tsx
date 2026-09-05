@@ -23,6 +23,7 @@ import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import {
   applyBodyGlass,
   applyThemePreference,
+  applyThemePreset,
   applySidebarBlur,
   applySidebarOpacity,
   applyThemeTint,
@@ -30,6 +31,7 @@ import {
   THEME_PREFERENCE_DEFAULT,
   loadBodyGlass,
   loadThemePreference,
+  loadThemePreset,
   loadSidebarBlur,
   loadSidebarOpacity,
   loadThemeHue,
@@ -38,6 +40,7 @@ import {
   loadTranscriptAnchor,
   saveBodyGlass,
   saveThemePreference,
+  saveThemePreset,
   saveSidebarBlur,
   saveSidebarOpacity,
   saveThemeHue,
@@ -58,6 +61,7 @@ import {
   THEME_SATURATION_MAX,
   THEME_SATURATION_MIN,
   type ThemePreference,
+  type ThemePreset,
   type TranscriptLayout,
 } from "../lib/appearance";
 import {
@@ -694,6 +698,7 @@ function UpdateRow({
 type AppearanceSettings = ReturnType<typeof useAppearanceSettings>;
 
 function useAppearanceSettings() {
+  const [themePreset, setThemePreset] = useState<ThemePreset>(loadThemePreset);
   const [themePreference, setThemePreference] =
     useState<ThemePreference>(loadThemePreference);
   const [opacity, setOpacity] = useState(loadSidebarOpacity);
@@ -706,6 +711,12 @@ function useAppearanceSettings() {
     applyThemePreference(next);
     saveThemePreference(next);
     setThemePreference(next);
+  }, []);
+
+  const onThemePreset = useCallback((next: ThemePreset) => {
+    applyThemePreset(next);
+    saveThemePreset(next);
+    setThemePreset(next);
   }, []);
 
   const onOpacity = useCallback((percent: number) => {
@@ -736,20 +747,23 @@ function useAppearanceSettings() {
 
   const restoreDefaults = useCallback(() => {
     onThemePreference(THEME_PREFERENCE_DEFAULT);
+    onThemePreset("default");
     onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
     onBlur(SIDEBAR_BLUR_DEFAULT);
     onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
     onBodyGlass(BODY_GLASS_DEFAULT);
-  }, [onBlur, onBodyGlass, onThemePreference, onOpacity, onTint]);
+  }, [onBlur, onBodyGlass, onThemePreference, onThemePreset, onOpacity, onTint]);
 
   return {
     themePreference,
+    themePreset,
     opacity,
     blur,
     themeHue,
     themeSaturation,
     bodyGlass,
     onThemePreference,
+    onThemePreset,
     onOpacity,
     onBlur,
     onTint,
@@ -776,6 +790,21 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
             { value: "light", label: "Light" },
           ]}
           onChange={appearance.onThemePreference}
+        />
+      </Row>
+      <Row
+        label="Theme preset"
+        description="Personal color palettes for MonoCode."
+      >
+        <Segmented
+          label="Theme preset"
+          value={appearance.themePreset}
+          options={[
+            { value: "default", label: "Default" },
+            { value: "dracula", label: "Dracula" },
+            { value: "catppuccin-frappe", label: "Frappe" },
+          ]}
+          onChange={appearance.onThemePreset}
         />
       </Row>
       <Row
