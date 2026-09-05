@@ -402,15 +402,15 @@ export function DevModeLabel() {
   if (!import.meta.env.DEV) return null;
   return (
     <span
-      title="Development build"
+      title="PKmod personal build"
       className="mr-1 min-w-0 truncate rounded-md bg-skill/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-skill"
     >
-      Development
+      PKmod
     </span>
   );
 }
 
-/** Flex spacer that keeps the Development badge next to the visit arrows. */
+/** Flex spacer that keeps the PKmod badge next to the visit arrows. */
 export function DevModeSlot() {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-end">
