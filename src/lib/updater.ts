@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
@@ -90,9 +91,10 @@ export async function runUpdateFlow(
       onProgress?.(idle);
       if (manual) {
         await message(
-          "Automatic updates aren't configured for this build.\n\nDownload releases at https://github.com/hardbeat920/monocode/releases/latest",
-          { title: "MonoCode" },
+          "PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.",
+          { title: "Mise à jour PKmod" },
         );
+        await invoke("sync_pk_upstream");
       }
       return idle;
     }

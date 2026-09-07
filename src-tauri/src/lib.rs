@@ -127,6 +127,17 @@ fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
     window::open_new_window(&app)
 }
 
+#[tauri::command]
+fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
+    std::process::Command::new("bash")
+        .arg("/Users/clm/Documents/GitHub/CLONES/monocode/scripts/sync-pk-update.sh")
+        .spawn()
+        .map(|_| {
+            app.exit(0);
+        })
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -165,6 +176,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             default_cwd,
             home_dir,
+            sync_pk_upstream,
             fs::list_dir,
             fs::list_project_files,
             fs::git_diff_stats,
