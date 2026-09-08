@@ -25,9 +25,10 @@ mod window_transfer;
 /// Project directory for new sessions — prefer cwd, else home.
 #[tauri::command]
 fn default_cwd() -> String {
-    if let Ok(cwd) = std::env::current_dir() {
-        return cwd.to_string_lossy().into_owned();
-    }
+    // Finder-launched apps inherit an implementation-defined cwd, often the
+    // user's Documents folder. Returning it makes the frontend index that
+    // folder on every launch and repeatedly triggers macOS TCC prompts.
+    // Projects are opened explicitly through the project picker instead.
     dirs_home().unwrap_or_else(|| "~".into())
 }
 
