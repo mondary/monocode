@@ -6,6 +6,7 @@ source_app="$project_dir/target/release/bundle/macos/MonoCode PK.app"
 target_app="/Applications/monocodePK.app"
 
 cd "$project_dir"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 set +e
 npm run tauri -- build --bundles app
 build_status=$?
