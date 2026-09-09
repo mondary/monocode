@@ -1,4 +1,4 @@
-import { ALT, IS_MAC, MOD, SHIFT } from "./platform";
+import { ALT, MOD } from "./platform";
 
 const SECTION_KEY = "monocode.settingsSection";
 
@@ -308,85 +308,43 @@ export function saveClaudeHooks(value: boolean) {
   }
 }
 
-const CTRL = IS_MAC ? "⌃" : "Ctrl+";
+import {
+  bindingFor,
+  formatAccelerator,
+  KEYBINDING_DEFAULTS,
+} from "./keybindings";
 
 export type KeybindingRow = {
   command: string;
   keys: string;
   when: string;
+  /** Present when the binding is user-editable (PKmod). */
+  id?: string;
 };
 
-/**
- * Mirrors the bindings we actually handle: the native menu accelerators in
- * `src-tauri/src/menu.rs`, `tabCommand`, and the window key handler in App.
- */
-export const KEYBINDINGS: KeybindingRow[] = [
-  { command: "App: Search", keys: `${MOD}K`, when: "Always" },
-  { command: "App: Go to File", keys: `${MOD}P`, when: "Always" },
-  { command: "App: Find in Files", keys: `${MOD}${SHIFT}F`, when: "Always" },
-  { command: "App: Open Project", keys: `${MOD}O`, when: "Always" },
-  { command: "App: New Window", keys: `${MOD}${SHIFT}N`, when: "Always" },
-  { command: "App: Toggle Sidebar", keys: `${MOD}B`, when: "Always" },
-  { command: "App: Switch Model", keys: `${MOD}.`, when: "Always" },
-  { command: "View: Zoom In", keys: `${MOD}+`, when: "Always" },
-  { command: "View: Zoom Out", keys: `${MOD}-`, when: "Always" },
-  { command: "View: Reset Zoom", keys: `${MOD}0`, when: "Always" },
-  { command: "Tab: New", keys: `${MOD}T`, when: "Always" },
-  { command: "Tab: Close Others", keys: `${MOD}${ALT}T`, when: "Always" },
-  { command: "Tab: Next", keys: `${MOD}${SHIFT}]`, when: "Always" },
-  { command: "Tab: Previous", keys: `${MOD}${SHIFT}[`, when: "Always" },
-  { command: "Tab: Cycle Next", keys: `${CTRL}Tab`, when: "Always" },
-  {
-    command: "Tab: Cycle Previous",
-    keys: `${CTRL}${SHIFT}Tab`,
-    when: "Always",
-  },
-  { command: "Tab: Back", keys: `${MOD}[`, when: "Always" },
-  { command: "Tab: Forward", keys: `${MOD}]`, when: "Always" },
+/** Fixed bindings the editor does not manage (kept for documentation). */
+const FIXED_BINDING_ROWS: KeybindingRow[] = [
   { command: "Tab: Activate 1–8", keys: `${MOD}1 … ${MOD}8`, when: "Always" },
   { command: "Tab: Activate Last", keys: `${MOD}9`, when: "Always" },
-  {
-    command: "Session: Archive",
-    keys: `${MOD}${SHIFT}A`,
-    when: "sessionFocus && !overlay",
-  },
-  {
-    command: "Session: Previous",
-    keys: `${MOD}${SHIFT}↑`,
-    when: "!overlay && (!textFocus || emptyComposer)",
-  },
-  {
-    command: "Session: Next",
-    keys: `${MOD}${SHIFT}↓`,
-    when: "!overlay && (!textFocus || emptyComposer)",
-  },
-  {
-    command: "Project: Previous",
-    keys: `${MOD}${SHIFT}←`,
-    when: "!overlay && (!textFocus || emptyComposer)",
-  },
-  {
-    command: "Project: Next",
-    keys: `${MOD}${SHIFT}→`,
-    when: "!overlay && (!textFocus || emptyComposer)",
-  },
-  { command: "Pane: Close", keys: `${MOD}W`, when: "Always" },
-  { command: "Pane: Split Right", keys: `${MOD}D`, when: "!editorFocus" },
-  {
-    command: "Pane: Split Down",
-    keys: `${MOD}${SHIFT}D`,
-    when: "!editorFocus",
-  },
-  { command: "Pane: Focus Left", keys: `${MOD}${ALT}←`, when: "Always" },
-  { command: "Pane: Focus Right", keys: `${MOD}${ALT}→`, when: "Always" },
-  { command: "Pane: Focus Up", keys: `${MOD}${ALT}↑`, when: "Always" },
-  { command: "Pane: Focus Down", keys: `${MOD}${ALT}↓`, when: "Always" },
-  { command: "Terminal: New", keys: `${MOD}\``, when: "Always" },
-  { command: "Terminal: New Tab", keys: `${MOD}${SHIFT}\``, when: "Always" },
-  { command: "Terminal: Toggle Dock", keys: `${MOD}J`, when: "Always" },
-  { command: "Editor: Find", keys: `${MOD}F`, when: "editorFocus" },
   { command: "Editor: Replace", keys: `${MOD}${ALT}F`, when: "editorFocus" },
 ];
+
+/**
+ * Rows derived from the shared binding catalog (`keybindings.defaults.json`)
+ * plus the user's overrides; see `src/lib/keybindings.ts`.
+ */
+export function buildKeybindingRows(): KeybindingRow[] {
+  const rows = Object.entries(KEYBINDING_DEFAULTS).map(([id, def]) => ({
+    command: def.label,
+    keys: formatAccelerator(bindingFor(id) ?? def.binding),
+    when: def.when,
+    id,
+  }));
+  return [...rows, ...FIXED_BINDING_ROWS];
+}
+
+/** Static snapshot (defaults only); the settings page uses the live rows. */
+export const KEYBINDINGS: KeybindingRow[] = buildKeybindingRows();
 
 export function filterKeybindings(
   rows: KeybindingRow[],

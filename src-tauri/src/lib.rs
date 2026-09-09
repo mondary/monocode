@@ -6,6 +6,7 @@ mod cursor_store;
 mod fs;
 mod harness;
 mod inbox_media;
+mod keybindings;
 mod linear;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -225,6 +226,8 @@ pub fn run() {
             home_dir,
             pk_upstream_info,
             sync_pk_upstream,
+            keybindings::get_keybindings,
+            keybindings::save_keybindings,
             notifications::notification_permission,
             notifications::request_notification_permission,
             notifications::show_notification,

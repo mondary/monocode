@@ -118,6 +118,13 @@ import {
 import { prettyCwd, projectKey, projectName } from "../lib/paths";
 import { IS_MAC } from "../lib/platform";
 import {
+  captureAccelerator,
+  findBindingOwner,
+  isOverridden,
+  setKeybindingOverride,
+  subscribeKeybindings,
+} from "../lib/keybindings";
+import {
   loadArchivedProjects,
   looksLikeProject,
   subscribeArchivedProjects,
@@ -148,8 +155,8 @@ import {
 } from "../lib/linear";
 import { loadTabGroupLabels, resolveTabGroupLabel } from "../lib/tabGroups";
 import {
+  buildKeybindingRows,
   filterKeybindings,
-  KEYBINDINGS,
   loadClaudeHooks,
   loadComposerRunner,
   loadDiffViewer,
@@ -1208,7 +1215,51 @@ function ChatBackgroundCard({
 
 function KeybindingsPage() {
   const [query, setQuery] = useState("");
-  const rows = useMemo(() => filterKeybindings(KEYBINDINGS, query), [query]);
+  const [version, setVersion] = useState(0);
+  const [capturingId, setCapturingId] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
+
+  useEffect(
+    () => subscribeKeybindings(() => setVersion((value) => value + 1)),
+    [],
+  );
+
+  useEffect(() => {
+    if (!capturingId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        setCapturingId(null);
+        return;
+      }
+      if (
+        event.key === "Backspace" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        setKeybindingOverride(capturingId, null);
+        setConflict(null);
+        setCapturingId(null);
+        return;
+      }
+      const accel = captureAccelerator(event);
+      if (!accel) return;
+      const clash = findBindingOwner(capturingId, accel);
+      setConflict(clash ? `“${clash}” already uses ${accel}` : null);
+      setKeybindingOverride(capturingId, accel);
+      setCapturingId(null);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [capturingId]);
+
+  const rows = useMemo(
+    () => filterKeybindings(buildKeybindingRows(), query),
+    // version: rebuild when overrides change
+    [query, version],
+  );
 
   return (
     <>
@@ -1243,12 +1294,34 @@ function KeybindingsPage() {
         ) : (
           rows.map((row) => (
             <div
-              key={`${row.command}-${row.keys}`}
+              key={row.command}
               className="flex items-center border-b border-content/5 px-3 py-2 text-[12px] last:border-b-0"
             >
               <span className="min-w-0 flex-1 truncate">{row.command}</span>
-              <span className="w-40 shrink-0 font-mono text-[12px] text-content/80">
-                {row.keys}
+              <span className="w-40 shrink-0">
+                {row.id ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConflict(null);
+                      setCapturingId(row.id ?? null);
+                    }}
+                    title="Click, then press the new combo · Backspace resets · Esc cancels"
+                    className={`w-full rounded-md border px-2 py-1 text-left font-mono text-[12px] transition-colors ${
+                      capturingId === row.id
+                        ? "border-content/40 bg-content/10 text-content"
+                        : isOverridden(row.id)
+                          ? "border-content/25 text-content hover:bg-content/5"
+                          : "border-transparent text-content/80 hover:border-content/15 hover:bg-content/5"
+                    }`}
+                  >
+                    {capturingId === row.id ? "Press keys…" : row.keys}
+                  </button>
+                ) : (
+                  <span className="block font-mono text-[12px] text-content/80">
+                    {row.keys}
+                  </span>
+                )}
               </span>
               <span className="w-28 shrink-0 font-mono text-[11px] text-content/40">
                 {row.when}
@@ -1259,9 +1332,12 @@ function KeybindingsPage() {
       </div>
 
       <p className="pt-3 text-[12px] text-content/40">
-        Bindings come from the app menu and the workspace key handler; they
-        aren’t customizable yet.
+        Click a keybinding, press the new combo, and the app menu updates
+        instantly. Backspace on a selected row resets it to the default.
       </p>
+      {conflict ? (
+        <p className="pt-1 text-[12px] text-amber-400/90">{conflict}</p>
+      ) : null}
     </>
   );
 }

@@ -1,0 +1,218 @@
+{
+  "open_search": {
+    "label": "App: Search",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+K"
+  },
+  "go_to_file": {
+    "label": "App: Go to File",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+P"
+  },
+  "find_in_project": {
+    "label": "App: Find in Files",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Shift+F"
+  },
+  "open_project": {
+    "label": "App: Open Project",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+O"
+  },
+  "new_window": {
+    "label": "App: New Window",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Shift+N"
+  },
+  "toggle_sidebar": {
+    "label": "App: Toggle Sidebar",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+B"
+  },
+  "open_model_picker": {
+    "label": "App: Switch Model",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+."
+  },
+  "open_settings": {
+    "label": "App: Open Settings",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+,"
+  },
+  "quit": {
+    "label": "App: Quit",
+    "group": "App",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Q"
+  },
+  "zoom_in": {
+    "label": "View: Zoom In",
+    "group": "View",
+    "when": "Always",
+    "binding": "CmdOrCtrl+="
+  },
+  "zoom_out": {
+    "label": "View: Zoom Out",
+    "group": "View",
+    "when": "Always",
+    "binding": "CmdOrCtrl+-"
+  },
+  "zoom_reset": {
+    "label": "View: Reset Zoom",
+    "group": "View",
+    "when": "Always",
+    "binding": "CmdOrCtrl+0"
+  },
+  "new_tab": {
+    "label": "Tab: New",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+T"
+  },
+  "close_other_tabs": {
+    "label": "Tab: Close Others",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+T"
+  },
+  "next_tab": {
+    "label": "Tab: Next",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Shift+]"
+  },
+  "prev_tab": {
+    "label": "Tab: Previous",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Shift+["
+  },
+  "cycle_next_tab": {
+    "label": "Tab: Cycle Next",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "Ctrl+Tab"
+  },
+  "cycle_prev_tab": {
+    "label": "Tab: Cycle Previous",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "Ctrl+Shift+Tab"
+  },
+  "back_tab": {
+    "label": "Tab: Back",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+["
+  },
+  "forward_tab": {
+    "label": "Tab: Forward",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+]"
+  },
+  "prev_session": {
+    "label": "Session: Previous",
+    "group": "Session",
+    "when": "!overlay && (!textFocus || emptyComposer)",
+    "binding": "CmdOrCtrl+Shift+Up"
+  },
+  "next_session": {
+    "label": "Session: Next",
+    "group": "Session",
+    "when": "!overlay && (!textFocus || emptyComposer)",
+    "binding": "CmdOrCtrl+Shift+Down"
+  },
+  "archive_session": {
+    "label": "Session: Archive",
+    "group": "Session",
+    "when": "sessionFocus && !overlay",
+    "binding": "CmdOrCtrl+Shift+A"
+  },
+  "prev_project": {
+    "label": "Project: Previous",
+    "group": "Project",
+    "when": "!overlay && (!textFocus || emptyComposer)",
+    "binding": "CmdOrCtrl+Shift+Left"
+  },
+  "next_project": {
+    "label": "Project: Next",
+    "group": "Project",
+    "when": "!overlay && (!textFocus || emptyComposer)",
+    "binding": "CmdOrCtrl+Shift+Right"
+  },
+  "close_tab": {
+    "label": "Pane: Close",
+    "group": "Pane",
+    "when": "Always",
+    "binding": "CmdOrCtrl+W"
+  },
+  "split_right": {
+    "label": "Pane: Split Right",
+    "group": "Pane",
+    "when": "!editorFocus",
+    "binding": "CmdOrCtrl+D"
+  },
+  "split_down": {
+    "label": "Pane: Split Down",
+    "group": "Pane",
+    "when": "!editorFocus",
+    "binding": "CmdOrCtrl+Shift+D"
+  },
+  "focus_left": {
+    "label": "Pane: Focus Left",
+    "group": "Pane",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Left"
+  },
+  "focus_right": {
+    "label": "Pane: Focus Right",
+    "group": "Pane",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Right"
+  },
+  "focus_up": {
+    "label": "Pane: Focus Up",
+    "group": "Pane",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Up"
+  },
+  "focus_down": {
+    "label": "Pane: Focus Down",
+    "group": "Pane",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Down"
+  },
+  "new_terminal": {
+    "label": "Terminal: New",
+    "group": "Terminal",
+    "when": "Always",
+    "binding": "CmdOrCtrl+`"
+  },
+  "new_terminal_tab": {
+    "label": "Terminal: New Tab",
+    "group": "Terminal",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Shift+`"
+  },
+  "toggle_terminal": {
+    "label": "Terminal: Toggle Dock",
+    "group": "Terminal",
+    "when": "Always",
+    "binding": "CmdOrCtrl+J"
+  },
+  "find": {
+    "label": "Editor: Find",
+    "group": "Editor",
+    "when": "editorFocus",
+    "binding": "CmdOrCtrl+F"
+  }
+}

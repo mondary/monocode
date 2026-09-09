@@ -287,6 +287,7 @@ import {
   shouldStopFocusedTurnOnEscape,
   tabCommand,
 } from "./lib/tabKeys";
+import { matchesAction, overrideZoomCommand } from "./lib/keybindings";
 import {
   canTabVisitBack,
   canTabVisitForward,
@@ -4970,7 +4971,7 @@ export default function App({
       // Browser-standard UI zoom. Runs before tabCommand and always applies —
       // even in inputs and the terminal — so Ctrl/Cmd + - 0 behave like a browser.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.isComposing) {
-        const zoom = uiScaleCommand(e);
+        const zoom = overrideZoomCommand(e) ?? uiScaleCommand(e);
         if (zoom) {
           e.preventDefault();
           e.stopPropagation();
@@ -5091,20 +5092,19 @@ export default function App({
         e.stopPropagation();
         return;
       }
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
+      if (matchesAction(e, "toggle_sidebar")) {
         e.preventDefault();
         e.stopPropagation();
         run("toggle_sidebar", actions.current.onToggleSidebar);
         return;
       }
-      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "p") {
+      if (matchesAction(e, "go_to_file")) {
         e.preventDefault();
         e.stopPropagation();
         run("go_to_file", actions.current.onGoToFile);
         return;
       }
-      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+      if (matchesAction(e, "open_search")) {
         const target = e.target instanceof Element ? e.target : null;
         if (target?.closest(".monocode-terminal") && e.ctrlKey && !e.metaKey) {
           return;
@@ -5114,13 +5114,13 @@ export default function App({
         run("open_search", actions.current.onOpenSearch);
         return;
       }
-      if (mod && !e.altKey && !e.shiftKey && e.key === ",") {
+      if (matchesAction(e, "open_settings")) {
         e.preventDefault();
         e.stopPropagation();
         run("open_settings", () => actions.current.openSettings());
         return;
       }
-      if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
+      if (matchesAction(e, "find_in_project")) {
         e.preventDefault();
         e.stopPropagation();
         run("find_in_project", actions.current.onFindInProject);

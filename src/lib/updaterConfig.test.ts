@@ -1,14 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { getVersion, check, message, ask, relaunch } = vi.hoisted(() => ({
+const { getVersion, check, message, ask, relaunch, invoke } = vi.hoisted(() => ({
   getVersion: vi.fn(),
   check: vi.fn(),
   message: vi.fn(),
   ask: vi.fn(),
   relaunch: vi.fn(),
+  invoke: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/app", () => ({ getVersion }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask, message }));
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch }));
@@ -32,18 +34,36 @@ describe("updater", () => {
     expect(message).not.toHaveBeenCalled();
   });
 
-  it("points manual checks without updater endpoints to GitHub releases", async () => {
+  it("points manual checks without updater endpoints to the PKmod sync flow", async () => {
     getVersion.mockResolvedValue("0.1.23");
     check.mockRejectedValue(new Error("Updater does not have any endpoints set"));
+    invoke.mockResolvedValue("tag=v0.1.24 behind=2");
 
     await expect(runUpdateFlow(true)).resolves.toEqual({
       phase: "idle",
       currentVersion: "0.1.23",
     });
     expect(message).toHaveBeenCalledWith(
-      expect.stringContaining("https://github.com/hardbeat920/monocode/releases/latest"),
-      { title: "MonoCode" },
+      expect.stringContaining("PKmod va récupérer les commits officiels"),
+      { title: "Mise à jour PKmod" },
     );
+    expect(invoke).toHaveBeenCalledWith("sync_pk_upstream");
+  });
+
+  it("reports being current when upstream has no new commits", async () => {
+    getVersion.mockResolvedValue("0.1.24");
+    check.mockRejectedValue(new Error("Updater does not have any endpoints set"));
+    invoke.mockResolvedValue("tag=v0.1.24 behind=0");
+
+    await expect(runUpdateFlow(true)).resolves.toEqual({
+      phase: "idle",
+      currentVersion: "0.1.24",
+    });
+    expect(message).toHaveBeenCalledWith(
+      expect.stringContaining("dernière version"),
+      { title: "Mise à jour PKmod" },
+    );
+    expect(invoke).not.toHaveBeenCalledWith("sync_pk_upstream");
   });
 
   it("still reports real updater failures", async () => {
