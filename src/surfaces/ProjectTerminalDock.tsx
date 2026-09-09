@@ -11,6 +11,7 @@ import {
 } from "../chrome/icons";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -26,6 +27,7 @@ import {
   type ProjectTerminalDock,
 } from "../lib/projectTerminal";
 import { MOD } from "../lib/platform";
+import { activeTerminalIds } from "../lib/terminalActivity";
 import type { TerminalMetaPatch } from "../lib/terminalTab";
 import { TerminalView } from "./TerminalView";
 
@@ -82,6 +84,19 @@ export function ProjectTerminalDock({
   const vertical = isVerticalDock(dock.side);
   const [dragging, setDragging] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const terminalIds = useMemo(
+    () => dock.pane.files.map((file) => file.id),
+    [dock.pane.files],
+  );
+  // PKmod: the little pac only chomps while a runtime in this dock
+  // produces output; a 300ms poll is enough for a 1.2s decay.
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const update = () => setBusy(activeTerminalIds(terminalIds).length > 0);
+    update();
+    const timer = window.setInterval(update, 300);
+    return () => window.clearInterval(timer);
+  }, [terminalIds]);
   const sideButton = useRef<HTMLDivElement>(null);
   const drag = useRef<{ start: number; size: number } | null>(null);
   const sizeRef = useRef(dock.size);
@@ -211,6 +226,15 @@ export function ProjectTerminalDock({
         onReorder={onReorderTerminals}
         trailing={
           <div className="flex shrink-0 items-center gap-0.5 border-l border-content/10 px-1">
+            <span
+              title={
+                busy ? "A runtime is producing output in this terminal" : undefined
+              }
+              aria-hidden
+              className={`terminal-activity-pac text-content/60 ${
+                busy ? "terminal-activity-pac-on" : ""
+              }`}
+            />
             <IconButton
               label={`New Terminal (${MOD}\`)`}
               onClick={onAddTerminal}

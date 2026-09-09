@@ -1398,3 +1398,35 @@ html.theme-light .popover-backdrop {
     var(--color-background-base)
   );
 }
+
+/* PKmod: terminal activity pac — chomps while a runtime produces output. */
+.terminal-activity-pac {
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from -35deg,
+    currentColor 0deg 325deg,
+    transparent 325deg 360deg
+  );
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.terminal-activity-pac-on {
+  opacity: 0.85;
+  animation: pk-pac-chomp 0.28s ease-in-out infinite alternate;
+}
+@keyframes pk-pac-chomp {
+  from {
+    transform: rotate(-12deg) scale(0.94);
+  }
+  to {
+    transform: rotate(12deg) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-activity-pac-on {
+    animation: none;
+    opacity: 0.6;
+  }
+}
