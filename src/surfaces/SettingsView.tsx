@@ -125,6 +125,11 @@ import {
   subscribeKeybindings,
 } from "../lib/keybindings";
 import {
+  loadDefaultDockSide,
+  saveDefaultDockSide,
+  type DockSide,
+} from "../lib/projectTerminal";
+import {
   loadArchivedProjects,
   looksLikeProject,
   subscribeArchivedProjects,
@@ -322,6 +327,7 @@ function GeneralPage({
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
   );
+  const [dockSide, setDockSide] = useState<DockSide>(loadDefaultDockSide);
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
@@ -413,6 +419,11 @@ function GeneralPage({
     setClaudeHooks(next);
   };
 
+  const onDefaultDockSide = (next: DockSide) => {
+    saveDefaultDockSide(next);
+    setDockSide(next);
+  };
+
   return (
     <>
       <Row
@@ -441,6 +452,22 @@ function GeneralPage({
             { value: "unified", label: "Unified" },
           ]}
           onChange={onDiffViewer}
+        />
+      </Row>
+      <Row
+        label="Terminal dock position"
+        description="Where new project terminal docks open by default. Each dock can still be moved individually from its own header."
+      >
+        <Segmented
+          label="Terminal dock position"
+          value={dockSide}
+          options={[
+            { value: "bottom", label: "Bottom" },
+            { value: "right", label: "Right" },
+            { value: "left", label: "Left" },
+            { value: "top", label: "Top" },
+          ]}
+          onChange={onDefaultDockSide}
         />
       </Row>
       <Row

@@ -46,6 +46,28 @@ export function isDockSide(value: unknown): value is DockSide {
   );
 }
 
+const DEFAULT_DOCK_SIDE_KEY = "monocode.defaultDockSide";
+
+export const DOCK_SIDE_DEFAULT: DockSide = "bottom";
+
+/** Side used when a project gets its first terminal dock (PKmod). */
+export function loadDefaultDockSide(): DockSide {
+  try {
+    const raw = localStorage.getItem(DEFAULT_DOCK_SIDE_KEY);
+    return isDockSide(raw) ? raw : DOCK_SIDE_DEFAULT;
+  } catch {
+    return DOCK_SIDE_DEFAULT;
+  }
+}
+
+export function saveDefaultDockSide(side: DockSide): void {
+  try {
+    localStorage.setItem(DEFAULT_DOCK_SIDE_KEY, side);
+  } catch {
+    // private mode / quota
+  }
+}
+
 export function isVerticalDock(side: DockSide): boolean {
   return side === "top" || side === "bottom";
 }

@@ -98,6 +98,7 @@ import {
   closeTerminalInDock,
   createProjectTerminal,
   findProjectTerminal,
+  loadDefaultDockSide,
   mapProjectTerminal,
   nextDockTerminalTitle,
   patchProjectTerminals,
@@ -1607,7 +1608,7 @@ export default function App({
           existing ? nextDockTerminalTitle(existing, workdir) : undefined,
         );
         if (!existing) {
-          return [...prev, createProjectTerminal(projectPath, file)];
+          return [...prev, createProjectTerminal(projectPath, file, loadDefaultDockSide())];
         }
         return mapProjectTerminal(prev, projectPath, (dock) =>
           addTerminalToDock(dock, file),
