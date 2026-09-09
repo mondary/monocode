@@ -38,7 +38,6 @@ export const MONOCHROME_HARNESSES = new Set<HarnessId>([
   "openrouter",
   "nvidia",
   "pi",
-  "omp",
   "fx",
 ]);
 
