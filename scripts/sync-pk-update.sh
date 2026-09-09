@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-project_dir="/Users/clm/Documents/GitHub/CLONES/monocode"
+project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 log_file="$project_dir/pk-update.log"
 exec >>"$log_file" 2>&1
 

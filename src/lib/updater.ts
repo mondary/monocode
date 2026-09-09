@@ -37,6 +37,18 @@ export async function readAppVersion(): Promise<string> {
   }
 }
 
+async function pkUpstreamInfo(): Promise<{ tag: string; behind: number } | null> {
+  try {
+    const raw = await invoke<string>("pk_upstream_info");
+    const tag = /tag=(\S*)/.exec(raw)?.[1] ?? "";
+    const behind = Number(/behind=(\d+)/.exec(raw)?.[1] ?? "0");
+    if (!tag || !Number.isFinite(behind)) return null;
+    return { tag, behind };
+  } catch {
+    return null;
+  }
+}
+
 export async function probeForUpdate(): Promise<Update | null> {
   const update = await check();
   pendingUpdate = update;
@@ -90,8 +102,18 @@ export async function runUpdateFlow(
       const idle: UpdaterSnapshot = { phase: "idle", currentVersion };
       onProgress?.(idle);
       if (manual) {
+        const info = await pkUpstreamInfo();
+        if (info && info.behind === 0) {
+          await message(`Vous êtes sur la dernière version (${currentVersion}).`, {
+            title: "Mise à jour PKmod",
+          });
+          return idle;
+        }
+        const versionLine = info
+          ? `Version disponible : ${info.tag} (${info.behind} commit${info.behind === 1 ? "" : "s"} en retard).\n\n`
+          : "";
         await message(
-          "PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.",
+          `${versionLine}PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.`,
           { title: "Mise à jour PKmod" },
         );
         await invoke("sync_pk_upstream");

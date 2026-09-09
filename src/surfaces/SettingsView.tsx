@@ -1,6 +1,7 @@
 import {
   ArrowDownCircle,
   Check,
+  ImagePlus,
   Loader,
   RefreshCw,
   RotateCcw,
@@ -20,7 +21,11 @@ import { InboxProviderMark } from "../chrome/InboxProviderMark";
 import { RemoveProjectDialog } from "../chrome/RemoveProjectDialog";
 import { WindowControls } from "../chrome/WindowControls";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
+import { useColorScheme } from "../hooks/useColorScheme";
 import {
+  applyChatBackground,
+  applyChatBackgroundOpacity,
+  applyChatBackgroundScope,
   applyBodyGlass,
   applyThemePreference,
   applyThemePreset,
@@ -28,8 +33,16 @@ import {
   applySidebarOpacity,
   applyThemeTint,
   BODY_GLASS_DEFAULT,
+  CHAT_BACKGROUND_OPACITY_DEFAULT,
+  CHAT_BACKGROUND_OPACITY_MAX,
+  CHAT_BACKGROUND_OPACITY_MIN,
+  CHAT_BACKGROUND_SCOPE_DEFAULT,
   THEME_PREFERENCE_DEFAULT,
+  chatBackgroundSrc,
   loadBodyGlass,
+  loadChatBackgroundOpacity,
+  loadChatBackgroundPath,
+  loadChatBackgroundScope,
   loadThemePreference,
   loadThemePreset,
   loadSidebarBlur,
@@ -39,6 +52,9 @@ import {
   loadTranscriptLayout,
   loadTranscriptAnchor,
   saveBodyGlass,
+  saveChatBackgroundOpacity,
+  saveChatBackgroundPath,
+  saveChatBackgroundScope,
   saveThemePreference,
   saveThemePreset,
   saveSidebarBlur,
@@ -62,8 +78,22 @@ import {
   THEME_SATURATION_MIN,
   type ThemePreference,
   type ThemePreset,
+  type ChatBackgroundScope,
   type TranscriptLayout,
 } from "../lib/appearance";
+import {
+  pickAndSaveChatBackground,
+  removeChatBackground,
+} from "../lib/chatBackground";
+import {
+  applyUiScale,
+  loadUiScale,
+  saveUiScale,
+  subscribeUiScale,
+  UI_SCALE_DEFAULT,
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+} from "../lib/uiScale";
 import {
   getHarnessAvailabilitySnapshot,
   harnessUnavailableHint,
@@ -85,7 +115,7 @@ import {
   savePickerProviderVisible,
   subscribeModels,
 } from "../lib/models";
-import { prettyCwd, projectName } from "../lib/paths";
+import { prettyCwd, projectKey, projectName } from "../lib/paths";
 import { IS_MAC } from "../lib/platform";
 import {
   loadArchivedProjects,
@@ -107,6 +137,7 @@ import type { SessionSummary } from "../lib/sessionStore";
 import { clearInboxCache } from "../lib/githubTasks";
 import {
   disconnectLinear,
+  LINEAR_CHANGE_EVENT,
   linearConnected,
   listLinearTeams,
   loadHiddenLinearTeamIds,
@@ -140,6 +171,15 @@ import {
   type SettingsSectionId,
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
+import {
+  cachedNotificationPermission,
+  loadNotificationsEnabled,
+  openNotificationSettings,
+  probeNotificationPermission,
+  requestNotificationPermission,
+  saveNotificationsEnabled,
+  type NotificationPermission,
+} from "../lib/notifications";
 import {
   installPendingUpdate,
   readAppVersion,
@@ -280,7 +320,24 @@ function GeneralPage({
     loadLiveAgentsEnabled,
   );
   const [soundsEnabled, setSoundsEnabled] = useState(loadSoundsEnabled);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    loadNotificationsEnabled,
+  );
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission>(cachedNotificationPermission);
   const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
+
+  // The user may flip the switch in System Settings and come back: re-read
+  // the OS state whenever the window regains focus while the toggle is on.
+  useEffect(() => {
+    if (!notificationsEnabled) return;
+    const refresh = () => {
+      void probeNotificationPermission().then(setNotificationPermission);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [notificationsEnabled]);
 
   useEffect(() => {
     const onAnchor = (event: Event) => {
@@ -335,6 +392,13 @@ function GeneralPage({
   const onSoundsEnabled = (next: boolean) => {
     saveSoundsEnabled(next);
     setSoundsEnabled(next);
+  };
+
+  const onNotificationsEnabled = (next: boolean) => {
+    saveNotificationsEnabled(next);
+    setNotificationsEnabled(next);
+    if (!next) return;
+    void requestNotificationPermission().then(setNotificationPermission);
   };
 
   const onClaudeHooks = (next: boolean) => {
@@ -439,6 +503,24 @@ function GeneralPage({
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>
       <Row
+        label="Notifications"
+        description="Notify when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
+      >
+        {notificationsEnabled && notificationPermission === "denied" ? (
+          <NotificationsBlocked />
+        ) : null}
+        {notificationsEnabled && notificationPermission === "unsupported" ? (
+          <span className="text-[12px] text-content/45">
+            Not available on this platform
+          </span>
+        ) : null}
+        <Toggle
+          label="Notifications"
+          on={notificationsEnabled}
+          onChange={onNotificationsEnabled}
+        />
+      </Row>
+      <Row
         label="Claude Code hooks"
         description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
       >
@@ -486,6 +568,13 @@ function LinearSettings() {
       cancelled = true;
     };
   }, [loadTeams]);
+
+  // The inbox filter menu writes the same list, so follow it while both are mounted.
+  useEffect(() => {
+    const onChange = () => setHiddenTeamIds(loadHiddenLinearTeamIds());
+    window.addEventListener(LINEAR_CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(LINEAR_CHANGE_EVENT, onChange);
+  }, []);
 
   const onSave = async () => {
     if (!token.trim() || busy) return;
@@ -706,6 +795,21 @@ function useAppearanceSettings() {
   const [themeHue, setThemeHue] = useState(loadThemeHue);
   const [themeSaturation, setThemeSaturation] = useState(loadThemeSaturation);
   const [bodyGlass, setBodyGlass] = useState(loadBodyGlass);
+  const [chatBackgroundPath, setChatBackgroundPath] = useState(
+    loadChatBackgroundPath,
+  );
+  const [chatBackgroundOpacity, setChatBackgroundOpacity] = useState(
+    loadChatBackgroundOpacity,
+  );
+  const [chatBackgroundScope, setChatBackgroundScope] =
+    useState<ChatBackgroundScope>(loadChatBackgroundScope);
+  const [chatBackgroundBusy, setChatBackgroundBusy] = useState(false);
+  const [chatBackgroundError, setChatBackgroundError] = useState<string | null>(
+    null,
+  );
+  const [uiScale, setUiScale] = useState(loadUiScale);
+
+  useEffect(() => subscribeUiScale(() => setUiScale(loadUiScale())), []);
 
   const onThemePreference = useCallback((next: ThemePreference) => {
     applyThemePreference(next);
@@ -745,6 +849,59 @@ function useAppearanceSettings() {
     setBodyGlass(next);
   }, []);
 
+  const onChooseChatBackground = useCallback(async () => {
+    setChatBackgroundBusy(true);
+    setChatBackgroundError(null);
+    try {
+      const path = await pickAndSaveChatBackground();
+      if (!path) return;
+      saveChatBackgroundPath(path);
+      applyChatBackground(path);
+      setChatBackgroundPath(path);
+    } catch (error) {
+      setChatBackgroundError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setChatBackgroundBusy(false);
+    }
+  }, []);
+
+  const onClearChatBackground = useCallback(async () => {
+    setChatBackgroundBusy(true);
+    setChatBackgroundError(null);
+    try {
+      await removeChatBackground();
+      saveChatBackgroundPath(null);
+      applyChatBackground(null);
+      setChatBackgroundPath(null);
+    } catch (error) {
+      setChatBackgroundError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setChatBackgroundBusy(false);
+    }
+  }, []);
+
+  const onChatBackgroundOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundOpacity(percent / 100);
+    saveChatBackgroundOpacity(next);
+    setChatBackgroundOpacity(next);
+  }, []);
+
+  const onChatBackgroundScope = useCallback((next: ChatBackgroundScope) => {
+    applyChatBackgroundScope(next);
+    saveChatBackgroundScope(next);
+    setChatBackgroundScope(next);
+  }, []);
+
+  const onUiScale = useCallback((percent: number) => {
+    const next = saveUiScale(percent / 100);
+    setUiScale(next);
+    void applyUiScale(next);
+  }, []);
+
   const restoreDefaults = useCallback(() => {
     onThemePreference(THEME_PREFERENCE_DEFAULT);
     onThemePreset("default");
@@ -752,7 +909,23 @@ function useAppearanceSettings() {
     onBlur(SIDEBAR_BLUR_DEFAULT);
     onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
     onBodyGlass(BODY_GLASS_DEFAULT);
-  }, [onBlur, onBodyGlass, onThemePreference, onThemePreset, onOpacity, onTint]);
+    onChatBackgroundOpacity(Math.round(CHAT_BACKGROUND_OPACITY_DEFAULT * 100));
+    onChatBackgroundScope(CHAT_BACKGROUND_SCOPE_DEFAULT);
+    if (chatBackgroundPath) void onClearChatBackground();
+    onUiScale(Math.round(UI_SCALE_DEFAULT * 100));
+  }, [
+    chatBackgroundPath,
+    onBlur,
+    onBodyGlass,
+    onChatBackgroundOpacity,
+    onChatBackgroundScope,
+    onClearChatBackground,
+    onThemePreference,
+    onThemePreset,
+    onOpacity,
+    onTint,
+    onUiScale,
+  ]);
 
   return {
     themePreference,
@@ -762,18 +935,30 @@ function useAppearanceSettings() {
     themeHue,
     themeSaturation,
     bodyGlass,
+    chatBackgroundPath,
+    chatBackgroundOpacity,
+    chatBackgroundScope,
+    chatBackgroundBusy,
+    chatBackgroundError,
+    uiScale,
     onThemePreference,
     onThemePreset,
     onOpacity,
     onBlur,
     onTint,
     onBodyGlass,
+    onChooseChatBackground,
+    onClearChatBackground,
+    onChatBackgroundOpacity,
+    onChatBackgroundScope,
+    onUiScale,
     restoreDefaults,
   };
 }
 
 function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
   const percent = Math.round(appearance.opacity * 100);
+  const glassDisabled = useColorScheme() === "light";
 
   return (
     <>
@@ -809,7 +994,11 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
       </Row>
       <Row
         label="Sidebar opacity"
-        description="How much of the desktop shows through the sidebar and the project rail."
+        description={
+          glassDisabled
+            ? "Light mode always uses an opaque window. Your dark-mode value is preserved."
+            : "How much of the desktop shows through the sidebar and the project rail."
+        }
       >
         <Slider
           label="Sidebar opacity"
@@ -818,11 +1007,16 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
           min={Math.round(SIDEBAR_OPACITY_MIN * 100)}
           max={Math.round(SIDEBAR_OPACITY_MAX * 100)}
           onChange={appearance.onOpacity}
+          disabled={glassDisabled}
         />
       </Row>
       <Row
         label="Blur radius"
-        description="Background blur behind the window. Higher values cost more to composite."
+        description={
+          glassDisabled
+            ? "Background blur is unavailable while light mode uses an opaque window."
+            : "Background blur behind the window. Higher values cost more to composite."
+        }
       >
         <Slider
           label="Blur radius"
@@ -831,6 +1025,7 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
           min={SIDEBAR_BLUR_MIN}
           max={SIDEBAR_BLUR_MAX}
           onChange={appearance.onBlur}
+          disabled={glassDisabled}
         />
       </Row>
       <Row label="Hue" description="Base hue for accents and tinted surfaces.">
@@ -860,15 +1055,154 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
       </Row>
       <Row
         label="Main pane glass"
-        description="Extend the translucent treatment to the main pane behind sessions and editors."
+        description={
+          glassDisabled
+            ? "Main pane glass is unavailable while light mode uses an opaque window."
+            : "Extend the translucent treatment to the main pane behind sessions and editors."
+        }
       >
         <Toggle
           label="Main pane glass"
           on={appearance.bodyGlass}
           onChange={appearance.onBodyGlass}
+          disabled={glassDisabled}
+        />
+      </Row>
+      <ChatBackgroundCard appearance={appearance} />
+      <Row
+        label="Interface scale"
+        description="Zoom the whole interface. You can also use Ctrl+=, Ctrl+-, and Ctrl+0 (Cmd on macOS)."
+      >
+        <Slider
+          label="Interface scale"
+          value={Math.round(appearance.uiScale * 100)}
+          display={`${Math.round(appearance.uiScale * 100)}%`}
+          min={Math.round(UI_SCALE_MIN * 100)}
+          max={Math.round(UI_SCALE_MAX * 100)}
+          step={10}
+          onChange={appearance.onUiScale}
         />
       </Row>
     </>
+  );
+}
+
+function ChatBackgroundCard({
+  appearance,
+}: {
+  appearance: AppearanceSettings;
+}) {
+  const src = chatBackgroundSrc(appearance.chatBackgroundPath);
+  const hasImage = Boolean(appearance.chatBackgroundPath && src);
+  const visibility = Math.round(appearance.chatBackgroundOpacity * 100);
+  const busy = appearance.chatBackgroundBusy;
+
+  return (
+    <div className="border-b border-content/5 py-4 last:border-b-0">
+      <div className="flex items-start gap-6">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-content">
+            Chat background
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-content/45">
+            An image behind your chat panes. It stays on this device.
+          </p>
+        </div>
+        {hasImage ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <SecondaryButton
+              onClick={() => void appearance.onChooseChatBackground()}
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader className="size-3.5 animate-spin" aria-hidden />
+              ) : null}
+              Change
+            </SecondaryButton>
+            <SecondaryButton
+              onClick={() => void appearance.onClearChatBackground()}
+              disabled={busy}
+              danger
+            >
+              Remove
+            </SecondaryButton>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-xl border border-content/10">
+        {hasImage ? (
+          <div className="relative h-36">
+            <img
+              src={src ?? undefined}
+              alt=""
+              draggable={false}
+              className="size-full object-cover"
+              style={{ opacity: appearance.chatBackgroundOpacity }}
+            />
+            <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
+              Preview at {visibility}%
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void appearance.onChooseChatBackground()}
+            disabled={busy}
+            className="flex h-36 w-full flex-col items-center justify-center gap-2 text-content/40 hover:bg-content/5 hover:text-content/70 disabled:cursor-default disabled:opacity-40"
+          >
+            {busy ? (
+              <Loader className="size-5 animate-spin" aria-hidden />
+            ) : (
+              <ImagePlus className="size-5" aria-hidden />
+            )}
+            <span className="text-[12px]">Choose an image</span>
+          </button>
+        )}
+        {hasImage ? (
+          <div className="border-t border-content/8">
+            <div className="flex items-center justify-between gap-4 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12px] text-content">Show on</div>
+                <p className="text-[11px] text-content/40">
+                  Empty sessions only, or every conversation.
+                </p>
+              </div>
+              <Segmented
+                label="Show background on"
+                value={appearance.chatBackgroundScope}
+                options={[
+                  { value: "empty", label: "Empty only" },
+                  { value: "all", label: "All sessions" },
+                ]}
+                onChange={appearance.onChatBackgroundScope}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12px] text-content">Visibility</div>
+                <p className="text-[11px] text-content/40">
+                  Keep it subtle so long conversations stay readable.
+                </p>
+              </div>
+              <Slider
+                label="Background visibility"
+                value={visibility}
+                display={`${visibility}%`}
+                min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
+                max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
+                onChange={appearance.onChatBackgroundOpacity}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {appearance.chatBackgroundError ? (
+        <p className="mt-2 text-[12px] text-red-400">
+          {appearance.chatBackgroundError}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -1079,7 +1413,7 @@ function useArchivedProjects(): ArchivedProject[] {
 
 function archivedProjectLabel(path: string): string {
   return resolveTabGroupLabel(
-    projectName(path),
+    projectKey(path),
     loadTabGroupLabels(),
     projectName(path),
   );
@@ -1322,7 +1656,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="grid w-40 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]"
+      className="inline-grid shrink-0 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]"
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
     >
       {options.map((option) => (
@@ -1332,7 +1666,7 @@ function Segmented<T extends string>({
           role="radio"
           aria-checked={value === option.value}
           onClick={() => onChange(option.value)}
-          className={`min-w-0 rounded-[5px] px-1.5 py-1 ${
+          className={`min-w-0 whitespace-nowrap rounded-[5px] px-2.5 py-1 ${
             value === option.value
               ? "bg-content/10 text-content"
               : "text-content/50 hover:text-content"
@@ -1351,27 +1685,35 @@ function Slider({
   display,
   min,
   max,
+  step = 1,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   display: string;
   min: number;
   max: number;
+  step?: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex w-56 items-center gap-3">
+    <div
+      className={`flex w-56 items-center gap-3 ${disabled ? "opacity-40" : ""}`}
+    >
       <input
         type="range"
         min={min}
         max={max}
+        step={step}
         value={value}
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
         aria-label={label}
-        className="sidebar-opacity-slider min-w-0 flex-1"
+        disabled={disabled}
+        className="sidebar-opacity-slider min-w-0 flex-1 disabled:cursor-not-allowed"
         onChange={(event) => onChange(Number(event.target.value))}
       />
       <span className="w-10 shrink-0 text-right text-[12px] text-content tabular-nums">
@@ -1381,14 +1723,36 @@ function Slider({
   );
 }
 
+/** macOS keeps the decision after the first prompt; only System Settings can flip it. */
+function NotificationsBlocked() {
+  return (
+    <span className="flex items-center gap-2 text-[12px] text-content/45">
+      Permission needed
+      {IS_MAC ? (
+        <button
+          type="button"
+          onClick={() => {
+            void openNotificationSettings().catch(() => {});
+          }}
+          className="rounded-md border border-content/10 px-2 py-1 text-content/70 hover:bg-content/10 hover:text-content"
+        >
+          Open System Settings
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
 function Toggle({
   label,
   on,
   onChange,
+  disabled = false,
 }: {
   label: string;
   on: boolean;
   onChange: (on: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -1396,11 +1760,12 @@ function Toggle({
       role="switch"
       aria-label={label}
       aria-checked={on}
+      disabled={disabled}
       onClick={() => {
-        playCue("switch");
         onChange(!on);
+        playCue("switch");
       }}
-      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         on ? "bg-accent" : "bg-content/20"
       }`}
     >

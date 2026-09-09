@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+mod chat_background;
 mod checkpoint;
 mod cursor_store;
 mod fs;
@@ -10,6 +11,7 @@ mod linear;
 mod macos;
 mod menu;
 mod notes;
+mod notifications;
 mod project_logo;
 mod pty;
 mod rate_limits;
@@ -18,6 +20,8 @@ mod session_store;
 mod skills;
 mod window;
 mod window_transfer;
+#[cfg(windows)]
+mod windows;
 
 // Phase 1 seam: spawn / kill harness children per MonoCode thread.
 // Adapters own the protocol; this host only supervises processes.
@@ -34,7 +38,9 @@ fn default_cwd() -> String {
 
 #[tauri::command]
 fn home_dir() -> String {
-    dirs_home().unwrap_or_else(|| "~".into())
+    dirs_home()
+        .map(|home| fs::path_to_js(std::path::Path::new(&home)))
+        .unwrap_or_else(|| "~".into())
 }
 
 pub(crate) struct PasswdIdentity {
@@ -44,13 +50,35 @@ pub(crate) struct PasswdIdentity {
 }
 
 pub(crate) fn dirs_home() -> Option<String> {
-    if let Some(home) = std::env::var_os("HOME") {
-        let home = home.to_string_lossy().into_owned();
-        if !home.is_empty() {
-            return Some(home);
+    #[cfg(windows)]
+    let keys = ["USERPROFILE", "HOME"];
+    #[cfg(not(windows))]
+    let keys = ["HOME", "USERPROFILE"];
+    for key in keys {
+        if let Some(home) = std::env::var_os(key) {
+            let home = home.to_string_lossy().into_owned();
+            if !home.is_empty() {
+                return Some(home);
+            }
         }
     }
-    passwd_identity().map(|id| id.home)
+    match (std::env::var("HOMEDRIVE"), std::env::var("HOMEPATH")) {
+        (Ok(drive), Ok(path)) if !drive.is_empty() && !path.is_empty() => {
+            Some(format!("{drive}{path}"))
+        }
+        _ => passwd_identity().map(|id| id.home),
+    }
+}
+
+/// Hide the console window that Windows allocates for GUI-spawned children.
+pub(crate) fn hide_window_console(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let _ = cmd;
 }
 
 /// Finder-launched .app bundles often omit HOME/USER/SHELL. Fall back to the
@@ -129,9 +157,25 @@ fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn pk_upstream_info() -> Result<String, String> {
+    let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("git fetch -q upstream && echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main)")
+        .current_dir(project_dir)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).into_owned());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[tauri::command]
 fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/sync-pk-update.sh");
     std::process::Command::new("bash")
-        .arg("/Users/clm/Documents/GitHub/CLONES/monocode/scripts/sync-pk-update.sh")
+        .arg(script)
         .spawn()
         .map(|_| {
             app.exit(0);
@@ -141,6 +185,8 @@ fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    windows::initialize().expect("Failed to initialize Windows process safety");
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -177,7 +223,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             default_cwd,
             home_dir,
+            pk_upstream_info,
             sync_pk_upstream,
+            notifications::notification_permission,
+            notifications::request_notification_permission,
+            notifications::show_notification,
+            notifications::open_notification_settings,
             fs::list_dir,
             fs::list_project_files,
             fs::git_diff_stats,
@@ -278,6 +329,8 @@ pub fn run() {
             notes::notes_get,
             notes::notes_upsert,
             notes::notes_delete,
+            notes::notes_save_image,
+            notes::notes_image_path,
             checkpoint::session_checkpoint_ensure,
             checkpoint::session_checkpoint_prepare,
             checkpoint::session_checkpoint_capture,
@@ -292,11 +345,16 @@ pub fn run() {
             window::hide_window,
             window::destroy_window,
             window::confirm_quit,
-            window::enable_window_glass,
+            window::set_window_glass_enabled,
             window_transfer::stage_window_transfer,
             window_transfer::take_window_transfer,
+            chat_background::save_chat_background,
+            chat_background::remove_chat_background,
+            chat_background::save_project_chat_background,
+            chat_background::remove_project_chat_background,
             project_logo::save_project_logo,
             project_logo::remove_project_logo,
+            project_logo::forget_logo_file,
         ])
         .build(tauri::generate_context!())
         .expect("error while building MonoCode");
@@ -313,6 +371,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 macos::request_badge_authorization();
+                notifications::install_delegate(handle);
                 #[cfg(debug_assertions)]
                 macos::prefer_bundle_dock_icon();
             }
@@ -333,9 +392,12 @@ pub fn run() {
                 return;
             }
             api.prevent_exit();
-            // Last window destroyed (red button). Stay in the dock; ⌘Q is a
-            // separate menu handler and arrives with an exit code.
+            // Last window destroyed (red button). Stay in the dock on macOS;
+            // ⌘Q is a separate menu handler and arrives with an exit code.
+            // Windows has no dock, so the last close is a quit.
             if code.is_none() {
+                #[cfg(target_os = "windows")]
+                window::request_quit(handle);
                 return;
             }
             window::request_quit(handle);

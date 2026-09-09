@@ -72,6 +72,7 @@ import type {
   UserQuestionPrompt,
   UserQuestionReply,
 } from "../lib/userQuestion";
+import { isImeComposition } from "../lib/keyboard";
 import {
   createBlankSkill,
   rankSkills,
@@ -98,7 +99,7 @@ import { ModelPicker } from "./ModelPicker";
 import { ModelSettings } from "./ModelSettings";
 import { QuestionForm } from "./QuestionForm";
 import { SkillPicker } from "./SkillPicker";
-import { projectName } from "../lib/paths";
+import { projectKey } from "../lib/paths";
 import { consumeQuoteRequest, type QuoteRequest } from "../lib/quoteDraft";
 import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
@@ -136,6 +137,8 @@ type Props = {
   branch?: string;
   recents?: RecentProject[];
   hideProjectPicker?: boolean;
+  hideBranchPicker?: boolean;
+  hideTopBar?: boolean;
   context?: ContextUsage;
   compactSupported?: boolean;
   quoteRequest?: QuoteRequest;
@@ -300,6 +303,7 @@ function MessageQueue({
                     rows={1}
                     onChange={(event) => setEditDraft(event.target.value)}
                     onKeyDown={(event) => {
+                      if (isImeComposition(event.nativeEvent)) return;
                       if (event.key === "Escape") {
                         event.preventDefault();
                         cancelEdit();
@@ -388,6 +392,8 @@ export function Composer({
   branch,
   recents = [],
   hideProjectPicker = false,
+  hideBranchPicker = false,
+  hideTopBar = false,
   context,
   compactSupported = false,
   quoteRequest,
@@ -464,7 +470,7 @@ export function Composer({
     () => busy && loadComposerRunner(),
   );
   const groupLogos = useTabGroupLogos();
-  const projectLogoPath = resolveTabGroupLogo(projectName(cwd), groupLogos);
+  const projectLogoPath = resolveTabGroupLogo(projectKey(cwd), groupLogos);
 
   slashRef.current = slash;
   mentionRef.current = mention;
@@ -500,7 +506,9 @@ export function Composer({
     ],
     [skills],
   );
-  const skillLimit = hasNativeCommands(harness) ? Number.POSITIVE_INFINITY : undefined;
+  const skillLimit = hasNativeCommands(harness)
+    ? Number.POSITIVE_INFINITY
+    : undefined;
   const rankedSkills = rankSkills(slashItems, slash?.query ?? "", skillLimit);
   const attachmentsSupported = harnessSupportsAttachments(harness);
   const skillNames = useMemo(
@@ -734,7 +742,8 @@ export function Composer({
         setCreatingSkill(false);
         return;
       }
-      const planCommand = skill.kind === "builtin" && skill.name === PLAN_COMMAND.name;
+      const planCommand =
+        skill.kind === "builtin" && skill.name === PLAN_COMMAND.name;
       const next = planCommand
         ? `${el.value.slice(0, token.start)}${el.value
             .slice(token.end)
@@ -934,6 +943,7 @@ export function Composer({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isImeComposition(e.nativeEvent)) return;
     if (creatingSkill) return;
 
     if (mentionOpen) {
@@ -1140,7 +1150,7 @@ export function Composer({
         <div
           ref={boxRef}
           data-composer-box
-          className={`relative z-10 rounded-lg border bg-content/3 ${
+          className={`relative z-10 rounded-lg border bg-content/3 backdrop-blur-sm ${
             fileDrag
               ? "border-accent/60"
               : "border-content/10 has-focus:border-content/20"
@@ -1151,33 +1161,37 @@ export function Composer({
               Drop files to attach
             </div>
           ) : null}
-          <div className="flex min-w-0 items-center gap-2.5 px-3 pt-2.5">
-            {hideProjectPicker ? null : (
-              <CwdPicker
-                cwd={cwd}
-                recents={recents}
-                projectLogoPath={projectLogoPath}
-                enabled={enabled}
-                onCwdChange={onCwdChange}
-                onNewTerminal={onNewTerminal}
-                onClose={() => ref.current?.focus()}
-              />
-            )}
-            <BranchPicker
-              cwd={cwd}
-              branch={branch}
-              enabled={enabled && !busy}
-              onChange={onBranchChange}
-              onClose={() => ref.current?.focus()}
-            />
-            <div className="ml-auto flex shrink-0 items-center">
-              <ContextMeter
-                usage={context}
-                onCompact={compactSupported ? onCompactContext : undefined}
-                compactDisabled={busy}
-              />
+          {hideTopBar ? null : (
+            <div className="flex min-w-0 items-center gap-2.5 px-3 pt-2.5">
+              {hideProjectPicker ? null : (
+                <CwdPicker
+                  cwd={cwd}
+                  recents={recents}
+                  projectLogoPath={projectLogoPath}
+                  enabled={enabled}
+                  onCwdChange={onCwdChange}
+                  onNewTerminal={onNewTerminal}
+                  onClose={() => ref.current?.focus()}
+                />
+              )}
+              {hideBranchPicker ? null : (
+                <BranchPicker
+                  cwd={cwd}
+                  branch={branch}
+                  enabled={enabled && !busy}
+                  onChange={onBranchChange}
+                  onClose={() => ref.current?.focus()}
+                />
+              )}
+              <div className="ml-auto flex shrink-0 items-center">
+                <ContextMeter
+                  usage={context}
+                  onCompact={compactSupported ? onCompactContext : undefined}
+                  compactDisabled={busy}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {attachments.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2">
@@ -1234,7 +1248,7 @@ export function Composer({
                     : handoffCard
                       ? "Add context, or send to continue…"
                       : shell
-                        ? "How can I help you today?"
+                        ? "Ask, build, / for commands, @ for references... "
                         : "Ask, build, / for commands, @ for references... "
               }
               className={`composer-field scrollbar-none relative max-h-40 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
@@ -1492,7 +1506,7 @@ function ComposerAction({
             title="Send"
             aria-label="Send"
             onClick={onSend}
-            className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+            className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
           >
             <ArrowUp className="size-3.5" strokeWidth={2.25} />
           </button>
@@ -1517,7 +1531,7 @@ function ComposerAction({
       aria-label="Send"
       disabled={!hasValue}
       onClick={onSend}
-      className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90 disabled:cursor-default disabled:bg-white/30 disabled:text-black/40 disabled:hover:bg-white/30"
+      className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90 disabled:cursor-default disabled:bg-white/30 disabled:text-black/40 disabled:hover:bg-white/30"
     >
       <ArrowUp className="size-3.5" strokeWidth={2.25} />
     </button>

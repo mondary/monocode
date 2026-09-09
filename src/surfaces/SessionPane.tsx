@@ -6,10 +6,13 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Composer } from "../chrome/Composer";
+import { DiscussionEmpty } from "../chrome/DiscussionEmpty";
 import { SessionReview } from "../chrome/SessionReview";
+import { PromptOutline } from "../chrome/PromptOutline";
 import {
   canCompactHarnessContext,
   type ApprovalDecision,
@@ -41,6 +44,17 @@ import { loadNotesEnabled, subscribeNotesEnabled } from "../lib/settings";
 import { resolveModel } from "../lib/models";
 import { isAstraModel } from "../lib/astraWelcome";
 import { AstraWelcome } from "./AstraWelcome";
+import { projectKey } from "../lib/paths";
+import {
+  loadProjectChatBackground,
+  projectChatBackgroundRevision,
+  subscribeProjectChatBackground,
+} from "../lib/projectChatBackground";
+import { projectChatBackgroundSrc } from "../lib/chatBackground";
+import {
+  loadChatBackgroundPath,
+  subscribeChatBackgroundPath,
+} from "../lib/appearance";
 
 type Props = {
   session: Session;
@@ -159,6 +173,25 @@ export const SessionPane = memo(function SessionPane({
   onPaneDragStart,
 }: Props) {
   const title = sessionDisplayTitle(session.title, session.harness);
+  const backgroundRevision = useSyncExternalStore(
+    subscribeProjectChatBackground,
+    projectChatBackgroundRevision,
+    projectChatBackgroundRevision,
+  );
+  const globalBackgroundPath = useSyncExternalStore(
+    subscribeChatBackgroundPath,
+    loadChatBackgroundPath,
+    loadChatBackgroundPath,
+  );
+  const projectBackground = loadProjectChatBackground(projectKey(session.cwd));
+  const projectBackgroundStyle = projectBackground
+    ? ({
+        "--chat-background-image": `url(${JSON.stringify(
+          projectChatBackgroundSrc(projectBackground.path, backgroundRevision),
+        )})`,
+        "--chat-background-opacity": String(projectBackground.opacity),
+      } as CSSProperties)
+    : undefined;
   const approve = useCallback(
     (requestId: number, decision: ApprovalDecision) =>
       onApproval(session.id, requestId, decision),
@@ -179,6 +212,7 @@ export const SessionPane = memo(function SessionPane({
     [onBuildPlan, session.id],
   );
   const jumpToBottomRef = useRef<(() => void) | null>(null);
+  const transcriptScope = useRef<HTMLDivElement>(null);
   const quoteRequestId = useRef(0);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const astraWelcomeSequence = useRef(0);
@@ -191,6 +225,14 @@ export const SessionPane = memo(function SessionPane({
   const onJumpToBottomReady = useCallback((jump: () => void) => {
     jumpToBottomRef.current = jump;
   }, []);
+  const revealBlockRef = useRef<((blockId: string) => boolean) | null>(null);
+  const onRevealReady = useCallback((reveal: (blockId: string) => boolean) => {
+    revealBlockRef.current = reveal;
+  }, []);
+  const revealBlock = useCallback(
+    (blockId: string) => revealBlockRef.current?.(blockId) ?? false,
+    [],
+  );
   const addSelectionToChat = useCallback(
     (text: string, mode?: QuoteRequest["mode"]) => {
       quoteRequestId.current += 1;
@@ -235,7 +277,7 @@ export const SessionPane = memo(function SessionPane({
   const workCwd = sessionWorkCwd(session);
   const isEmpty = session.blocks.length === 0;
   const showDeckProjectPicker = isEmpty && !looksLikeProject(session.cwd);
-  const dockComposer = !isEmpty || inSplit;
+  const dockComposer = !isEmpty || inSplit || !!session.inboxAsk;
   const draftRef = useRef<string | undefined>(undefined);
   const composer = (
     <Composer
@@ -252,7 +294,12 @@ export const SessionPane = memo(function SessionPane({
       sessionId={session.id}
       compactSupported={canCompactHarnessContext(session.harness)}
       recents={recents}
-      hideProjectPicker={hideProjectPicker ? !showDeckProjectPicker : false}
+      hideProjectPicker={
+        !!session.inboxAsk ||
+        (hideProjectPicker ? !showDeckProjectPicker : false)
+      }
+      hideBranchPicker={!!session.inboxAsk}
+      hideTopBar={!!session.inboxAsk}
       context={session.context}
       quoteRequest={quoteRequest}
       initialDraft={
@@ -312,21 +359,27 @@ export const SessionPane = memo(function SessionPane({
       onOpenFile={onOpenFile}
       busy={!!session.busy}
     >
-      <SessionReview
-        sessionId={session.id}
-        cwd={workCwd}
-        enabled={visible}
-        busy={!!session.busy}
-        undoLocked={reviewUndoLocked}
-        onOpenDiff={onOpenDiff}
-      />
+      {session.inboxAsk ? null : (
+        <SessionReview
+          sessionId={session.id}
+          cwd={workCwd}
+          enabled={visible}
+          busy={!!session.busy}
+          undoLocked={reviewUndoLocked}
+          onOpenDiff={onOpenDiff}
+        />
+      )}
     </Composer>
   );
 
   return (
     <div
       data-session-drop={session.id}
-      className="relative isolate flex h-full min-h-0 min-w-0 flex-1 flex-col"
+      data-session-empty={isEmpty}
+      data-project-chat-background={!!projectBackground}
+      data-project-background-scope={projectBackground?.scope}
+      style={projectBackgroundStyle}
+      className="chat-pane-background relative isolate flex h-full min-h-0 min-w-0 flex-1 flex-col"
       onMouseDown={() => onFocus(session.id)}
     >
       {astraWelcomeRun !== null && visible ? (
@@ -379,12 +432,21 @@ export const SessionPane = memo(function SessionPane({
           </button>
         </div>
       ) : null}
-      <div className="relative min-h-0 flex-1">
+      <div ref={transcriptScope} className="@container relative min-h-0 flex-1">
         {isEmpty ? (
-          <EmptySession
-            cwd={session.cwd}
-            composer={dockComposer ? undefined : composer}
-          />
+          session.inboxAsk ? (
+            <div className="scrollbar-none h-full min-h-0 overflow-y-auto">
+              <DiscussionEmpty message="Explore this item with your agent." />
+            </div>
+          ) : (
+            <EmptySession
+              cwd={session.cwd}
+              hasChatBackground={Boolean(
+                projectBackground || globalBackgroundPath,
+              )}
+              composer={dockComposer ? undefined : composer}
+            />
+          )
         ) : (
           <>
             <AgentTranscript
@@ -403,19 +465,32 @@ export const SessionPane = memo(function SessionPane({
               onOpenPlan={openPlan}
               onBuildPlan={buildPlan}
               onSecondOpinion={
-                onSecondOpinion
+                !session.inboxAsk && onSecondOpinion
                   ? (harness, turn, model) =>
                       onSecondOpinion(session.id, harness, turn, model)
                   : undefined
               }
               onHandoff={
-                onHandoff
+                !session.inboxAsk && onHandoff
                   ? (harness, turn, model) =>
                       onHandoff(session.id, harness, turn, model)
                   : undefined
               }
               onJumpToBottomChange={setShowJumpToBottom}
               onJumpToBottomReady={onJumpToBottomReady}
+              onRevealReady={onRevealReady}
+            />
+            {/* Layered blur that carries scrolled content into the title bar. */}
+            <div className="transcript-top-fade" aria-hidden="true">
+              <div />
+              <div />
+              <div />
+            </div>
+            <PromptOutline
+              blocks={session.blocks}
+              scope={transcriptScope}
+              visible={visible}
+              revealBlock={revealBlock}
             />
             {showJumpToBottom ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-2 z-30 flex justify-center">
