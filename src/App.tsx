@@ -100,6 +100,7 @@ import {
   createProjectTerminal,
   findProjectTerminal,
   loadDefaultDockSide,
+  loadDefaultTerminalPlacement,
   mapProjectTerminal,
   nextDockTerminalTitle,
   patchProjectTerminals,
@@ -1645,7 +1646,10 @@ export default function App({
   const onOpenTerminal = useCallback(
     (cwd: string, asWorkspaceTab = false, occupySessionId?: string) => {
       const workdir = cwd || active?.cwd || projectCwd;
-      if (openProjectTerminal(workdir)) return;
+      const placement = loadDefaultTerminalPlacement();
+      if (!asWorkspaceTab && placement !== "tab" && openProjectTerminal(workdir)) {
+        return;
+      }
 
       if (asWorkspaceTab || !activeTab) {
         const file = newTerminalFile(workdir);

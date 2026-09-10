@@ -129,9 +129,9 @@ import {
   subscribeKeybindings,
 } from "../lib/keybindings";
 import {
-  loadDefaultDockSide,
-  saveDefaultDockSide,
-  type DockSide,
+  loadDefaultTerminalPlacement,
+  saveDefaultTerminalPlacement,
+  type TerminalPlacement,
 } from "../lib/projectTerminal";
 import {
   loadArchivedProjects,
@@ -339,7 +339,9 @@ function GeneralPage({
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
   );
-  const [dockSide, setDockSide] = useState<DockSide>(loadDefaultDockSide);
+  const [dockSide, setDockSide] = useState<TerminalPlacement>(
+    loadDefaultTerminalPlacement,
+  );
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
@@ -431,8 +433,8 @@ function GeneralPage({
     setClaudeHooks(next);
   };
 
-  const onDefaultDockSide = (next: DockSide) => {
-    saveDefaultDockSide(next);
+  const onDefaultDockSide = (next: TerminalPlacement) => {
+    saveDefaultTerminalPlacement(next);
     setDockSide(next);
   };
 
@@ -478,6 +480,7 @@ function GeneralPage({
             { value: "right", label: "Right" },
             { value: "left", label: "Left" },
             { value: "top", label: "Top" },
+            { value: "tab", label: "Terminal tab" },
           ]}
           onChange={onDefaultDockSide}
         />
