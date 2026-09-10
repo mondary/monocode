@@ -37,6 +37,7 @@ import {
 } from "./lib/uiScale";
 import { runUpdateFlow } from "./lib/updater";
 import { displayAttachments, prepareAttachments } from "./lib/attachments";
+import { activeTerminalIds } from "./lib/terminalActivity";
 import {
   basename,
   notifyGitChanged,
@@ -589,6 +590,26 @@ export default function App({
   const [projectTerminals, setProjectTerminals] = useState<ProjectTerminal[]>(
     () => windowTransfer?.projectTerminals ?? resumed?.projectTerminals ?? [],
   );
+  const [terminalActivityTick, setTerminalActivityTick] = useState(0);
+  useEffect(() => {
+    if (projectTerminals.length === 0) return;
+    const timer = window.setInterval(() => {
+      setTerminalActivityTick((value) => value + 1);
+    }, 300);
+    return () => window.clearInterval(timer);
+  }, [projectTerminals.length]);
+  const terminalBusyProjectPaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const dock of projectTerminals) {
+      const terminalFiles = dock.pane.files.filter((file) => file.terminal);
+      const activeIds = activeTerminalIds(
+        terminalFiles.map((file) => file.id),
+      );
+      const running = terminalFiles.some((file) => file.foreground?.trim());
+      if (running || activeIds.length > 0) paths.add(dock.projectPath);
+    }
+    return paths;
+  }, [projectTerminals, terminalActivityTick]);
   const [projectTerminalFocused, setProjectTerminalFocused] = useState(false);
   const [activeTabId, setActiveTabId] = useState(
     () => windowTransfer?.activeTabId ?? resumed?.activeTabId ?? seed.tab.id,
@@ -5355,9 +5376,12 @@ export default function App({
         selectedCommitSha={activeTab ? selectedCommitSha(activeTab) : undefined}
         textHarness={pickTextHarness(active?.harness)}
         recents={recents}
-        busyProjectPaths={sessions.flatMap((session) =>
-          session.busy && session.cwd ? [session.cwd] : [],
-        )}
+        busyProjectPaths={[
+          ...sessions.flatMap((session) =>
+            session.busy && session.cwd ? [session.cwd] : [],
+          ),
+          ...terminalBusyProjectPaths,
+        ]}
         liveAgents={liveAgents}
         onSelectAgent={onSelectLiveAgent}
         onSelectProject={onSelectProject}
