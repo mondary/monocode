@@ -46,13 +46,21 @@ PK_SIGN_IDENTITY="$sign_identity" node -e '
 '
 
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+build_start=$(date +%s)
 set +e
 npm run tauri -- build --bundles app --config "$overlay"
 build_status=$?
 set -e
-
 if [[ ! -d "$source_app" ]]; then
   echo "Build completed but app bundle was not found: $source_app" >&2
+  exit 1
+fi
+
+# Un compile error leaves the previous bundle in place; tauri exits nonzero
+# for late updater-signing errors too. Distinguish them by bundle freshness:
+# only a bundling pass that ran after the build started can be trusted.
+if [[ "$(stat -f %m "$source_app")" -lt "$build_start" ]]; then
+  echo "Build failed and the bundle in target/ is stale (not rebuilt); aborting install." >&2
   exit 1
 fi
 

@@ -1,4 +1,6 @@
 <!-- MONOCODE-PK-START -->
+<p align="center"><img src="public/monocode-pk.png" alt="MonoCode PK" width="88" /></p>
+
 # MonoCode PK
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
