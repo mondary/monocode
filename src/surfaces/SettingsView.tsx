@@ -233,7 +233,7 @@ type Props = {
   onDeleteSession: (sessionId: string) => void;
   onRestoreProject?: (path: string) => void;
   onDeleteProject?: (path: string) => void;
-  onOpenWhatsNew: (version: string) => void;
+  onOpenWhatsNew: () => void;
 };
 
 export function SettingsView({
@@ -347,7 +347,7 @@ export function SettingsView({
 function GeneralPage({
   onOpenWhatsNew,
 }: {
-  onOpenWhatsNew: (version: string) => void;
+  onOpenWhatsNew: () => void;
 }) {
   const [transcriptLayout, setTranscriptLayout] =
     useState<TranscriptLayout>(loadTranscriptLayout);
@@ -502,6 +502,9 @@ function GeneralPage({
 
   return (
     <>
+      <Heading title="About" />
+      <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
+
       <Row
         label="Transcript layout"
         description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
@@ -711,9 +714,6 @@ function GeneralPage({
 
       <Heading title="Linear" />
       <LinearSettings />
-
-      <Heading title="About" />
-      <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
     </>
   );
 }
@@ -1010,7 +1010,7 @@ function LinearSettings() {
 function UpdateRow({
   onOpenWhatsNew,
 }: {
-  onOpenWhatsNew: (version: string) => void;
+  onOpenWhatsNew: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<UpdaterSnapshot>({
     phase: "idle",
@@ -1043,19 +1043,20 @@ function UpdateRow({
 
   const status =
     snapshot.phase === "available"
-      ? `Version ${snapshot.availableVersion} is available.`
+      ? `Official MonoCode ${snapshot.availableVersion} is available.`
       : snapshot.phase === "downloading"
         ? `Downloading${snapshot.progress != null ? ` ${snapshot.progress}%` : "…"}`
         : snapshot.phase === "checking"
-          ? "Checking for updates…"
+          ? "Checking official MonoCode and MonoCodePK updates…"
           : snapshot.phase === "current"
-            ? "You're on the latest version."
+            ? "Official MonoCode and MonoCodePK are up to date."
             : snapshot.phase === "error"
               ? (snapshot.error ?? "Update check failed.")
-              : "MonoCode updates itself from the release feed.";
+              : "Checks official MonoCode releases and MonoCodePK updates.";
 
   return (
     <Row
+      pk
       label={
         <span className="flex flex-col gap-0.5">
           <span>
@@ -1076,7 +1077,7 @@ function UpdateRow({
     >
       <div className="flex items-center gap-2">
         <SecondaryButton
-          onClick={() => onOpenWhatsNew(snapshot.currentVersion)}
+          onClick={() => onOpenWhatsNew()}
           disabled={snapshot.currentVersion === "…"}
         >
           What's new

@@ -3953,6 +3953,60 @@ pub fn reveal_path(path: String) -> Result<(), String> {
     }
 }
 
+/// Opens the repository root itself instead of selecting it in its parent.
+/// `reveal_path` intentionally uses `open -R` for files and menu targets;
+/// Explorer's workspace action needs the folder containing `.git` opened.
+#[tauri::command]
+pub fn open_project_path(path: String) -> Result<(), String> {
+    let requested = expand_home(&path);
+    let start = if requested.is_dir() {
+        requested
+    } else {
+        requested
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| format!("{}: No containing directory", requested.display()))?
+    };
+    if !start.exists() {
+        return Err(format!("{}: No such file or directory", start.display()));
+    }
+    let root = git_stdout(&start, &["rev-parse", "--show-toplevel"])
+        .map(PathBuf::from)
+        .filter(|candidate| candidate.is_dir())
+        .unwrap_or(start);
+    #[cfg(target_os = "macos")]
+    {
+        let root_str = root.to_str().ok_or_else(|| "Invalid path".to_string())?;
+        let status = Command::new("open")
+            .arg(root_str)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Could not open the project in Finder.".into());
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(root.to_string_lossy().as_ref())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let status = Command::new("xdg-open")
+            .arg(&root)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Could not open the project folder.".into());
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

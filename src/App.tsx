@@ -35,7 +35,8 @@ import {
   zoomInUiScale,
   zoomOutUiScale,
 } from "./lib/uiScale";
-import { runUpdateFlow } from "./lib/updater";
+import { readAppVersion, runUpdateFlow } from "./lib/updater";
+import { PK_VERSION } from "./lib/pkVersion";
 import { displayAttachments, prepareAttachments } from "./lib/attachments";
 import { activeTerminalIds } from "./lib/terminalActivity";
 import {
@@ -91,7 +92,7 @@ import {
   type SplitDir,
   type WorkspaceTab,
 } from "./lib/layout";
-import { releaseNotesForVersion, releaseNotesTitle } from "./lib/releaseNotes";
+import { releaseNotesTitle } from "./lib/releaseNotes";
 import { mergeOrderedSubset, orderByIds } from "./lib/reorder";
 import {
   addTerminalToDock,
@@ -660,7 +661,10 @@ export default function App({
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateNotice, setUpdateNotice] = useState(installedUpdate);
-  const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
+  const [whatsNew, setWhatsNew] = useState<{
+    official: string;
+    pk: string;
+  } | null>(null);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSectionId>(loadSettingsSection);
   const [editorNavigation, setEditorNavigation] =
@@ -721,8 +725,8 @@ export default function App({
   const sessionNavigationIdsRef = useRef<readonly string[]>([]);
   const filePickerOpenRef = useRef(filePickerOpen);
   filePickerOpenRef.current = filePickerOpen;
-  const whatsNewVersionRef = useRef(whatsNewVersion);
-  whatsNewVersionRef.current = whatsNewVersion;
+  const whatsNewRef = useRef(whatsNew);
+  whatsNewRef.current = whatsNew;
 
   useEffect(() => {
     if (!notesEnabled) setNotesViewOpen(false);
@@ -1430,16 +1434,9 @@ export default function App({
     [projectOfTab],
   );
 
-  const onOpenWhatsNew = useCallback((version: string) => {
-    const document = releaseNotesForVersion(version);
-    if (!document) {
-      void message(
-        "Release notes for this version are not available in this build.",
-        { title: "MonoCode" },
-      );
-      return;
-    }
-    setWhatsNewVersion(document.source.version);
+  const onOpenWhatsNew = useCallback(async () => {
+    const official = await readAppVersion();
+    setWhatsNew({ official, pk: PK_VERSION });
   }, []);
 
   const onNew = useCallback(() => {
@@ -3059,7 +3056,7 @@ export default function App({
             notesViewOpenRef.current ||
             settingsOpenRef.current ||
             filePickerOpenRef.current ||
-            whatsNewVersionRef.current,
+            whatsNewRef.current,
           ),
         },
         (sessionId) => {
@@ -5097,7 +5094,7 @@ export default function App({
             notesViewOpenRef.current ||
             settingsOpenRef.current ||
             filePickerOpenRef.current ||
-            Boolean(whatsNewVersionRef.current);
+            Boolean(whatsNewRef.current);
           if (
             !shouldHandleListNavigation({
               blockedTarget,
@@ -5745,10 +5742,11 @@ export default function App({
         onFocusSession={onOpenApprovalSession}
         onApproval={onApproval}
       />
-      {whatsNewVersion ? (
+      {whatsNew ? (
         <WhatsNewDialog
-          version={whatsNewVersion}
-          onClose={() => setWhatsNewVersion(null)}
+          officialVersion={whatsNew.official}
+          pkVersion={whatsNew.pk}
+          onClose={() => setWhatsNew(null)}
         />
       ) : null}
     </div>

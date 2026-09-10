@@ -5,7 +5,11 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.1**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.5**.
+
+<p align="center">
+  <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
+</p>
 
 ## ✅ Fonctionnalités
 
@@ -14,8 +18,9 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
 - **Raccourcis clavier personnalisables** : page Settings dédiée, capture native des touches, détection de conflits, menu natif reconstruit à la volée.
 - **Terminal** : position du dock configurable, pac d'activité dans le header, vrais onglets terminal, sous-onglets masqués, mascot animée dans le rail pendant l'activité.
 - **Navigation** : cycle global des onglets chat/terminal (⌘⌥ flèches), commits non poussés affichés et ouverture du dépôt distant.
-- **Interface** : version PK (CalVer) affichée dans Settings, pile de versions dans About, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
-- **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence.
+- **Interface** : version PK (CalVer) affichée dans Settings, About en tête de General avec badge PK, nouveautés officielles et PK côte à côte, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
+- **Mises à jour** : vérification séparée de MonoCode officiel et MonoCodePK, commits PK disponibles sur GitHub et commits locaux non poussés signalés.
+- **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence, ouverture directe de la racine Git du workspace dans Finder.
 
 ## 🧠 Utilisation
 

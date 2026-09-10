@@ -304,6 +304,7 @@ pub fn run() {
             fs::copy_path,
             fs::move_path,
             fs::reveal_path,
+            fs::open_project_path,
             fs::clone_repo,
             fs::read_file_preview,
             fs::stat_files,

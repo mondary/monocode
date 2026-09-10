@@ -347,6 +347,10 @@ export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
 }
 
+export function openProjectPath(path: string): Promise<void> {
+  return invoke<void>("open_project_path", { path });
+}
+
 export function homeDir(): Promise<string> {
   return invoke<string>("home_dir");
 }

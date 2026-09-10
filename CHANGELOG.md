@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.5] - 2026-09-10
+
+### Added
+
+- General settings now starts with the About and update block, marked with a PK badge; What's new opens official MonoCode and MonoCodePK release notes side by side.
+- Explorer's Finder button opens the Git repository root that contains `.git`.
+
+### Changed
+
+- The update status copy distinguishes official MonoCode releases from MonoCodePK updates.
+- README includes the supplied MonoCodePK workspace capture.
+
 ## [2026.09.4] - 2026-09-10
 
 ### Changed

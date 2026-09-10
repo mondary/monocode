@@ -48,6 +48,7 @@ import {
   createPath,
   deletePath,
   movePath,
+  openProjectPath,
   renamePath,
   revealPath,
   type FsEntry,
@@ -667,7 +668,7 @@ export const FileTree = memo(function FileTree({
           <HeaderIcon
             label={REVEAL_LABEL}
             onClick={() => {
-              void run(() => revealPath(cwd));
+              void run(() => openProjectPath(cwd));
             }}
           >
             <FolderOpen className="size-3.5" strokeWidth={1.75} />
