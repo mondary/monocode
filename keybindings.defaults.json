@@ -99,13 +99,13 @@
     "label": "Tab: Cycle Next",
     "group": "Tab",
     "when": "Always",
-    "binding": "Ctrl+Tab"
+    "binding": "CmdOrCtrl+Alt+Right"
   },
   "cycle_prev_tab": {
     "label": "Tab: Cycle Previous",
     "group": "Tab",
     "when": "Always",
-    "binding": "Ctrl+Shift+Tab"
+    "binding": "CmdOrCtrl+Alt+Left"
   },
   "back_tab": {
     "label": "Tab: Back",
@@ -123,13 +123,13 @@
     "label": "Session: Previous",
     "group": "Session",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Alt+Left"
+    "binding": "CmdOrCtrl+Shift+Left"
   },
   "next_session": {
     "label": "Session: Next",
     "group": "Session",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Alt+Right"
+    "binding": "CmdOrCtrl+Shift+Right"
   },
   "archive_session": {
     "label": "Session: Archive",

@@ -110,13 +110,13 @@ describe("tabCommand", () => {
     ).toBe("next");
   });
 
-  it("uses alt arrows for session and project navigation", () => {
+  it("cycles chat and terminal tabs with alt arrows", () => {
     expect(
       tabCommand(key({ key: "ArrowLeft", metaKey: true, altKey: true })),
-    ).toBe("prev-session");
+    ).toBe("cycle-prev");
     expect(
       tabCommand(key({ key: "ArrowRight", metaKey: true, altKey: true })),
-    ).toBe("next-session");
+    ).toBe("cycle-next");
     expect(
       tabCommand(key({ key: "ArrowUp", metaKey: true, altKey: true })),
     ).toBe("prev-project");

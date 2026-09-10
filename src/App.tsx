@@ -2310,6 +2310,43 @@ export default function App({
     }
   }, [activateTab, activeTabId, deckProjectTabs]);
 
+  const cycleProjectTabs = useCallback(
+    (delta: 1 | -1) => {
+      const chatIds = deckProjectTabs.map((tab) => tab.id);
+      const terminalIds = currentProjectDock?.pane.files
+        .filter((file) => file.terminal)
+        .map((file) => file.id) ?? [];
+      const ids = [...chatIds, ...terminalIds];
+      if (ids.length === 0) return;
+
+      const currentId = projectTerminalFocused
+        ? currentProjectDock?.pane.activeFileId
+        : activeTabId;
+      const current = currentId ? ids.indexOf(currentId) : -1;
+      const index = current < 0 ? (delta > 0 ? 0 : ids.length - 1) : current;
+      const next = ids[(index + delta + ids.length) % ids.length];
+      if (!next) return;
+
+      if (terminalIds.includes(next)) {
+        onSelectProjectTerminal(next);
+      } else {
+        setProjectTerminalFocused(false);
+        activateTab(next);
+      }
+    },
+    [
+      activateTab,
+      activeTabId,
+      currentProjectDock,
+      deckProjectTabs,
+      onSelectProjectTerminal,
+      projectTerminalFocused,
+    ],
+  );
+
+  const onCycleNext = useCallback(() => cycleProjectTabs(1), [cycleProjectTabs]);
+  const onCyclePrev = useCallback(() => cycleProjectTabs(-1), [cycleProjectTabs]);
+
   const onVisitBack = useCallback(() => {
     const openIds = new Set(tabsRef.current.map((tab) => tab.id));
     const pruned = pruneTabVisitHistory(
@@ -4944,6 +4981,8 @@ export default function App({
     onArchiveFocusedSession,
     onCloseOtherTabs,
     onClosePane,
+    onCycleNext,
+    onCyclePrev,
     onNext,
     onPrev,
     onVisitBack,
@@ -4971,6 +5010,8 @@ export default function App({
     onArchiveFocusedSession,
     onCloseOtherTabs,
     onClosePane,
+    onCycleNext,
+    onCyclePrev,
     onNext,
     onPrev,
     onVisitBack,
@@ -5094,6 +5135,8 @@ export default function App({
         else if (cmd === "close-others")
           run("close-others", a.onCloseOtherTabs);
         else if (cmd === "close") run("close", a.onClosePane);
+        else if (cmd === "cycle-next") run("cycle-next", a.onCycleNext);
+        else if (cmd === "cycle-prev") run("cycle-prev", a.onCyclePrev);
         else if (cmd === "next") run("next", a.onNext);
         else if (cmd === "prev") run("prev", a.onPrev);
         else if (cmd === "back") run("back", a.onVisitBack);

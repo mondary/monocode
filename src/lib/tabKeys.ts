@@ -11,8 +11,8 @@
  *   Forward in history  cmd-]
  *   Activate tab 1–8    cmd-1 … cmd-8
  *   Last tab            cmd-9
- *   Cycle next tab      ctrl-tab
- *   Cycle previous tab  ctrl-shift-tab
+ *   Cycle next tab      cmd-opt-right
+ *   Cycle previous tab  cmd-opt-left
  *   Focus pane          cmd-opt-arrows
  *   New terminal        cmd-`
  *   New terminal tab    shift-cmd-`
@@ -37,6 +37,8 @@ export type TabCommand =
   | "close"
   | "next"
   | "prev"
+  | "cycle-next"
+  | "cycle-prev"
   | "back"
   | "forward"
   | "split-right"
@@ -60,8 +62,8 @@ export type TabCommand =
 export function tabCommand(e: KeyboardEvent): TabCommand | null {
   if (e.isComposing) return null;
 
-  if (matchesAction(e, "cycle_next_tab")) return "next";
-  if (matchesAction(e, "cycle_prev_tab")) return "prev";
+  if (matchesAction(e, "cycle_next_tab")) return "cycle-next";
+  if (matchesAction(e, "cycle_prev_tab")) return "cycle-prev";
   if (matchesAction(e, "close_other_tabs")) return "close-others";
   if (matchesAction(e, "focus_left")) return { focus: "left" };
   if (matchesAction(e, "focus_right")) return { focus: "right" };

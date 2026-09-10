@@ -114,7 +114,7 @@ describe("matchesAction", () => {
   it("maps arrow keys onto binding names", () => {
     expect(
       matchesAction(
-        key({ key: "ArrowLeft", metaKey: true, altKey: true }),
+        key({ key: "ArrowLeft", metaKey: true, shiftKey: true }),
         "prev_session",
       ),
     ).toBe(true);
@@ -122,10 +122,10 @@ describe("matchesAction", () => {
 
   it("keeps Ctrl+Tab distinct from Cmd+Tab", () => {
     expect(matchesAction(key({ key: "Tab", ctrlKey: true }), "cycle_next_tab")).toBe(
-      true,
-    );
-    expect(matchesAction(key({ key: "Tab", metaKey: true }), "cycle_next_tab")).toBe(
       false,
+    );
+    expect(matchesAction(key({ key: "ArrowRight", metaKey: true, altKey: true }), "cycle_next_tab")).toBe(
+      true,
     );
   });
 
