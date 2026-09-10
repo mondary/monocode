@@ -306,7 +306,16 @@ export function SettingsView({
       >
         <div className="mx-auto w-full max-w-5xl px-8 py-8">
           <PageHeader
-            title={settingsSectionLabel(section)}
+            title={
+              section === "keybindings" ? (
+                <span className="flex items-center gap-2">
+                  {settingsSectionLabel(section)}
+                  <PkBadge />
+                </span>
+              ) : (
+                settingsSectionLabel(section)
+              )
+            }
             description={settingsSectionDescription(section)}
           />
           {section === "general" ? (
@@ -1282,6 +1291,7 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
       </Row>
       <Row
         label="Theme preset"
+        pk
         description="Personal color palettes for MonoCode."
       >
         <Segmented
@@ -1702,6 +1712,14 @@ function ProvidersPage() {
   );
 }
 
+/** Providers added by MonoCodePK (absent from upstream MonoCode). */
+const PK_PROVIDERS = new Set<HarnessId>([
+  "zai",
+  "mimo",
+  "openrouter",
+  "nvidia",
+]);
+
 function ProviderRow({
   harness,
   selectedModel,
@@ -1739,6 +1757,7 @@ function ProviderRow({
         <span className="flex items-center gap-2">
           <HarnessIcon harness={harness} className="size-4 shrink-0" />
           {HARNESS_TITLE[harness]}
+          {PK_PROVIDERS.has(harness) ? <PkBadge /> : null}
           {isDefault ? (
             <span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
               Default
@@ -1965,12 +1984,12 @@ function PageHeader({
   title,
   description,
 }: {
-  title: string;
+  title: ReactNode;
   description: string;
 }) {
   return (
     <header className="pb-4">
-      <h1 className="text-[20px] font-semibold leading-tight text-content">
+      <h1 className="flex items-center gap-2 text-[20px] font-semibold leading-tight text-content">
         {title}
       </h1>
       {description ? (
