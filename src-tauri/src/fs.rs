@@ -188,6 +188,8 @@ pub struct GitDiffStats {
     pub files: i64,
     pub additions: i64,
     pub deletions: i64,
+    pub ahead: i64,
+    pub behind: i64,
 }
 
 /// Uncommitted line counts for the opened folder: staged + unstaged vs HEAD,
@@ -219,6 +221,7 @@ pub struct GitDiffIndex {
     pub additions: i64,
     pub deletions: i64,
     pub remote: Option<String>,
+    pub remote_url: Option<String>,
     pub upstream: Option<String>,
     pub default_branch: Option<String>,
     pub ahead: i64,
@@ -789,10 +792,13 @@ fn git_diff_stats_for(root: &Path) -> GitDiffStats {
         additions += acc.additions;
         deletions += acc.deletions;
     }
+    let sync = git_sync_for(root);
     GitDiffStats {
         files: files.len() as i64,
         additions,
         deletions,
+        ahead: sync.ahead,
+        behind: sync.behind,
     }
 }
 
@@ -916,6 +922,7 @@ fn git_diff_index_with(root: &Path, include_sync: bool) -> GitDiffIndex {
         additions,
         deletions,
         remote: sync.remote,
+        remote_url: sync.remote_url,
         upstream: sync.upstream,
         default_branch: sync.default_branch,
         ahead: sync.ahead,
@@ -2884,6 +2891,7 @@ fn git_origin_repo(root: &Path) -> Option<String> {
 #[derive(Default)]
 struct GitSync {
     remote: Option<String>,
+    remote_url: Option<String>,
     upstream: Option<String>,
     default_branch: Option<String>,
     ahead: i64,
@@ -2893,6 +2901,9 @@ struct GitSync {
 
 fn git_sync_for(root: &Path) -> GitSync {
     let remote = git_remote_name(root);
+    let remote_url = remote
+        .as_deref()
+        .and_then(|name| git_stdout(root, &["remote", "get-url", name]));
     let upstream = git_stdout(root, &["rev-parse", "--abbrev-ref", "@{upstream}"]);
     let default_branch = git_default_branch(root, remote.as_deref());
     let default_ref = match (&remote, &default_branch) {
@@ -2913,6 +2924,7 @@ fn git_sync_for(root: &Path) -> GitSync {
     };
     GitSync {
         remote,
+        remote_url,
         upstream,
         default_branch,
         ahead,
@@ -4296,7 +4308,9 @@ mod tests {
             GitDiffStats {
                 files: 0,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                ahead: 0,
+                behind: 0,
             }
         );
     }
@@ -4330,7 +4344,9 @@ mod tests {
             GitDiffStats {
                 files: 0,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                ahead: 0,
+                behind: 0,
             }
         );
     }

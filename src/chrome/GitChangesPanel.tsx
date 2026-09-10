@@ -155,6 +155,20 @@ export function GitChangesPanel({
                 ↓{index.behind}
               </span>
             ) : null}
+            {index.remoteUrl ? (
+              <button
+                type="button"
+                className="ml-1 grid size-5 shrink-0 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content"
+                title="Open repository"
+                aria-label="Open repository"
+                onClick={() => {
+                  const url = remoteWebUrl(index.remoteUrl ?? "");
+                  if (url) void openUrl(url).catch(() => undefined);
+                }}
+              >
+                <ExternalLink className="size-3" strokeWidth={1.75} />
+              </button>
+            ) : null}
           </span>
         ) : (
           <span className="ml-auto" />
@@ -216,6 +230,20 @@ export function GitChangesPanel({
       </div>
     </div>
   );
+}
+
+function remoteWebUrl(remote: string): string | null {
+  const value = remote.trim();
+  if (!value) return null;
+  if (value.startsWith("git@")) {
+    const match = value.match(/^git@([^:]+):(.+)$/);
+    if (!match) return null;
+    return `https://${match[1]}/${match[2].replace(/\.git$/, "")}`;
+  }
+  if (value.startsWith("ssh://git@")) {
+    return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
+  }
+  return value.replace(/\.git$/, "");
 }
 
 function ChangedFiles({
@@ -1328,11 +1356,13 @@ function useDiffIndex(
         indexByCwd.set(cwd, next);
         indexRef.current = next;
         setIndex(next);
-        applyProjectDiffStats(cwd, {
-          files: next.files.length,
-          additions: next.additions,
-          deletions: next.deletions,
-        });
+          applyProjectDiffStats(cwd, {
+            files: next.files.length,
+            additions: next.additions,
+            deletions: next.deletions,
+            ahead: next.ahead,
+            behind: next.behind,
+          });
         if (prev) {
           const paths = changedFilePaths(prev, next);
           invalidateWatchedFiles(paths);

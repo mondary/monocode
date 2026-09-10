@@ -35,7 +35,9 @@ function publish(entry: Entry, stats: GitDiffStats | null) {
   if (
     entry.stats?.files === stats?.files &&
     entry.stats?.additions === stats?.additions &&
-    entry.stats?.deletions === stats?.deletions
+    entry.stats?.deletions === stats?.deletions &&
+    entry.stats?.ahead === stats?.ahead &&
+    entry.stats?.behind === stats?.behind
   ) {
     return;
   }

@@ -996,6 +996,14 @@ function ProjectCard({
             <ProjectDiffStat additions={additions} deletions={deletions} />
           </span>
         ) : null}
+        {stats && stats.ahead > 0 ? (
+          <span
+            className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-sky-400 group-hover:hidden"
+            title={`${stats.ahead} commit${stats.ahead === 1 ? "" : "s"} not pushed`}
+          >
+            ↑{stats.ahead}
+          </span>
+        ) : null}
       </button>
       <button
         type="button"
@@ -1083,6 +1091,8 @@ function projectCardTitle(
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
+  const ahead = stats?.ahead ?? 0;
+  const behind = stats?.behind ?? 0;
   if (files > 0 || additions > 0 || deletions > 0) {
     parts.push(
       [
@@ -1092,6 +1102,11 @@ function projectCardTitle(
       ]
         .filter(Boolean)
         .join(" "),
+    );
+  }
+  if (ahead > 0 || behind > 0) {
+    parts.push(
+      `${ahead} ahead, ${behind} behind remote`,
     );
   }
   return parts.join("\n");

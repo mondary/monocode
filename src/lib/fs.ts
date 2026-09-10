@@ -56,6 +56,8 @@ export type GitDiffStats = {
   files: number;
   additions: number;
   deletions: number;
+  ahead: number;
+  behind: number;
 };
 
 export function gitDiffStats(cwd: string): Promise<GitDiffStats> {
@@ -78,6 +80,7 @@ export type GitDiffIndex = {
   additions: number;
   deletions: number;
   remote: string | null;
+  remoteUrl: string | null;
   upstream: string | null;
   defaultBranch: string | null;
   ahead: number;
