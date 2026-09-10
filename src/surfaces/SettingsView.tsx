@@ -214,6 +214,7 @@ import {
 } from "../lib/updater";
 
 import { SkillsPage } from "./SkillsPage";
+import { PK_VERSION } from "../lib/pkVersion";
 
 type Props = {
   section: SettingsSectionId;
@@ -971,10 +972,18 @@ function UpdateRow({
   return (
     <Row
       label={
-        <span className="flex items-baseline gap-2">
-          Version
-          <span className="font-mono text-[12px] text-content/45">
-            {snapshot.currentVersion}
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span>
+            MonoCode
+            <span className="ml-2 font-mono text-[12px] text-content/45">
+              {snapshot.currentVersion}
+            </span>
+          </span>
+          <span>
+            MonoCodePK
+            <span className="ml-2 font-mono text-[12px] text-accent/75">
+              {PK_VERSION}
+            </span>
           </span>
         </span>
       }
