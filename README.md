@@ -1,17 +1,39 @@
 <!-- MONOCODE-PK-START -->
 # MonoCode PK
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode) — version **2026.09.1**.
-Fonctionnalités ajoutées sur la branche `perso/pk` (la branche `main` reste un miroir de l'amont) :
+[🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
+
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.1**.
+
+## ✅ Fonctionnalités
 
 - **Thèmes** : presets Dracula et Catppuccin Frappé, fonds de sidebar personnalisés, icône app teintée mauve Catppuccin.
 - **Fournisseurs** : Z.ai (GLM), Xiaomi MiMo et Zen en fournisseurs directs, onglets OpenAI-compatibles, icônes et marques par fournisseur (CodexBar), filtrage des modèles NVIDIA retirés, espaces de noms OpenRouter préservés.
 - **Raccourcis clavier personnalisables** : page Settings dédiée, capture native des touches, détection de conflits, menu natif reconstruit à la volée.
 - **Terminal** : position du dock configurable, pac d'activité dans le header, vrais onglets terminal, sous-onglets masqués, mascot animée dans le rail pendant l'activité.
-- **Navigation** : cycle global des onglets chat/terminal (Cmd+Option+flèches), commits non poussés affichés et ouverture du dépôt distant.
+- **Navigation** : cycle global des onglets chat/terminal (⌘⌥ flèches), commits non poussés affichés et ouverture du dépôt distant.
 - **Interface** : version PK (CalVer) affichée dans Settings, pile de versions dans About, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
 - **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence.
-- **Build & mises à jour** : overlay de branding PK (tauri.conf identique à l'amont, zéro conflit de merge), app dédiée `MonoCodePK.app` (`com.monocode.pk`), signature codesign stable, sync upstream assistée (`scripts/sync-pk-update.sh`) avec dialog de mise à jour et liste des commits en retard.
+
+## 🧠 Utilisation
+
+- `scripts/sync-pk-update.sh` — synchronise l'amont (fetch + merge), build, relance l'app ; dialog intégré avec bouton « Plus tard » et liste des commits en retard.
+
+## ⚙️ Réglages
+
+- Tout se règle dans Settings : thème, raccourcis, position du dock terminal, providers du footer usage. Les options modifiées par rapport à l'officiel portent un badge PK.
+
+## 📦 Build & Package
+
+- `npm run build:pk` — build release avec overlay de branding PK (`tauri.conf.json` identique à l'amont, zéro conflit de merge), installe `/Applications/MonoCodePK.app` (identifiant dédié `com.monocode.pk`, signature Apple Development stable).
+
+## 📋 Historique
+
+- Versions PK détaillées : sections `[2026.09.x]` dans le [CHANGELOG](CHANGELOG.md) ; le reste suit les releases officielles.
+
+## 🔗 Liens
+
+- [MonoCode officiel](https://github.com/hardbeat920/monocode) · branche `perso/pk` = ce fork · branche `main` = miroir de l'amont.
 
 <!-- MONOCODE-PK-END -->
 
