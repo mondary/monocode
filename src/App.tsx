@@ -1651,7 +1651,7 @@ export default function App({
         return;
       }
 
-      if (asWorkspaceTab || !activeTab) {
+      if (asWorkspaceTab || placement === "tab" || !activeTab) {
         const file = newTerminalFile(workdir);
         const tab = newTerminalWorkspaceTab(file);
         appendTab(tab, workdir);
