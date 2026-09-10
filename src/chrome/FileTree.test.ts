@@ -10,17 +10,24 @@ import {
 import type { FsEntry } from "../lib/fs";
 import { FileTree } from "./FileTree";
 
-const { iconRender, directories } = vi.hoisted(() => ({
-  iconRender: vi.fn(),
-  directories: new Map<string, FsEntry[]>(),
-}));
+const { iconRender, directories, invokeMock } = vi.hoisted(() => {
+  const invokeMock = vi.fn(
+    async (command: string, args: { path: string }) => {
+      if (command === "list_dir") return directories.get(args.path) ?? [];
+      if (command === "open_project_path") return;
+      throw new Error(`Unexpected command: ${command}`);
+    },
+  );
+  const directories = new Map<string, FsEntry[]>();
+  return {
+    iconRender: vi.fn(),
+    directories,
+    invokeMock,
+  };
+});
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (command: string, args: { path: string }) => {
-    if (command !== "list_dir")
-      throw new Error(`Unexpected command: ${command}`);
-    return directories.get(args.path) ?? [];
-  }),
+  invoke: invokeMock,
 }));
 
 // Count row renders independently of FileTypeIcon's own memoization.
@@ -99,10 +106,26 @@ describe("FileTree render isolation", () => {
         dirs: new Map(),
       },
     };
+
     act(() => render(1));
     expect(row("first.ts").querySelector(".text-amber-400")).not.toBeNull();
     act(() => row("first.ts").click());
     expect(onOpenFile).toHaveBeenCalledWith(`${cwd}/first.ts`);
+  });
+
+  it("uses the project path for the workspace Finder action", async () => {
+    await act(async () => render());
+    props = { ...props, projectCwd: "/project-root" };
+    act(() => render(1));
+
+    const reveal = container.querySelector<HTMLButtonElement>(
+      'button[title="Reveal in Finder"], button[title="Open Containing Folder"], button[title="Reveal in File Explorer"]',
+    );
+    await act(async () => reveal?.click());
+
+    expect(invokeMock).toHaveBeenCalledWith("open_project_path", {
+      path: "/project-root",
+    });
   });
 
   it("still expands folders and refreshes rows after filesystem changes", async () => {

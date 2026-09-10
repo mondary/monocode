@@ -165,6 +165,8 @@ function projectPathBusy(
 
 type Props = {
   cwd: string;
+  /** Project path used by workspace-level actions such as Finder reveal. */
+  projectCwd?: string;
   /** Working copy for Changes / explorer git. Falls back to `cwd`. */
   gitCwd?: string;
   open: boolean;
@@ -250,6 +252,7 @@ type Props = {
 
 function SidebarComponent({
   cwd,
+  projectCwd,
   gitCwd,
   open,
   sessions,
@@ -1149,6 +1152,7 @@ function SidebarComponent({
               <FileTree
                 key={gitRoot}
                 cwd={gitRoot}
+                projectCwd={projectCwd}
                 onOpenFile={onOpenFile}
                 onOpenTerminal={onOpenTerminal}
                 onFileMoved={onFileMoved}

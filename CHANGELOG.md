@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.6] - 2026-09-10
+
+### Fixed
+
+- Explorer uses the current project path for its workspace button and resolves the Git repository root before opening Finder.
+- Directory reveal actions open the Git repository root instead of selecting the repository's parent folder.
+
 ## [2026.09.5] - 2026-09-10
 
 ### Added

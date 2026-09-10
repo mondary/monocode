@@ -3913,13 +3913,26 @@ pub fn reveal_path(path: String) -> Result<(), String> {
     if !path.exists() {
         return Err(format!("{}: No such file or directory", path.display()));
     }
+    let target = if path.is_dir() {
+        git_stdout(&path, &["rev-parse", "--show-toplevel"])
+            .map(PathBuf::from)
+            .filter(|candidate| candidate.is_dir())
+            .unwrap_or_else(|| path.clone())
+    } else {
+        path.clone()
+    };
     #[cfg(target_os = "macos")]
     {
-        let path_str = path.to_str().ok_or_else(|| "Invalid path".to_string())?;
-        let status = Command::new("open")
-            .args(["-R", path_str])
-            .status()
-            .map_err(|e| e.to_string())?;
+        let target_str = target
+            .to_str()
+            .ok_or_else(|| "Invalid path".to_string())?;
+        let mut command = Command::new("open");
+        if target.is_dir() {
+            command.arg(target_str);
+        } else {
+            command.args(["-R", target_str]);
+        }
+        let status = command.status().map_err(|e| e.to_string())?;
         if !status.success() {
             return Err("Could not reveal in Finder.".into());
         }
@@ -3928,22 +3941,29 @@ pub fn reveal_path(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // explorer.exe returns 1 even when it opened the folder.
-        let path_str = path.to_string_lossy().replace('/', "\\");
-        Command::new("explorer")
-            .arg(format!("/select,{path_str}"))
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        let target_str = target.to_string_lossy();
+        let mut command = Command::new("explorer");
+        if target.is_dir() {
+            command.arg(target_str.as_ref());
+        } else {
+            command.arg(format!("/select,{target_str}"));
+        }
+        command.spawn().map_err(|e| e.to_string())?;
         Ok(())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let parent = path
-            .parent()
-            .ok_or_else(|| "File has no parent directory.".to_string())?;
+        let folder = if target.is_dir() {
+            target
+        } else {
+            target
+                .parent()
+                .ok_or_else(|| "File has no parent directory.".to_path_buf())?
+                .to_path_buf()
+        };
         let status = Command::new("xdg-open")
-            .arg(parent)
+            .arg(folder)
             .status()
             .map_err(|e| e.to_string())?;
         if !status.success() {
@@ -3954,8 +3974,8 @@ pub fn reveal_path(path: String) -> Result<(), String> {
 }
 
 /// Opens the repository root itself instead of selecting it in its parent.
-/// `reveal_path` intentionally uses `open -R` for files and menu targets;
-/// Explorer's workspace action needs the folder containing `.git` opened.
+/// `reveal_path` keeps file-selection semantics, while Explorer's workspace
+/// action needs the folder containing `.git` opened.
 #[tauri::command]
 pub fn open_project_path(path: String) -> Result<(), String> {
     let requested = expand_home(&path);

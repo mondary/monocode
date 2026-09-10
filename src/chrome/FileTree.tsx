@@ -69,6 +69,8 @@ const GIT_STATUS_COLOR: Record<string, string> = {
 
 type Props = {
   cwd: string;
+  /** Project path, independent from the active session's working directory. */
+  projectCwd?: string;
   onOpenFile: (path: string) => void;
   onOpenTerminal?: (cwd: string) => void;
   onFileMoved?: (from: string, to: string) => void;
@@ -223,6 +225,7 @@ function explorerItems(
 // intact unless file-tree props, local state, or subscriptions actually change.
 export const FileTree = memo(function FileTree({
   cwd,
+  projectCwd,
   onOpenFile,
   onOpenTerminal,
   onFileMoved,
@@ -668,7 +671,7 @@ export const FileTree = memo(function FileTree({
           <HeaderIcon
             label={REVEAL_LABEL}
             onClick={() => {
-              void run(() => openProjectPath(cwd));
+              void run(() => openProjectPath(projectCwd ?? cwd));
             }}
           >
             <FolderOpen className="size-3.5" strokeWidth={1.75} />

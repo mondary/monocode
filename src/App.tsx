@@ -5371,6 +5371,7 @@ export default function App({
     >
       <Sidebar
         cwd={sidebarCwd}
+        projectCwd={projectCwd}
         gitCwd={gitCwd}
         open
         tab={sidebarTab}
