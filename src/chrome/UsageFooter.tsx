@@ -4,13 +4,16 @@ import { HarnessIcon } from "./HarnessIcon";
 import { Popover } from "./Popover";
 import {
   fetchClaudeRateLimits,
+  fetchCodexBarRateLimits,
   fetchCodexRateLimits,
 } from "../lib/rateLimitsFetch";
 import {
   clampUsedPercent,
   fetchingRateLimits,
   formatRateLimitWindowChipLabel,
-  formatUsagePercent,
+  formatDisplayedUsagePercent,
+  loadUsageDisplayMode,
+  USAGE_DISPLAY_MODE_CHANGE_EVENT,
   idleRateLimits,
   RATE_LIMIT_POLL_MS,
   rateLimitWindowTooltip,
@@ -18,6 +21,7 @@ import {
   type ProviderRateLimits,
   type RateLimitProvider,
   type RateLimitWindow,
+  type UsageDisplayMode,
 } from "../lib/rateLimits";
 import { HARNESS_LABEL, HARNESS_TITLE, type HarnessId } from "../lib/session";
 import {
@@ -52,13 +56,19 @@ export function UsageFooter({
   const [codex, setCodex] = useState<ProviderRateLimits>(() =>
     idleRateLimits("codex"),
   );
+  const [codexbar, setCodexbar] = useState<ProviderRateLimits[]>([]);
+  const [displayMode, setDisplayMode] = useState<UsageDisplayMode>(
+    loadUsageDisplayMode,
+  );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const inflight = useRef<Promise<void> | null>(null);
   const claudeRef = useRef(claude);
   const codexRef = useRef(codex);
+  const codexbarRef = useRef(codexbar);
   claudeRef.current = claude;
   codexRef.current = codex;
+  codexbarRef.current = codexbar;
 
   const refresh = useCallback((force = false) => {
     if (inflight.current) return inflight.current;
@@ -69,7 +79,14 @@ export function UsageFooter({
     const fetchCodex =
       wantCodex &&
       shouldFetchProvider(codexRef.current, { force, visible });
-    if (!fetchClaude && !fetchCodex) return;
+    const fetchCodexbar =
+      providers.length > 0 &&
+      (force ||
+        codexbarRef.current.length === 0 ||
+        codexbarRef.current.some((entry) =>
+          shouldFetchProvider(entry, { force, visible }),
+        ));
+    if (!fetchClaude && !fetchCodex && !fetchCodexbar) return;
     if (force) setRefreshing(true);
     const jobs: Promise<void>[] = [];
     if (fetchClaude) {
@@ -88,6 +105,13 @@ export function UsageFooter({
         }),
       );
     }
+    if (fetchCodexbar) {
+      jobs.push(
+        fetchCodexBarRateLimits().then((value) => {
+          if (value.length > 0) setCodexbar(value);
+        }),
+      );
+    }
     const run = Promise.allSettled(jobs)
       .then(() => undefined)
       .finally(() => {
@@ -96,7 +120,7 @@ export function UsageFooter({
       });
     inflight.current = run;
     return run;
-  }, [wantClaude, wantCodex]);
+  }, [providers.length, wantClaude, wantCodex]);
 
   useEffect(() => {
     void refresh();
@@ -116,7 +140,23 @@ export function UsageFooter({
     return () => window.clearInterval(timer);
   }, []);
 
-  const showUsage = wantClaude || wantCodex;
+  useEffect(() => {
+    const onChange = () => setDisplayMode(loadUsageDisplayMode());
+    window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+    return () =>
+      window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+  }, []);
+
+  const native = [
+    wantClaude ? claude : null,
+    wantCodex ? codex : null,
+  ].filter((entry): entry is ProviderRateLimits => entry != null);
+  const codexbarProviders = new Set(codexbar.map((entry) => entry.provider));
+  const usage = [
+    ...codexbar,
+    ...native.filter((entry) => !codexbarProviders.has(entry.provider)),
+  ];
+  const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
   const showRight = showUsage || showTerminals;
   const ariaLabel = showUsage
@@ -134,8 +174,14 @@ export function UsageFooter({
     >
       {showUsage ? (
         <>
-          {wantClaude ? <ProviderChip limits={claude} now={now} /> : null}
-          {wantCodex ? <ProviderChip limits={codex} now={now} /> : null}
+          {usage.map((limits) => (
+            <ProviderChip
+              key={limits.provider}
+              limits={limits}
+              now={now}
+              displayMode={displayMode}
+            />
+          ))}
         </>
       ) : session ? (
         <SessionChip session={session} />
@@ -283,9 +329,11 @@ function RunningTerminalChip({
 function ProviderChip({
   limits,
   now,
+  displayMode,
 }: {
   limits: ProviderRateLimits;
   now: number;
+  displayMode: UsageDisplayMode;
 }) {
   const loading =
     limits.status === "idle" ||
@@ -320,7 +368,7 @@ function ProviderChip({
             : undefined)
       }
     >
-      <HarnessIcon harness={limits.provider} className="size-3 shrink-0" />
+      <ProviderMark provider={limits.provider} />
       {loading ? (
         <span className="animate-pulse text-content/35">···</span>
       ) : disconnected ? (
@@ -335,7 +383,7 @@ function ProviderChip({
               <span key={entry.key} className="inline-flex items-center gap-1">
                 {index > 0 ? <span className="text-content/25">·</span> : null}
                 <span>
-                  {formatUsagePercent(entry.window.usedPercent)}{" "}
+                  {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)}{" "}
                   {formatRateLimitWindowChipLabel(entry.window, now)}
                 </span>
               </span>
@@ -343,6 +391,37 @@ function ProviderChip({
           </span>
         </>
       )}
+    </span>
+  );
+}
+
+const KNOWN_HARNESSES = new Set<HarnessId>([
+  "claude",
+  "codex",
+  "cursor",
+  "grok",
+  "opencode",
+  "zai",
+  "mimo",
+  "openrouter",
+  "nvidia",
+  "pi",
+  "omp",
+  "fx",
+]);
+
+function ProviderMark({ provider }: { provider: string }) {
+  if (KNOWN_HARNESSES.has(provider as HarnessId)) {
+    return (
+      <HarnessIcon
+        harness={provider as HarnessId}
+        className="size-3 shrink-0"
+      />
+    );
+  }
+  return (
+    <span className="grid size-3 shrink-0 place-items-center rounded-sm bg-content/20 text-[8px] font-semibold uppercase">
+      {provider.slice(0, 1)}
     </span>
   );
 }

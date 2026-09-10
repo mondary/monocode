@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "./fs";
 import {
   errorRateLimits,
+  parseCodexBarUsage,
   parseClaudeOAuthUsage,
   parseCodexRateLimits,
   unavailableRateLimits,
@@ -54,6 +55,15 @@ export async function fetchClaudeRateLimits(): Promise<ProviderRateLimits> {
       "claude",
       error instanceof Error ? error.message : "Claude usage unavailable",
     );
+  }
+}
+
+export async function fetchCodexBarRateLimits(): Promise<ProviderRateLimits[]> {
+  try {
+    const body = await invoke<string>("fetch_codexbar_usage");
+    return parseCodexBarUsage(body);
+  } catch {
+    return [];
   }
 }
 

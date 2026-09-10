@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use std::process::Command;
 use serde_json::{json, Value};
 
 use crate::dirs_home;
@@ -69,6 +70,27 @@ pub async fn fetch_claude_usage() -> Result<ClaudeUsageFetch, String> {
     tauri::async_runtime::spawn_blocking(fetch_claude_usage_sync)
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn fetch_codexbar_usage() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(fetch_codexbar_usage_sync)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+fn fetch_codexbar_usage_sync() -> Result<String, String> {
+    let path = crate::harness::resolve_gui_binary("codexbar")
+        .ok_or_else(|| "CodexBar CLI not found".to_string())?;
+    let output = Command::new(path)
+        .args(["usage", "--format", "json", "--pretty", "--provider", "all"])
+        .env("NO_COLOR", "1")
+        .output()
+        .map_err(|error| error.to_string())?;
+    if output.stdout.is_empty() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 fn fetch_claude_usage_sync() -> Result<ClaudeUsageFetch, String> {

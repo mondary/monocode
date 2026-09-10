@@ -134,6 +134,11 @@ import {
   type TerminalPlacement,
 } from "../lib/projectTerminal";
 import {
+  loadUsageDisplayMode,
+  saveUsageDisplayMode,
+  type UsageDisplayMode,
+} from "../lib/rateLimits";
+import {
   loadArchivedProjects,
   looksLikeProject,
   subscribeArchivedProjects,
@@ -342,6 +347,9 @@ function GeneralPage({
   const [dockSide, setDockSide] = useState<TerminalPlacement>(
     loadDefaultTerminalPlacement,
   );
+  const [usageDisplayMode, setUsageDisplayMode] = useState<UsageDisplayMode>(
+    loadUsageDisplayMode,
+  );
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
@@ -438,6 +446,11 @@ function GeneralPage({
     setDockSide(next);
   };
 
+  const onUsageDisplayMode = (next: UsageDisplayMode) => {
+    saveUsageDisplayMode(next);
+    setUsageDisplayMode(next);
+  };
+
   return (
     <>
       <Row
@@ -470,6 +483,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Terminal dock position"
+        pk
         description="Where new project terminal docks open by default. Each dock can still be moved individually from its own header."
       >
         <Segmented
@@ -483,6 +497,21 @@ function GeneralPage({
             { value: "tab", label: "Terminal tab" },
           ]}
           onChange={onDefaultDockSide}
+        />
+      </Row>
+      <Row
+        label="Usage display"
+        pk
+        description="Show provider quota as consumed or remaining capacity in the footer."
+      >
+        <Segmented
+          label="Usage display"
+          value={usageDisplayMode}
+          options={[
+            { value: "used", label: "Used" },
+            { value: "remaining", label: "Remaining" },
+          ]}
+          onChange={onUsageDisplayMode}
         />
       </Row>
       <Row
@@ -521,6 +550,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Empty session games"
+        pk
         description="Pac-man and snake idle on the empty-session grid. Hover the band to take control of whichever is on screen. Turn this off to keep the pane still."
       >
         <Toggle
@@ -531,12 +561,14 @@ function GeneralPage({
       </Row>
       <Row
         label="Notes"
+        pk
         description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat. Turn this off to hide Notes from the UI."
       >
         <Toggle label="Notes" on={notesEnabled} onChange={onNotesEnabled} />
       </Row>
       <Row
         label="Working agents"
+        pk
         description="When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session. Turn this off to hide the card."
       >
         <Toggle
@@ -1873,15 +1905,20 @@ function Row({
   label,
   description,
   children,
+  pk = false,
 }: {
   label: ReactNode;
   description?: string;
   children?: ReactNode;
+  pk?: boolean;
 }) {
   return (
     <div className="flex items-start gap-6 border-b border-content/5 py-4 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-content">{label}</div>
+        <div className="flex items-center gap-2 text-[13px] font-medium text-content">
+          {label}
+          {pk ? <PkBadge /> : null}
+        </div>
         {description ? (
           <p className="mt-1 text-[12px] leading-relaxed text-content/45">
             {description}
@@ -1892,6 +1929,18 @@ function Row({
         {children}
       </div>
     </div>
+  );
+}
+
+function PkBadge() {
+  return (
+    <span
+      title="MonoCodePK custom setting"
+      aria-label="MonoCodePK custom setting"
+      className="rounded border border-accent/35 bg-accent/10 px-1 py-px text-[9px] font-semibold uppercase tracking-[0.08em] text-accent"
+    >
+      PK
+    </span>
   );
 }
 
