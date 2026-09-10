@@ -161,9 +161,23 @@ fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn pk_upstream_info() -> Result<String, String> {
     let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+    // Reports both update axes of the PK fork in one shot:
+   //   - upstream: official commits/tags not merged into the work branch
+   //   - origin:   PK commits pushed from another machine (pkbehind) and
+    //               local commits not pushed yet (pkahead)
+    let script = r#"set -e
+branch=$(git rev-parse --abbrev-ref HEAD)
+git fetch -q upstream
+git fetch -q origin "$branch" 2>/dev/null || true
+echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0) pkahead=$(git rev-list --count "origin/$branch..HEAD" 2>/dev/null || echo 0)
+echo ---commits---
+git log --oneline -12 HEAD..upstream/main
+echo ---pk-commits---
+git log --oneline -12 "HEAD..origin/$branch" 2>/dev/null || true
+"#;
     let output = std::process::Command::new("bash")
         .arg("-c")
-        .arg("git fetch -q upstream && echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) && echo ---commits--- && git log --oneline -12 HEAD..upstream/main")
+        .arg(script)
         .current_dir(project_dir)
         .output()
         .map_err(|error| error.to_string())?;

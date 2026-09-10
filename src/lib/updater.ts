@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import { PK_VERSION } from "./pkVersion";
 import { announceUpdateAvailable } from "./sounds";
 import { rememberInstalledUpdate } from "./updateNotice";
 
@@ -36,23 +37,31 @@ export async function readAppVersion(): Promise<string> {
     return "0.0.0";
   }
 }
-
 async function pkUpstreamInfo(): Promise<{
   tag: string;
   behind: number;
   commits: string[];
+  pkBehind: number;
+  pkAhead: number;
+  pkCommits: string[];
 } | null> {
   try {
     const raw = await invoke<string>("pk_upstream_info");
-    const [header, commitSection] = raw.split("---commits---");
-    const tag = /tag=(\S*)/.exec(header ?? "")?.[1] ?? "";
-    const behind = Number(/behind=(\d+)/.exec(header ?? "")?.[1] ?? "0");
+    const [header = "", rest = ""] = raw.split("---commits---");
+    const [upstreamLog = "", pkLog = ""] = rest.split("---pk-commits---");
+    const tag = /tag=(\S*)/.exec(header)?.[1] ?? "";
+    const behind = Number(/behind=(\d+)/.exec(header)?.[1] ?? "0");
+    const pkBehind = Number(/pkbehind=(\d+)/.exec(header)?.[1] ?? "0");
+    const pkAhead = Number(/pkahead=(\d+)/.exec(header)?.[1] ?? "0");
     if (!tag || !Number.isFinite(behind)) return null;
-    const commits = (commitSection ?? "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    return { tag, behind, commits };
+    return {
+      tag,
+      behind,
+      commits: upstreamLog.split("\n").map((l) => l.trim()).filter(Boolean),
+      pkBehind: Number.isFinite(pkBehind) ? pkBehind : 0,
+      pkAhead: Number.isFinite(pkAhead) ? pkAhead : 0,
+      pkCommits: pkLog.split("\n").map((l) => l.trim()).filter(Boolean),
+    };
   } catch {
     return null;
   }
@@ -112,27 +121,49 @@ export async function runUpdateFlow(
       onProgress?.(idle);
       if (manual) {
         const info = await pkUpstreamInfo();
-        if (info && info.behind === 0) {
-          await message(`Vous êtes sur la dernière version (${currentVersion}).`, {
-            title: "Mise à jour PKmod",
-          });
+        const unpushed =
+          info && info.pkAhead > 0
+            ? ` — ${info.pkAhead} commit${info.pkAhead === 1 ? "" : "s"} local${info.pkAhead === 1 ? "" : "aux"} non poussé${info.pkAhead === 1 ? "" : "s"}`
+            : "";
+        const pkLine = info
+          ? info.pkBehind > 0
+            ? `MonoCodePK : ${PK_VERSION} → ${info.pkBehind} commit${info.pkBehind === 1 ? "" : "s"} disponible${info.pkBehind === 1 ? "" : "s"} sur GitHub${unpushed}`
+            : `MonoCodePK : ${PK_VERSION} — à jour${unpushed}`
+          : `MonoCodePK : ${PK_VERSION}`;
+        if (info && info.behind === 0 && info.pkBehind === 0) {
+          await message(
+            `MonoCode officiel : ${currentVersion} — à jour\n${pkLine}`,
+            { title: "Mise à jour PKmod" },
+          );
           return idle;
         }
-        const versionLine = info
-          ? `Version disponible : ${info.tag} (${info.behind} commit${info.behind === 1 ? "" : "s"} en retard).\n\n`
+        const officialLine = info
+          ? info.behind > 0
+            ? `MonoCode officiel : ${currentVersion} → ${info.tag} (${info.behind} commit${info.behind === 1 ? "" : "s"} en retard)`
+            : `MonoCode officiel : ${currentVersion} — à jour`
           : "";
-        const commitLines =
+        const upstreamList =
           info && info.commits.length > 0
-            ? `Au programme :\n${info.commits
+            ? `\n\nCommits officiels :\n${info.commits
                 .map((commit) => `• ${commit}`)
                 .join("\n")}${
                 info.behind > info.commits.length
                   ? `\n• … et ${info.behind - info.commits.length} autres`
                   : ""
-              }\n\n`
+              }`
+            : "";
+        const pkList =
+          info && info.pkCommits.length > 0
+            ? `\n\nCommits PK :\n${info.pkCommits
+                .map((commit) => `• ${commit}`)
+                .join("\n")}${
+                info.pkBehind > info.pkCommits.length
+                  ? `\n• … et ${info.pkBehind - info.pkCommits.length} autres`
+                  : ""
+              }`
             : "";
         const proceed = await ask(
-          `${versionLine}${commitLines}PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.`,
+          `${officialLine}\n${pkLine}${upstreamList}${pkList}\n\nPKmod va récupérer les commits officiels et PK, reconstruire l'application et la relancer.`,
           {
             title: "Mise à jour PKmod",
             kind: "info",

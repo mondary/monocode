@@ -17,6 +17,23 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
+# Commits PK poussés depuis une autre machine: les intégrer avant l'amont.
+branch=$(git rev-parse --abbrev-ref HEAD)
+git fetch -q origin "$branch" 2>/dev/null || true
+if [ "$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)" -gt 0 ]; then
+  if ! git merge --no-edit "origin/$branch"; then
+    git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
+    git add Cargo.lock package-lock.json 2>/dev/null || true
+    if test -n "$(git diff --name-only --diff-filter=U)"; then
+      echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
+      git merge --abort
+      notify "Conflits de merge PK: mise à jour PKmod annulée, voir pk-update.log"
+      exit 1
+    fi
+    git commit --no-edit || true
+  fi
+fi
+
 git fetch upstream
 if ! git merge --no-edit upstream/main; then
   # Lockfiles: la version amont suffit, ils sont régénérés au build.

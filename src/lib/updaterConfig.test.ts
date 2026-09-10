@@ -69,20 +69,47 @@ describe("updater", () => {
     expect(invoke).not.toHaveBeenCalledWith("sync_pk_upstream");
   });
 
-  it("reports being current when upstream has no new commits", async () => {
+  it("reports both versions current when nothing new is available", async () => {
     getVersion.mockResolvedValue("0.1.24");
     check.mockRejectedValue(new Error("Updater does not have any endpoints set"));
-    invoke.mockResolvedValue("tag=v0.1.24 behind=0");
+    invoke.mockResolvedValue("tag=v0.1.24 behind=0 pkbehind=0 pkahead=0");
 
     await expect(runUpdateFlow(true)).resolves.toEqual({
       phase: "idle",
       currentVersion: "0.1.24",
     });
     expect(message).toHaveBeenCalledWith(
-      expect.stringContaining("dernière version"),
+      expect.stringContaining("MonoCode officiel : 0.1.24 — à jour"),
+      { title: "Mise à jour PKmod" },
+    );
+    expect(message).toHaveBeenCalledWith(
+      expect.stringContaining("MonoCodePK : "),
       { title: "Mise à jour PKmod" },
     );
     expect(invoke).not.toHaveBeenCalledWith("sync_pk_upstream");
+  });
+
+  it("offers a PK-only update when the fork branch moved on GitHub", async () => {
+    getVersion.mockResolvedValue("0.1.24");
+    check.mockRejectedValue(new Error("Updater does not have any endpoints set"));
+    invoke.mockResolvedValue(
+      "tag=v0.1.24 behind=0 pkbehind=2 pkahead=1\n---commits---\n\n---pk-commits---\npk1234 ADD: autre machine\npk5678 FIX: distant",
+    );
+    ask.mockResolvedValue(true);
+
+    await expect(runUpdateFlow(true)).resolves.toEqual({
+      phase: "idle",
+      currentVersion: "0.1.24",
+    });
+    expect(ask).toHaveBeenCalledWith(
+      expect.stringContaining("2 commits disponibles sur GitHub"),
+      expect.objectContaining({ okLabel: "Mettre à jour" }),
+    );
+    expect(ask).toHaveBeenCalledWith(
+      expect.stringContaining("• pk1234 ADD: autre machine"),
+      expect.anything(),
+    );
+    expect(invoke).toHaveBeenCalledWith("sync_pk_upstream");
   });
 
   it("still reports real updater failures", async () => {

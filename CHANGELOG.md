@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.4] - 2026-09-10
+
+### Changed
+
+- The PKmod update dialog now reports both axes with clear labels: MonoCode officiel (upstream semver) and MonoCodePK (CalVer), including PK commits available on GitHub and unpushed local commits.
+- App icon regenerated from the reference artwork (Catppuccin-tinted MonoCode glyph).
+
+### Fixed
+
+- The PK update flow pulls the fork branch from GitHub before merging upstream, so updates pushed from another machine are installed too.
+
 ## [2026.09.3] - 2026-09-10
 
 ### Added
