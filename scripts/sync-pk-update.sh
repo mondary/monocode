@@ -32,4 +32,4 @@ if ! git merge --no-edit upstream/main; then
 fi
 
 npm run build:pk
-open -n /Applications/monocodePK.app
+open -n /Applications/MonoCodePK.app

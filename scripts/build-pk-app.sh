@@ -3,7 +3,7 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 source_app="$project_dir/target/release/bundle/macos/MonoCode PK.app"
-target_app="/Applications/monocodePK.app"
+target_app="/Applications/MonoCodePK.app"
 overlay="$project_dir/src-tauri/tauri.pk.conf.json"
 
 cd "$project_dir"
