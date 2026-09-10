@@ -36,6 +36,7 @@ import {
   loadGraphPanelHeight,
   saveGraphPanelHeight,
 } from "./GitHistoryGraph";
+import { GithubMark, GitlabMark } from "./InboxProviderMark";
 import {
   basename,
   gitCommit,
@@ -156,18 +157,7 @@ export function GitChangesPanel({
               </span>
             ) : null}
             {index.remoteUrl ? (
-              <button
-                type="button"
-                className="ml-1 grid size-5 shrink-0 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content"
-                title="Open repository"
-                aria-label="Open repository"
-                onClick={() => {
-                  const url = remoteWebUrl(index.remoteUrl ?? "");
-                  if (url) void openUrl(url).catch(() => undefined);
-                }}
-              >
-                <ExternalLink className="size-3" strokeWidth={1.75} />
-              </button>
+              <OpenRemoteButton remoteUrl={index.remoteUrl} />
             ) : null}
           </span>
         ) : (
@@ -244,6 +234,46 @@ function remoteWebUrl(remote: string): string | null {
     return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
   }
   return value.replace(/\.git$/, "");
+}
+
+function remoteHost(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function OpenRemoteButton({ remoteUrl }: { remoteUrl: string }) {
+  const url = remoteWebUrl(remoteUrl);
+  if (!url) return null;
+  const host = remoteHost(url);
+  const github = host === "github.com" || host.endsWith(".github.com");
+  const gitlab = host === "gitlab.com" || host.endsWith(".gitlab.com");
+  const label = github
+    ? "Open on GitHub"
+    : gitlab
+      ? "Open on GitLab"
+      : "Open repository";
+  return (
+    <button
+      type="button"
+      className="ml-1 grid size-5 shrink-0 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content"
+      title={label}
+      aria-label={label}
+      onClick={() => {
+        void openUrl(url).catch(() => undefined);
+      }}
+    >
+      {github ? (
+        <GithubMark className="size-3" />
+      ) : gitlab ? (
+        <GitlabMark className="size-3" />
+      ) : (
+        <ExternalLink className="size-3" strokeWidth={1.75} />
+      )}
+    </button>
+  );
 }
 
 function ChangedFiles({
