@@ -455,6 +455,7 @@ function GeneralPage({
     <>
       <Row
         label="Transcript layout"
+        pk
         description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
       >
         <Segmented
@@ -469,6 +470,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Diff view"
+        pk
         description="Editor keeps working-tree changes in the file. Unified stacks every changed file in one review, with sticky headers and collapsed unchanged lines."
       >
         <Segmented
@@ -516,6 +518,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Follow-up behavior"
+        pk
         description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
       >
         <Segmented
@@ -530,6 +533,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Anchor prompts to top"
+        pk
         description="When you send, the new prompt sits at the top of the transcript and the reply grows into the space below. Turn this off to keep the classic layout, with the latest message resting on the composer."
       >
         <Toggle
@@ -540,6 +544,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Composer mascot"
+        pk
         description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
       >
         <Toggle
@@ -579,12 +584,14 @@ function GeneralPage({
       </Row>
       <Row
         label="Sounds"
+        pk
         description="Short cues when a turn finishes, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
       >
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>
       <Row
         label="Notifications"
+        pk
         description="Notify when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
       >
         {notificationsEnabled && notificationPermission === "denied" ? (
@@ -603,6 +610,7 @@ function GeneralPage({
       </Row>
       <Row
         label="Claude Code hooks"
+        pk
         description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
       >
         <Toggle
