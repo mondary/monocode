@@ -7,6 +7,7 @@ import {
   GitCompare,
   Search,
 } from "./icons";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   createContext,
   memo,
@@ -208,6 +209,9 @@ function explorerItems(
             label: "Open in Terminal",
           },
         ]
+      : []),
+    ...(isHtmlFile(target.path) && !target.isDir
+      ? [{ kind: "item" as const, id: "open-browser", label: "Open in Browser" }]
       : []),
     { kind: "item", id: "reveal", label: REVEAL_LABEL },
   ];
@@ -476,6 +480,11 @@ export const FileTree = memo(function FileTree({
         return;
       case "open-terminal":
         onOpenTerminal?.(target.isDir ? target.path : parentPath(target.path));
+        return;
+      case "open-browser":
+        void openUrl(new URL(`file://${target.path}`).toString()).catch(
+          () => undefined,
+        );
         return;
     }
   };
@@ -756,6 +765,10 @@ function HeaderIcon({
       {children}
     </button>
   );
+}
+
+function isHtmlFile(path: string): boolean {
+  return /\.html?$/i.test(path);
 }
 
 function FileTreeDiffButton({
