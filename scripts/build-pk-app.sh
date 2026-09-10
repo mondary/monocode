@@ -26,7 +26,10 @@ fi
 PK_SIGN_IDENTITY="$sign_identity" node -e '
   const fs = require("fs");
   const base = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
-  const overlay = { productName: "MonoCode PK" };
+  // Identifiant dédié : partager celui d upstream faisait traiter PK et
+  // MonoCode officiel comme une seule app par LaunchServices (quit confondu,
+  // dossier de donnees commun) et s entretuer a la fermeture.
+  const overlay = { productName: "MonoCode PK", identifier: "com.monocode.pk" };
   if (base.app && Array.isArray(base.app.windows)) {
     overlay.app = {
       windows: base.app.windows.map((w) => ({ ...w, title: "MonoCode PK" })),
