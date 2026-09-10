@@ -1415,7 +1415,14 @@ function KeybindingsPage() {
       const accel = captureAccelerator(event);
       if (!accel) return;
       const clash = findBindingOwner(capturingId, accel);
-      setConflict(clash ? `“${clash}” already uses ${accel}` : null);
+      if (clash) {
+        setConflict(
+          `${accel} is already used by “${clash}” — rebind that one first, then retry.`,
+        );
+        setCapturingId(null);
+        return;
+      }
+      setConflict(null);
       setKeybindingOverride(capturingId, accel);
       setCapturingId(null);
     };
