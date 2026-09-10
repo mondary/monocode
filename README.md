@@ -1,3 +1,20 @@
+<!-- MONOCODE-PK-START -->
+# MonoCode PK
+
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode) — version **2026.09.1**.
+Fonctionnalités ajoutées sur la branche `perso/pk` (la branche `main` reste un miroir de l'amont) :
+
+- **Thèmes** : presets Dracula et Catppuccin Frappé, fonds de sidebar personnalisés, icône app teintée mauve Catppuccin.
+- **Fournisseurs** : Z.ai (GLM), Xiaomi MiMo et Zen en fournisseurs directs, onglets OpenAI-compatibles, icônes et marques par fournisseur (CodexBar), filtrage des modèles NVIDIA retirés, espaces de noms OpenRouter préservés.
+- **Raccourcis clavier personnalisables** : page Settings dédiée, capture native des touches, détection de conflits, menu natif reconstruit à la volée.
+- **Terminal** : position du dock configurable, pac d'activité dans le header, vrais onglets terminal, sous-onglets masqués, mascot animée dans le rail pendant l'activité.
+- **Navigation** : cycle global des onglets chat/terminal (Cmd+Option+flèches), commits non poussés affichés et ouverture du dépôt distant.
+- **Interface** : version PK (CalVer) affichée dans Settings, pile de versions dans About, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
+- **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence.
+- **Build & mises à jour** : overlay de branding PK (tauri.conf identique à l'amont, zéro conflit de merge), app dédiée `MonoCodePK.app` (`com.monocode.pk`), signature codesign stable, sync upstream assistée (`scripts/sync-pk-update.sh`) avec dialog de mise à jour et liste des commits en retard.
+
+<!-- MONOCODE-PK-END -->
+
 
 <p align="center">
   <img src="public/monocode.png" alt="MonoCode" width="88" />
