@@ -123,13 +123,13 @@
     "label": "Session: Previous",
     "group": "Session",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Shift+Up"
+    "binding": "CmdOrCtrl+Alt+Left"
   },
   "next_session": {
     "label": "Session: Next",
     "group": "Session",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Shift+Down"
+    "binding": "CmdOrCtrl+Alt+Right"
   },
   "archive_session": {
     "label": "Session: Archive",
@@ -141,13 +141,13 @@
     "label": "Project: Previous",
     "group": "Project",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Shift+Left"
+    "binding": "CmdOrCtrl+Alt+Up"
   },
   "next_project": {
     "label": "Project: Next",
     "group": "Project",
     "when": "!overlay && (!textFocus || emptyComposer)",
-    "binding": "CmdOrCtrl+Shift+Right"
+    "binding": "CmdOrCtrl+Alt+Down"
   },
   "close_tab": {
     "label": "Pane: Close",
@@ -171,25 +171,25 @@
     "label": "Pane: Focus Left",
     "group": "Pane",
     "when": "Always",
-    "binding": "CmdOrCtrl+Alt+Left"
+    "binding": "CmdOrCtrl+Alt+Shift+Left"
   },
   "focus_right": {
     "label": "Pane: Focus Right",
     "group": "Pane",
     "when": "Always",
-    "binding": "CmdOrCtrl+Alt+Right"
+    "binding": "CmdOrCtrl+Alt+Shift+Right"
   },
   "focus_up": {
     "label": "Pane: Focus Up",
     "group": "Pane",
     "when": "Always",
-    "binding": "CmdOrCtrl+Alt+Up"
+    "binding": "CmdOrCtrl+Alt+Shift+Up"
   },
   "focus_down": {
     "label": "Pane: Focus Down",
     "group": "Pane",
     "when": "Always",
-    "binding": "CmdOrCtrl+Alt+Down"
+    "binding": "CmdOrCtrl+Alt+Shift+Down"
   },
   "new_terminal": {
     "label": "Terminal: New",

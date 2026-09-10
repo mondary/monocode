@@ -110,18 +110,18 @@ describe("tabCommand", () => {
     ).toBe("next");
   });
 
-  it("uses shift-mod arrows for session and project navigation", () => {
+  it("uses alt arrows for session and project navigation", () => {
     expect(
-      tabCommand(key({ key: "ArrowUp", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowLeft", metaKey: true, altKey: true })),
     ).toBe("prev-session");
     expect(
-      tabCommand(key({ key: "ArrowDown", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowRight", metaKey: true, altKey: true })),
     ).toBe("next-session");
     expect(
-      tabCommand(key({ key: "ArrowLeft", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowUp", metaKey: true, altKey: true })),
     ).toBe("prev-project");
     expect(
-      tabCommand(key({ key: "ArrowRight", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowDown", metaKey: true, altKey: true })),
     ).toBe("next-project");
   });
 

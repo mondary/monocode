@@ -189,7 +189,7 @@ export function captureAccelerator(e: KeyEventLike): string | null {
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
   if (parts.length === 0) return null;
-  parts.push(token);
+  parts.push(token.length === 1 ? token.toUpperCase() : token);
   return parts.join("+");
 }
 

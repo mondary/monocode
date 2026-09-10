@@ -114,7 +114,7 @@ describe("matchesAction", () => {
   it("maps arrow keys onto binding names", () => {
     expect(
       matchesAction(
-        key({ key: "ArrowUp", metaKey: true, shiftKey: true }),
+        key({ key: "ArrowLeft", metaKey: true, altKey: true }),
         "prev_session",
       ),
     ).toBe(true);
@@ -158,7 +158,7 @@ describe("captureAccelerator", () => {
   it("captures mod plus key", () => {
     expect(
       captureAccelerator(key({ key: "K", code: "KeyK", metaKey: true })),
-    ).toBe("CmdOrCtrl+k");
+    ).toBe("CmdOrCtrl+K");
     expect(
       captureAccelerator(key({ key: "~", code: "Backquote", metaKey: true, shiftKey: true })),
     ).toBe("CmdOrCtrl+Shift+`");
