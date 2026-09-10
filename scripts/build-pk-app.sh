@@ -8,10 +8,22 @@ overlay="$project_dir/src-tauri/tauri.pk.conf.json"
 
 cd "$project_dir"
 
+# Signature stable: sans elle (ad-hoc), macOS traite chaque rebuild comme une
+# nouvelle app et redemande les acces Documents/Desktop/Downloads (TCC).
+# Prefere un certificat reel du trousseau; fallback ad-hoc sinon.
+sign_identity="${PK_SIGN_IDENTITY:-}"
+if [[ -z "$sign_identity" ]]; then
+  sign_identity=$(
+    security find-identity -v -p codesigning 2>/dev/null |
+      grep -E '"(Apple Development|Developer ID Application|monocodePK)' |
+      head -1 | sed 's/.*"\(.*\)".*/\1/'
+  )
+fi
+
 # Génère l'overlay de branding PK à partir de la conf de base (suivie en git,
 # identique à upstream) : le nom PK n'existe que ici, jamais dans git, donc
 # plus aucun conflit de merge sur tauri.conf.json lors des fusions upstream.
-node -e '
+PK_SIGN_IDENTITY="$sign_identity" node -e '
   const fs = require("fs");
   const base = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
   const overlay = { productName: "MonoCode PK" };
@@ -19,6 +31,13 @@ node -e '
     overlay.app = {
       windows: base.app.windows.map((w) => ({ ...w, title: "MonoCode PK" })),
     };
+  }
+  const sign = process.env.PK_SIGN_IDENTITY || "";
+  if (sign) {
+    overlay.bundle = { macOS: { signingIdentity: sign } };
+    process.stderr.write("Signing with: " + sign + "\n");
+  } else {
+    process.stderr.write("No codesigning identity found: ad-hoc signature (TCC prompts will repeat).\n");
   }
   fs.writeFileSync("src-tauri/tauri.pk.conf.json", JSON.stringify(overlay, null, 2) + "\n");
 '
