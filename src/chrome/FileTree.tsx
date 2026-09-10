@@ -60,6 +60,11 @@ import {
   loadProjectInitSettings,
   projectInitResultMessage,
 } from "../lib/projectInit";
+import {
+  EXPLORER_SETTINGS_CHANGE_EVENT,
+  loadExplorerHighlightActions,
+  loadExplorerShowChanges,
+} from "../lib/explorerSettings";
 import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
@@ -256,6 +261,10 @@ export const FileTree = memo(function FileTree({
   const [opNotice, setOpNotice] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  const [showChanges, setShowChanges] = useState(loadExplorerShowChanges);
+  const [highlightActions, setHighlightActions] = useState(
+    loadExplorerHighlightActions,
+  );
   const creatingRef = useRef(creating);
   creatingRef.current = creating;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -608,6 +617,18 @@ export const FileTree = memo(function FileTree({
     };
   }, []);
 
+  // Settings > General can flip either Explorer header option while this tree
+  // is mounted; re-read both so the header follows without a remount.
+  useEffect(() => {
+    const onSettings = () => {
+      setShowChanges(loadExplorerShowChanges());
+      setHighlightActions(loadExplorerHighlightActions());
+    };
+    window.addEventListener(EXPLORER_SETTINGS_CHANGE_EVENT, onSettings);
+    return () =>
+      window.removeEventListener(EXPLORER_SETTINGS_CHANGE_EVENT, onSettings);
+  }, []);
+
   useEffect(() => {
     const hit = peekDir(cwd);
     if (hit) {
@@ -690,7 +711,7 @@ export const FileTree = memo(function FileTree({
               <Search className="size-3.5" strokeWidth={1.75} />
             </HeaderIcon>
           ) : null}
-          {onShowSourceControl ? (
+          {onShowSourceControl && showChanges ? (
             <FileTreeDiffButton
               cwd={cwd}
               active={sourceControlActive}
@@ -699,6 +720,7 @@ export const FileTree = memo(function FileTree({
           ) : null}
           <HeaderIcon
             label={REVEAL_LABEL}
+            highlight={highlightActions}
             onClick={() => {
               void run(() => openProjectPath(projectCwd ?? cwd));
             }}
@@ -707,6 +729,7 @@ export const FileTree = memo(function FileTree({
           </HeaderIcon>
           <HeaderIcon
             label="Initialize project"
+            highlight={highlightActions}
             onClick={() => {
               void onInitializeProject();
             }}
@@ -798,11 +821,13 @@ function HeaderIcon({
   label,
   onClick,
   active = false,
+  highlight = false,
   children,
 }: {
   label: string;
   onClick?: () => void;
   active?: boolean;
+  highlight?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -816,7 +841,9 @@ function HeaderIcon({
       className={`flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
         active
           ? "bg-content/10 text-content"
-          : "text-content/50 hover:bg-content/5 hover:text-content"
+          : highlight
+            ? "border border-accent/35 bg-accent/10 text-accent hover:bg-accent/15"
+            : "text-content/50 hover:bg-content/5 hover:text-content"
       }`}
     >
       {children}

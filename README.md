@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.7**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.8**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -21,6 +21,7 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
 - **Interface** : version PK (CalVer) affichée dans Settings, About en tête de General avec badge PK, nouveautés officielles et PK côte à côte, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
 - **Mises à jour** : vérification séparée de MonoCode officiel et MonoCodePK, commits PK disponibles sur GitHub et commits locaux non poussés signalés.
 - **Initialisation de projet** : bouton PK dans l'Explorer pour créer les liens `.agent`, `.inspi` et les templates configurés ; paramètres éditables dans Settings > Skills, avec protection des fichiers locaux existants.
+- **Explorer** : bouton Changes masquable (l'onglet Source Control le remplace) et mise en avant colorée des boutons Reveal / Initialize, réglés dans Settings > General.
 - **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence, ouverture directe de la racine Git du workspace dans Finder.
 
 ## 🧠 Utilisation

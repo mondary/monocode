@@ -204,6 +204,12 @@ import {
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
 import {
+  loadExplorerHighlightActions,
+  loadExplorerShowChanges,
+  saveExplorerHighlightActions,
+  saveExplorerShowChanges,
+} from "../lib/explorerSettings";
+import {
   cachedNotificationPermission,
   loadNotificationsEnabled,
   openNotificationSettings,
@@ -389,6 +395,12 @@ function GeneralPage({
     useState<NotificationPermission>(cachedNotificationPermission);
   const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
 
+  const [explorerShowChanges, setExplorerShowChanges] = useState(
+    loadExplorerShowChanges,
+  );
+  const [explorerHighlightActions, setExplorerHighlightActions] = useState(
+    loadExplorerHighlightActions,
+  );
   // The user may flip the switch in System Settings and come back: re-read
   // the OS state whenever the window regains focus while the toggle is on.
   useEffect(() => {
@@ -466,6 +478,16 @@ function GeneralPage({
   const onClaudeHooks = (next: boolean) => {
     saveClaudeHooks(next);
     setClaudeHooks(next);
+  };
+
+  const onExplorerShowChanges = (next: boolean) => {
+    saveExplorerShowChanges(next);
+    setExplorerShowChanges(next);
+  };
+
+  const onExplorerHighlightActions = (next: boolean) => {
+    saveExplorerHighlightActions(next);
+    setExplorerHighlightActions(next);
   };
 
   const onDefaultDockSide = (next: TerminalPlacement) => {
@@ -710,6 +732,30 @@ function GeneralPage({
           label="Claude Code hooks"
           on={claudeHooks}
           onChange={onClaudeHooks}
+        />
+      </Row>
+
+      <Heading title="Explorer" />
+      <Row
+        label="Changes button"
+        pk
+        description="The Source Control tab already lists file changes. Turn this off to hide the duplicate Changes button from the Explorer header."
+      >
+        <Toggle
+          label="Changes button"
+          on={explorerShowChanges}
+          onChange={onExplorerShowChanges}
+        />
+      </Row>
+      <Row
+        label="Highlight custom actions"
+        pk
+        description="Tint the Reveal and Initialize project buttons with the PK accent color so they stand out in the Explorer header."
+      >
+        <Toggle
+          label="Highlight custom actions"
+          on={explorerHighlightActions}
+          onChange={onExplorerHighlightActions}
         />
       </Row>
 

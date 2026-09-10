@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.8] - 2026-09-10
+
+### Added
+
+- Settings > General > Explorer can hide the header Changes button when the Source Control tab already covers it.
+- Settings > General > Explorer can tint the Reveal and Initialize project buttons with the PK accent color; both apply live.
+
 ## [2026.09.7] - 2026-09-10
 
 ### Added

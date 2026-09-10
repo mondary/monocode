@@ -8,16 +8,18 @@ import {
   saveExpanded,
 } from "../lib/fileTree";
 import type { FsEntry } from "../lib/fs";
+import {
+  saveExplorerHighlightActions,
+  saveExplorerShowChanges,
+} from "../lib/explorerSettings";
 import { FileTree } from "./FileTree";
 
 const { iconRender, directories, invokeMock } = vi.hoisted(() => {
-  const invokeMock = vi.fn(
-    async (command: string, args: { path: string }) => {
-      if (command === "list_dir") return directories.get(args.path) ?? [];
-      if (command === "open_project_path") return;
-      throw new Error(`Unexpected command: ${command}`);
-    },
-  );
+  const invokeMock = vi.fn(async (command: string, args: { path: string }) => {
+    if (command === "list_dir") return directories.get(args.path) ?? [];
+    if (command === "open_project_path") return;
+    throw new Error(`Unexpected command: ${command}`);
+  });
   const directories = new Map<string, FsEntry[]>();
   return {
     iconRender: vi.fn(),
@@ -146,5 +148,50 @@ describe("FileTree render isolation", () => {
     });
     expect(row("added.ts")).not.toBeNull();
     expect(row("first.ts")).toBeNull();
+  });
+});
+
+describe("FileTree explorer header settings", () => {
+  const changesButton = () =>
+    container.querySelector<HTMLButtonElement>(
+      'button[title="Show changes"], button[title="Hide changes"]',
+    );
+  const initButton = () =>
+    container.querySelector<HTMLButtonElement>(
+      'button[title="Initialize project"]',
+    );
+
+  let storage: Map<string, string>;
+
+  beforeEach(() => {
+    storage = new Map();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("hides the Changes button when the setting turns off, live", async () => {
+    props = { ...props, onShowSourceControl: vi.fn() };
+    await act(async () => render());
+    expect(changesButton()).not.toBeNull();
+
+    act(() => saveExplorerShowChanges(false));
+    expect(changesButton()).toBeNull();
+
+    act(() => saveExplorerShowChanges(true));
+    expect(changesButton()).not.toBeNull();
+  });
+
+  it("tints the custom action buttons only when highlighting is on", async () => {
+    await act(async () => render());
+    expect(initButton()?.className).not.toContain("text-accent");
+
+    act(() => saveExplorerHighlightActions(true));
+    expect(initButton()?.className).toContain("text-accent");
   });
 });
