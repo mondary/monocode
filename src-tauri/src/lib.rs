@@ -163,7 +163,7 @@ fn pk_upstream_info() -> Result<String, String> {
     let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     let output = std::process::Command::new("bash")
         .arg("-c")
-        .arg("git fetch -q upstream && echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main)")
+        .arg("git fetch -q upstream && echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) && echo ---commits--- && git log --oneline -12 HEAD..upstream/main")
         .current_dir(project_dir)
         .output()
         .map_err(|error| error.to_string())?;

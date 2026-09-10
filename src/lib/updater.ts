@@ -37,13 +37,22 @@ export async function readAppVersion(): Promise<string> {
   }
 }
 
-async function pkUpstreamInfo(): Promise<{ tag: string; behind: number } | null> {
+async function pkUpstreamInfo(): Promise<{
+  tag: string;
+  behind: number;
+  commits: string[];
+} | null> {
   try {
     const raw = await invoke<string>("pk_upstream_info");
-    const tag = /tag=(\S*)/.exec(raw)?.[1] ?? "";
-    const behind = Number(/behind=(\d+)/.exec(raw)?.[1] ?? "0");
+    const [header, commitSection] = raw.split("---commits---");
+    const tag = /tag=(\S*)/.exec(header ?? "")?.[1] ?? "";
+    const behind = Number(/behind=(\d+)/.exec(header ?? "")?.[1] ?? "0");
     if (!tag || !Number.isFinite(behind)) return null;
-    return { tag, behind };
+    const commits = (commitSection ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return { tag, behind, commits };
   } catch {
     return null;
   }
@@ -112,10 +121,26 @@ export async function runUpdateFlow(
         const versionLine = info
           ? `Version disponible : ${info.tag} (${info.behind} commit${info.behind === 1 ? "" : "s"} en retard).\n\n`
           : "";
-        await message(
-          `${versionLine}PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.`,
-          { title: "Mise à jour PKmod" },
+        const commitLines =
+          info && info.commits.length > 0
+            ? `Au programme :\n${info.commits
+                .map((commit) => `• ${commit}`)
+                .join("\n")}${
+                info.behind > info.commits.length
+                  ? `\n• … et ${info.behind - info.commits.length} autres`
+                  : ""
+              }\n\n`
+            : "";
+        const proceed = await ask(
+          `${versionLine}${commitLines}PKmod va récupérer les commits officiels, reconstruire l'application et la relancer.`,
+          {
+            title: "Mise à jour PKmod",
+            kind: "info",
+            okLabel: "Mettre à jour",
+            cancelLabel: "Plus tard",
+          },
         );
+        if (!proceed) return idle;
         await invoke("sync_pk_upstream");
       }
       return idle;
