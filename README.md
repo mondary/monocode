@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.10**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.11**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -27,6 +27,7 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
 ## 🧠 Utilisation
 
 - `scripts/sync-pk-update.sh` — synchronise l'amont (fetch + merge), build, relance l'app ; dialog intégré avec bouton « Plus tard » et liste des commits en retard.
+- `npm run build:pk:dev` — build la variante **dev** (`/Applications/MonoCodePK-Dev.app`, identifiant `com.monocode.pk.dev`) : données et permissions isolées, cohabite avec la version quotidienne pour valider les nouveautés sans tuer MonoCode PK. Le « Check for Updates » de chaque variante reconstruit et relance sa propre variante.
 
 ## ⚙️ Réglages
 - Tout se règle dans Settings : thème, raccourcis, position du dock terminal, providers du footer usage et initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.

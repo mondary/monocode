@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Variante passée par l'app appelante (sync_pk_upstream) : "dev" reconstruit
+# et relance la version dev, tout le reste la version quotidienne.
+variant="${1:-stable}"
+case "$variant" in
+  dev)
+    build_cmd="build:pk:dev"
+    app_path="/Applications/MonoCodePK-Dev.app"
+    ;;
+  *)
+    build_cmd="build:pk"
+    app_path="/Applications/MonoCodePK.app"
+    ;;
+esac
+
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 log_file="$project_dir/pk-update.log"
 exec >>"$log_file" 2>&1
@@ -10,6 +24,7 @@ notify() {
 }
 
 cd "$project_dir"
+echo "--- sync variant=$variant $(date) ---"
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "Arbre de travail non propre: mise à jour abandonnée (commiter ou stasher d'abord)." >&2
@@ -33,8 +48,6 @@ if [ "$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)" -gt 
     git commit --no-edit || true
   fi
 fi
-
-git fetch upstream
 if ! git merge --no-edit upstream/main; then
   # Lockfiles: la version amont suffit, ils sont régénérés au build.
   git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
@@ -48,5 +61,5 @@ if ! git merge --no-edit upstream/main; then
   git commit --no-edit || true
 fi
 
-npm run build:pk
-open -n /Applications/MonoCodePK.app
+npm run "$build_cmd"
+open -n "$app_path"

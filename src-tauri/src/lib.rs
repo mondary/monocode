@@ -191,8 +191,15 @@ git log --oneline -12 "HEAD..origin/$branch" 2>/dev/null || true
 #[tauri::command]
 fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
     let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/sync-pk-update.sh");
+    // The dev variant rebuilds and relaunches itself, not the daily app.
+    let variant = if app.config().identifier.ends_with(".dev") {
+        "dev"
+    } else {
+        "stable"
+    };
     std::process::Command::new("bash")
         .arg(script)
+        .arg(variant)
         .spawn()
         .map(|_| {
             app.exit(0);

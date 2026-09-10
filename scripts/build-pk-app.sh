@@ -2,9 +2,31 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
-source_app="$project_dir/target/release/bundle/macos/MonoCode PK.app"
-target_app="/Applications/MonoCodePK.app"
-overlay="$project_dir/src-tauri/tauri.pk.conf.json"
+variant="${1:-}"
+
+# Deux variantes cohabitent : la version quotidienne (stable) et une version
+# dev que l'agent peut tuer/relancer pendant le développement. L'identifiant
+# de bundle distinct isole LaunchServices, les permissions TCC et les données
+# applicatives, donc les deux apps tournent simultanément sans interférer.
+case "$variant" in
+  dev)
+    product_name="MonoCode PK Dev"
+    identifier="com.monocode.pk.dev"
+    target_app="/Applications/MonoCodePK-Dev.app"
+    overlay="$project_dir/src-tauri/tauri.pk.dev.conf.json"
+    ;;
+  "" | stable)
+    product_name="MonoCode PK"
+    identifier="com.monocode.pk"
+    target_app="/Applications/MonoCodePK.app"
+    overlay="$project_dir/src-tauri/tauri.pk.conf.json"
+    ;;
+  *)
+    echo "Usage: $0 [stable|dev]" >&2
+    exit 1
+    ;;
+esac
+source_app="$project_dir/target/release/bundle/macos/${product_name}.app"
 
 cd "$project_dir"
 
@@ -23,16 +45,20 @@ fi
 # Génère l'overlay de branding PK à partir de la conf de base (suivie en git,
 # identique à upstream) : le nom PK n'existe que ici, jamais dans git, donc
 # plus aucun conflit de merge sur tauri.conf.json lors des fusions upstream.
-PK_SIGN_IDENTITY="$sign_identity" node -e '
+PK_SIGN_IDENTITY="$sign_identity" \
+PK_PRODUCT_NAME="$product_name" \
+PK_IDENTIFIER="$identifier" \
+PK_OVERLAY="$overlay" node -e '
   const fs = require("fs");
   const base = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
   // Identifiant dédié : partager celui d upstream faisait traiter PK et
   // MonoCode officiel comme une seule app par LaunchServices (quit confondu,
   // dossier de donnees commun) et s entretuer a la fermeture.
-  const overlay = { productName: "MonoCode PK", identifier: "com.monocode.pk" };
+  const name = process.env.PK_PRODUCT_NAME;
+  const overlay = { productName: name, identifier: process.env.PK_IDENTIFIER };
   if (base.app && Array.isArray(base.app.windows)) {
     overlay.app = {
-      windows: base.app.windows.map((w) => ({ ...w, title: "MonoCode PK" })),
+      windows: base.app.windows.map((w) => ({ ...w, title: name })),
     };
   }
   const sign = process.env.PK_SIGN_IDENTITY || "";
@@ -42,7 +68,7 @@ PK_SIGN_IDENTITY="$sign_identity" node -e '
   } else {
     process.stderr.write("No codesigning identity found: ad-hoc signature (TCC prompts will repeat).\n");
   }
-  fs.writeFileSync("src-tauri/tauri.pk.conf.json", JSON.stringify(overlay, null, 2) + "\n");
+  fs.writeFileSync(process.env.PK_OVERLAY, JSON.stringify(overlay, null, 2) + "\n");
 '
 
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"

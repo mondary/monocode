@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.11] - 2026-09-10
+
+### Added
+
+- Dev variant (`npm run build:pk:dev`): `/Applications/MonoCodePK-Dev.app` with its own bundle identifier, data, and TCC permissions, so agent-driven rebuilds never touch the daily MonoCode PK. Each variant's update flow rebuilds and relaunches itself.
+
 ## [2026.09.10] - 2026-09-10
 
 ### Changed
