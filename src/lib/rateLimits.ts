@@ -26,6 +26,53 @@ export function saveUsageDisplayMode(mode: UsageDisplayMode): void {
   window.dispatchEvent(new Event(USAGE_DISPLAY_MODE_CHANGE_EVENT));
 }
 
+export type UsageScope = "active" | "custom";
+
+const USAGE_SCOPE_KEY = "monocode.usageScope";
+const USAGE_HIDDEN_PROVIDERS_KEY = "monocode.usageHiddenProviders";
+export const USAGE_SCOPE_CHANGE_EVENT = "monocode:usage-scope-change";
+
+export function loadUsageScope(): UsageScope {
+  try {
+    return localStorage.getItem(USAGE_SCOPE_KEY) === "active"
+      ? "active"
+      : "custom";
+  } catch {
+    return "custom";
+  }
+}
+
+export function saveUsageScope(scope: UsageScope): void {
+  try {
+    localStorage.setItem(USAGE_SCOPE_KEY, scope);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
+}
+
+export function loadHiddenUsageProviders(): string[] {
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(USAGE_HIDDEN_PROVIDERS_KEY) ?? "[]",
+    );
+    return Array.isArray(raw)
+      ? raw.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveHiddenUsageProviders(ids: string[]): void {
+  try {
+    localStorage.setItem(USAGE_HIDDEN_PROVIDERS_KEY, JSON.stringify(ids));
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
+}
+
 export type RateLimitStatus =
   "idle" | "fetching" | "ok" | "error" | "unavailable";
 

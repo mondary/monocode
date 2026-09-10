@@ -134,10 +134,16 @@ import {
   type TerminalPlacement,
 } from "../lib/projectTerminal";
 import {
+  loadHiddenUsageProviders,
   loadUsageDisplayMode,
+  loadUsageScope,
+  saveHiddenUsageProviders,
   saveUsageDisplayMode,
+  saveUsageScope,
   type UsageDisplayMode,
+  type UsageScope,
 } from "../lib/rateLimits";
+import { fetchCodexBarRateLimits } from "../lib/rateLimitsFetch";
 import {
   loadArchivedProjects,
   looksLikeProject,
@@ -351,6 +357,13 @@ function GeneralPage({
   const [usageDisplayMode, setUsageDisplayMode] = useState<UsageDisplayMode>(
     loadUsageDisplayMode,
   );
+  const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
+  const [hiddenUsageProviders, setHiddenUsageProviders] = useState<string[]>(
+    loadHiddenUsageProviders,
+  );
+  const [usageProviderList, setUsageProviderList] = useState<string[] | null>(
+    null,
+  );
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
@@ -452,6 +465,32 @@ function GeneralPage({
     setUsageDisplayMode(next);
   };
 
+  const onUsageScope = (next: UsageScope) => {
+    saveUsageScope(next);
+    setUsageScope(next);
+  };
+
+  const toggleUsageProvider = (id: string) => {
+    const next = hiddenUsageProviders.includes(id)
+      ? hiddenUsageProviders.filter((entry) => entry !== id)
+      : [...hiddenUsageProviders, id];
+    saveHiddenUsageProviders(next);
+    setHiddenUsageProviders(next);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCodexBarRateLimits().then((entries) => {
+      if (cancelled) return;
+      const ids = new Set<string>(["claude", "codex"]);
+      for (const entry of entries) ids.add(entry.provider);
+      setUsageProviderList([...ids]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <>
       <Row
@@ -514,6 +553,54 @@ function GeneralPage({
           ]}
           onChange={onUsageDisplayMode}
         />
+      </Row>
+      <Row
+        label="Usage providers"
+        pk
+        description="Show only the active conversation's provider in the footer, or pick exactly which providers appear."
+      >
+        <div className="flex flex-col items-end gap-2">
+          <Segmented
+            label="Usage providers"
+            value={usageScope}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "custom", label: "Custom" },
+            ]}
+            onChange={onUsageScope}
+          />
+          {usageScope === "custom" ? (
+            usageProviderList == null ? (
+              <span className="text-[12px] text-content/45">
+                Loading providers…
+              </span>
+            ) : (
+              <div className="flex max-w-md flex-wrap justify-end gap-1.5">
+                {usageProviderList.map((id) => {
+                  const visible = !hiddenUsageProviders.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={visible}
+                      onClick={() => toggleUsageProvider(id)}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] leading-none transition-colors ${
+                        visible
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-content/15 text-content/45 hover:text-content"
+                      }`}
+                    >
+                      {visible ? (
+                        <Check className="size-3" strokeWidth={2.25} />
+                      ) : null}
+                      {usageProviderLabel(id)}
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : null}
+        </div>
       </Row>
       <Row
         label="Follow-up behavior"
@@ -1936,6 +2023,10 @@ function Row({
       </div>
     </div>
   );
+}
+
+function usageProviderLabel(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
 function PkBadge() {

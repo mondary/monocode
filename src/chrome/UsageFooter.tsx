@@ -12,8 +12,11 @@ import {
   fetchingRateLimits,
   formatRateLimitWindowChipLabel,
   formatDisplayedUsagePercent,
+  loadHiddenUsageProviders,
   loadUsageDisplayMode,
+  loadUsageScope,
   USAGE_DISPLAY_MODE_CHANGE_EVENT,
+  USAGE_SCOPE_CHANGE_EVENT,
   idleRateLimits,
   RATE_LIMIT_POLL_MS,
   rateLimitWindowTooltip,
@@ -22,6 +25,7 @@ import {
   type RateLimitProvider,
   type RateLimitWindow,
   type UsageDisplayMode,
+  type UsageScope,
 } from "../lib/rateLimits";
 import { HARNESS_LABEL, HARNESS_TITLE, type HarnessId } from "../lib/session";
 import {
@@ -59,6 +63,10 @@ export function UsageFooter({
   const [codexbar, setCodexbar] = useState<ProviderRateLimits[]>([]);
   const [displayMode, setDisplayMode] = useState<UsageDisplayMode>(
     loadUsageDisplayMode,
+  );
+  const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
+  const [hiddenProviders, setHiddenProviders] = useState<string[]>(
+    loadHiddenUsageProviders,
   );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
@@ -141,10 +149,17 @@ export function UsageFooter({
   }, []);
 
   useEffect(() => {
-    const onChange = () => setDisplayMode(loadUsageDisplayMode());
+    const onChange = () => {
+      setDisplayMode(loadUsageDisplayMode());
+      setUsageScope(loadUsageScope());
+      setHiddenProviders(loadHiddenUsageProviders());
+    };
     window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
-    return () =>
+    window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+    return () => {
       window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+    };
   }, []);
 
   const native = [
@@ -152,10 +167,16 @@ export function UsageFooter({
     wantCodex ? codex : null,
   ].filter((entry): entry is ProviderRateLimits => entry != null);
   const codexbarProviders = new Set(codexbar.map((entry) => entry.provider));
-  const usage = [
+  const mergedUsage = [
     ...codexbar,
     ...native.filter((entry) => !codexbarProviders.has(entry.provider)),
   ];
+  const usage =
+    usageScope === "active"
+      ? mergedUsage.filter((entry) => providers.includes(entry.provider))
+      : mergedUsage.filter(
+          (entry) => !hiddenProviders.includes(entry.provider),
+        );
   const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
   const showRight = showUsage || showTerminals;
