@@ -36,7 +36,7 @@ export const SETTINGS_SECTIONS: {
     id: "skills",
     label: "Skills",
     description:
-      "Discover and manage file skills from project, personal, and harness folders.",
+      "Discover skills and configure one-click project initialization links.",
   },
   {
     id: "archive",

@@ -225,6 +225,7 @@ import { PK_VERSION } from "../lib/pkVersion";
 type Props = {
   section: SettingsSectionId;
   cwd: string;
+  projectCwd?: string;
   sessions: SessionSummary[];
   besideRail?: boolean;
   onClose: () => void;
@@ -239,6 +240,7 @@ type Props = {
 export function SettingsView({
   section,
   cwd,
+  projectCwd,
   sessions,
   besideRail = false,
   onClose,
@@ -326,7 +328,9 @@ export function SettingsView({
           ) : null}
           {section === "keybindings" ? <KeybindingsPage /> : null}
           {section === "providers" ? <ProvidersPage /> : null}
-          {section === "skills" ? <SkillsPage key={cwd} cwd={cwd} /> : null}
+          {section === "skills" ? (
+            <SkillsPage key={projectCwd ?? cwd} cwd={projectCwd ?? cwd} />
+          ) : null}
           {section === "archive" ? (
             <ArchivePage
               cwd={cwd}

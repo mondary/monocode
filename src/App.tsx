@@ -5701,6 +5701,7 @@ export default function App({
           <SettingsView
             section={settingsSection}
             cwd={sidebarCwd}
+            projectCwd={projectCwd}
             sessions={sidebarHistory}
             besideRail
             onClose={onCloseSettings}

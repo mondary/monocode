@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.7] - 2026-09-10
+
+### Added
+
+- Explorer now has a PK project initialization button for configurable `.agent`, `.inspi`, template, and skill symlinks.
+- Settings > Skills now stores editable initialization links and options for agent instructions, `.gitignore`, `VERSION`, and `CHANGELOG.md`.
+
+### Changed
+
+- Project initialization never overwrites real local files or folders; existing symlinks are reused or updated safely.
+
 ## [2026.09.6] - 2026-09-10
 
 ### Fixed

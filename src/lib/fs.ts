@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { slash } from "./paths";
+import type { ProjectInitSettings } from "./projectInit";
 
 export type FsEntry = {
   name: string;
@@ -345,6 +346,23 @@ export function movePath(from: string, destParent: string): Promise<string> {
 
 export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
+}
+
+export type ProjectInitResult = {
+  created: string[];
+  updated: string[];
+  existing: string[];
+  skipped: string[];
+  missing: string[];
+  metadataCreated: string[];
+  gitignoreUpdated: boolean;
+};
+
+export function initializeProject(
+  cwd: string,
+  settings: ProjectInitSettings,
+): Promise<ProjectInitResult> {
+  return invoke<ProjectInitResult>("initialize_project", { cwd, settings });
 }
 
 export function openProjectPath(path: string): Promise<void> {

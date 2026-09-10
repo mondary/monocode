@@ -6,7 +6,9 @@ import {
   FolderPlus,
   FoldVertical,
   GitCompare,
+  Loader,
   Search,
+  WandSparkles,
 } from "./icons";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -47,12 +49,17 @@ import {
   copyPath,
   createPath,
   deletePath,
+  initializeProject,
   movePath,
   openProjectPath,
   renamePath,
   revealPath,
   type FsEntry,
 } from "../lib/fs";
+import {
+  loadProjectInitSettings,
+  projectInitResultMessage,
+} from "../lib/projectInit";
 import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
@@ -246,6 +253,8 @@ export const FileTree = memo(function FileTree({
   const [clip, setClip] = useState<Clip | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
+  const [opNotice, setOpNotice] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(false);
   const [epoch, setEpoch] = useState(0);
   const creatingRef = useRef(creating);
   creatingRef.current = creating;
@@ -432,10 +441,30 @@ export const FileTree = memo(function FileTree({
 
   const run = async (work: () => Promise<void>) => {
     setOpError(null);
+    setOpNotice(null);
     try {
       await work();
     } catch (err: unknown) {
       setOpError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const onInitializeProject = async () => {
+    setInitializing(true);
+    setOpError(null);
+    setOpNotice(null);
+    try {
+      const projectPath = projectCwd && projectCwd !== "~" ? projectCwd : cwd;
+      const result = await initializeProject(
+        projectPath,
+        loadProjectInitSettings(),
+      );
+      await refreshTouched([cwd]);
+      setOpNotice(projectInitResultMessage(result));
+    } catch (err: unknown) {
+      setOpError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setInitializing(false);
     }
   };
 
@@ -676,6 +705,18 @@ export const FileTree = memo(function FileTree({
           >
             <FolderOpen className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
+          <HeaderIcon
+            label="Initialize project"
+            onClick={() => {
+              void onInitializeProject();
+            }}
+          >
+            {initializing ? (
+              <Loader className="size-3.5 animate-spin" strokeWidth={1.75} />
+            ) : (
+              <WandSparkles className="size-3.5" strokeWidth={1.75} />
+            )}
+          </HeaderIcon>
         </div>
         <div className="flex h-8 shrink-0 items-center">
           <button
@@ -716,6 +757,11 @@ export const FileTree = memo(function FileTree({
           {opError ? (
             <p className="px-3 py-1 text-[12px] leading-4 text-red-400">
               {opError}
+            </p>
+          ) : null}
+          {opNotice ? (
+            <p className="px-3 py-1 text-[12px] leading-4 text-emerald-400">
+              {opNotice}
             </p>
           ) : null}
           {rootOpen ? (

@@ -14,6 +14,7 @@ mod macos;
 mod menu;
 mod notes;
 mod notifications;
+mod project_init;
 mod project_logo;
 mod pty;
 mod rate_limits;
@@ -305,6 +306,7 @@ pub fn run() {
             fs::move_path,
             fs::reveal_path,
             fs::open_project_path,
+            project_init::initialize_project,
             fs::clone_repo,
             fs::read_file_preview,
             fs::stat_files,
