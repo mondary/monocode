@@ -2,6 +2,7 @@ import {
   ChevronDown,
   ChevronRight,
   FilePlus,
+  FolderOpen,
   FolderPlus,
   FoldVertical,
   GitCompare,
@@ -663,6 +664,14 @@ export const FileTree = memo(function FileTree({
               onClick={onShowSourceControl}
             />
           ) : null}
+          <HeaderIcon
+            label={REVEAL_LABEL}
+            onClick={() => {
+              void run(() => revealPath(cwd));
+            }}
+          >
+            <FolderOpen className="size-3.5" strokeWidth={1.75} />
+          </HeaderIcon>
         </div>
         <div className="flex h-8 shrink-0 items-center">
           <button
