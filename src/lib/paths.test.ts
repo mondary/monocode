@@ -8,6 +8,7 @@ import {
   projectName,
   rebasePath,
   slash,
+  fileUrl,
 } from "./paths";
 
 describe("slash", () => {
@@ -67,6 +68,21 @@ describe("path relations", () => {
     );
     expect(displayPath("c:/USERS/me/App/src/a.ts", "C:/Users/ME/app")).toBe(
       "src/a.ts",
+    );
+  });
+});
+
+describe("fileUrl", () => {
+  it("percent-encodes structure characters inside segments", () => {
+    expect(fileUrl("/srv/site/c#d.html")).toBe("file:///srv/site/c%23d.html");
+    expect(fileUrl("/srv/site/100% done.html")).toBe(
+      "file:///srv/site/100%25%20done.html",
+    );
+    expect(fileUrl("/srv/site/a b.html")).toBe("file:///srv/site/a%20b.html");
+  });
+  it("keeps the Windows drive colon unescaped", () => {
+    expect(fileUrl("C:\\repo\\my page.html")).toBe(
+      "file:///C:/repo/my%20page.html",
     );
   });
 });

@@ -119,6 +119,20 @@ export function resolveWorkspacePath(
   return joinPath(cwd, value);
 }
 
+/**
+ * `file://` URL for an absolute path. Each segment is percent-encoded so
+ * `#`, `%`, `?` or spaces in a filename cannot be read as URL structure —
+ * `file://host/c#d.html` would make the OS open a file named `c`.
+ */
+export function fileUrl(path: string): string {
+  const url = new URL("file:///");
+  url.pathname = slash(path)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment).replace(/%3A/gi, ":"))
+    .join("/");
+  return url.toString();
+}
+
 function looksLikeFilePath(value: string): boolean {
   if (value.startsWith("/") || /^[A-Za-z]:\//.test(value)) return true;
   if (value.includes("/")) return true;

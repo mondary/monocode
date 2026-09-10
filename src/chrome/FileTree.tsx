@@ -51,7 +51,7 @@ import {
   revealPath,
   type FsEntry,
 } from "../lib/fs";
-import { displayPath, parentPath, rebasePath } from "../lib/paths";
+import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
@@ -482,9 +482,7 @@ export const FileTree = memo(function FileTree({
         onOpenTerminal?.(target.isDir ? target.path : parentPath(target.path));
         return;
       case "open-browser":
-        void openUrl(new URL(`file://${target.path}`).toString()).catch(
-          () => undefined,
-        );
+        await run(() => openUrl(fileUrl(target.path)));
         return;
     }
   };

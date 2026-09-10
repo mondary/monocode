@@ -17,6 +17,11 @@
     "core:webview:allow-set-webview-zoom",
     "opener:default",
     "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-url",
+      "description": "Open local HTML files (FileTree: Open in Browser)",
+      "allow": [{ "url": "file:///*" }]
+    },
     "dialog:default",
     "updater:default",
     "process:default",
