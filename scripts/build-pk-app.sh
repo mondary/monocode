@@ -68,6 +68,32 @@ if [[ "$build_status" -ne 0 ]]; then
   echo "Tauri reported an updater-signing warning; the .app bundle is available, continuing." >&2
 fi
 
+# CFBundleIconName points at the compiled AppIcon asset catalog (Assets.car),
+# which shadows CFBundleIconFile in Dock/Cmd+Tab. That catalog is stale —
+# regenerating it needs actool/Xcode — so drop the key and let macOS render
+# the regenerated icon.icns instead.
+/usr/libexec/PlistBuddy -c 'Delete :CFBundleIconName' "$source_app/Contents/Info.plist"
+
+# Info.plist is sealed by the bundle signature: re-sign after editing it,
+# keeping tauri's entitlements and hardened runtime. Ad-hoc when no identity.
+entitlements="$(mktemp /tmp/pk-entitlements.XXXXXX).plist"
+cat >"$entitlements" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+</dict>
+</plist>
+EOF
+if [[ -z "$sign_identity" ]]; then
+  sign_identity="-"
+fi
+codesign --force --deep --options runtime \
+  --entitlements "$entitlements" --sign "$sign_identity" "$source_app"
+rm -f "$entitlements"
+
 if [[ -e "$target_app" ]]; then
   rm -rf "$target_app"
 fi

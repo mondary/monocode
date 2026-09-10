@@ -28,5 +28,9 @@ cp "$TMP/icon_128x128@2x.png" src-tauri/icons/128x128@2x.png
 magick "$MASTER" -resize "512x512" "PNG32:src-tauri/icons/icon.png"
 rm -rf "$(dirname "$TMP")"
 
+# Note: src-tauri/macos/Assets.car (compiled AppIcon catalog) stays in place —
+# tauri refuses to bundle without it — but it is stale without actool/Xcode.
+# build-pk-app.sh strips CFBundleIconName so macOS renders this icns instead.
+
 echo "Icons regenerated from: $MASTER"
 echo "Now run: scripts/build-pk-app.sh"
