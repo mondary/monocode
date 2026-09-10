@@ -55,6 +55,7 @@ type Props = {
   editorNavigation?: EditorNavigationTarget | null;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
+  hideTerminalTabs?: boolean;
 };
 
 function FilePaneComponent({
@@ -75,6 +76,7 @@ function FilePaneComponent({
   editorNavigation,
   onPaneDragStart,
   onTerminalMetaChange,
+  hideTerminalTabs = false,
 }: Props) {
   const diffViewer = useSyncExternalStore(
     subscribeDiffViewer,
@@ -96,16 +98,18 @@ function FilePaneComponent({
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       onMouseDown={() => onFocus(pane.id)}
     >
-      <SurfaceTabs
-        files={pane.files}
-        activeFileId={pane.activeFileId}
-        dirtyFileIds={dirtyFileIds}
-        fileErrorCounts={fileErrorCounts}
-        onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
-        onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
-        onReorder={(ids) => onReorderFiles(pane.id, ids)}
-        onPaneDragStart={onPaneDragStart}
-      />
+      {!hideTerminalTabs ? (
+        <SurfaceTabs
+          files={pane.files}
+          activeFileId={pane.activeFileId}
+          dirtyFileIds={dirtyFileIds}
+          fileErrorCounts={fileErrorCounts}
+          onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
+          onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
+          onReorder={(ids) => onReorderFiles(pane.id, ids)}
+          onPaneDragStart={onPaneDragStart}
+        />
+      ) : null}
       <div className="relative min-h-0 flex-1">
         {sessionReview ? (
           <div className="absolute inset-0 h-full">

@@ -5562,11 +5562,11 @@ export default function App({
                       onAddTerminal={() =>
                         onOpenTerminal(active?.cwd ?? projectCwd)
                       }
-                      onSelectTerminal={onSelectProjectTerminal}
-                      onCloseTerminal={onCloseProjectTerminal}
-                      onReorderTerminals={onReorderProjectTerminals}
-                      onTerminalMetaChange={onTerminalMetaChange}
-                    />
+                       onSelectTerminal={onSelectProjectTerminal}
+                       onCloseTerminal={onCloseProjectTerminal}
+                       onReorderTerminals={onReorderProjectTerminals}
+                       onTerminalMetaChange={onTerminalMetaChange}
+                     />
                   </div>
                 );
               })}
@@ -5620,10 +5620,14 @@ export default function App({
                             onRatio(tab.id, splitId, index, ratio)
                           }
                           editorNavigation={editorNavigation}
-                          onUpdatePlan={onUpdatePlan}
-                          onMovePane={onMovePane}
-                          onTerminalMetaChange={onTerminalMetaChange}
-                        />
+                           onUpdatePlan={onUpdatePlan}
+                           onMovePane={onMovePane}
+                           onTerminalMetaChange={onTerminalMetaChange}
+                           hideTerminalTabs={
+                             (tab.terminalPanes?.length ?? 0) > 0 &&
+                             tab.editorPanes.length === 0
+                           }
+                         />
                       </div>
                     </div>
                   ))}
