@@ -26,7 +26,13 @@ export const CHAT_BACKGROUND_PATH_CHANGE_EVENT =
 
 export type ColorScheme = "dark" | "light";
 export type ThemePreference = ColorScheme | "system";
-export type ThemePreset = "default" | "dracula" | "catppuccin-frappe";
+export type ThemePreset =
+  | "default"
+  | "dracula"
+  | "catppuccin-frappe"
+  | "catppuccin-latte"
+  | "catppuccin-macchiato"
+  | "catppuccin-mocha";
 export type TranscriptLayout = "full" | "chat";
 export type ChatBackgroundScope = "empty" | "all";
 export type ChangesView = "list" | "tree";
@@ -196,7 +202,12 @@ export function initAppearance() {
 
 function isThemePreset(value: unknown): value is ThemePreset {
   return (
-    value === "default" || value === "dracula" || value === "catppuccin-frappe"
+    value === "default" ||
+    value === "dracula" ||
+    value === "catppuccin-frappe" ||
+    value === "catppuccin-latte" ||
+    value === "catppuccin-macchiato" ||
+    value === "catppuccin-mocha"
   );
 }
 
@@ -224,6 +235,9 @@ export function applyThemePreset(value: ThemePreset) {
   root.classList.remove(
     "theme-preset-dracula",
     "theme-preset-catppuccin-frappe",
+    "theme-preset-catppuccin-latte",
+    "theme-preset-catppuccin-macchiato",
+    "theme-preset-catppuccin-mocha",
   );
   // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
   // literal `default` remains the explicit neutral option in Settings.

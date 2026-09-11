@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.17] - 2026-09-11
+
+### Added
+
+- Catppuccin theme presets: Latte, Macchiato, and Mocha join Frappé (official palette hexes). Picking Latte switches to the light scheme automatically since that flavor is designed for light surfaces.
+
 ## [2026.09.16] - 2026-09-11
 
 ### Added

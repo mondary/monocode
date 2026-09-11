@@ -19,6 +19,9 @@ import {
   resolveColorScheme,
   THEME_PREFERENCE_DEFAULT,
   loadSidebarTabOrder,
+  loadThemePreset,
+  saveThemePreset,
+  THEME_PRESET_DEFAULT,
   loadBackgroundPanels,
   saveBackgroundPanels,
   applyBackgroundPanels,
@@ -220,5 +223,52 @@ describe("sidebar tab order", () => {
       "files",
       "changes",
     ]);
+  });
+});
+
+describe("theme presets", () => {
+  afterEach(() => localStorage.clear());
+
+  it("round-trips every Catppuccin flavor", () => {
+    for (const preset of [
+      "catppuccin-latte",
+      "catppuccin-macchiato",
+      "catppuccin-mocha",
+      "catppuccin-frappe",
+    ] as const) {
+      saveThemePreset(preset);
+      expect(loadThemePreset()).toBe(preset);
+    }
+  });
+
+  it("falls back to the PK default on garbage", () => {
+    localStorage.setItem("monocode.themePreset", "solarized");
+    expect(loadThemePreset()).toBe(THEME_PRESET_DEFAULT);
+  });
+
+  it("migrates the neutral default to the PK default", () => {
+    localStorage.setItem("monocode.themePreset", "default");
+    expect(loadThemePreset()).toBe(THEME_PRESET_DEFAULT);
+  });
+});
+
+describe("background panel scope", () => {
+  afterEach(() => localStorage.clear());
+
+  it("applies the image to chat only by default", () => {
+    expect(loadBackgroundPanels()).toEqual({
+      chat: true,
+      workspace: false,
+      terminal: false,
+    });
+  });
+
+  it("persists panel picks across a reload", () => {
+    saveBackgroundPanels({ chat: true, workspace: true, terminal: false });
+    expect(loadBackgroundPanels()).toEqual({
+      chat: true,
+      workspace: true,
+      terminal: false,
+    });
   });
 });

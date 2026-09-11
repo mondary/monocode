@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.16**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.17**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -41,10 +41,9 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 
 ### Usage & providers
 - Footer usage : **Current chat** (suit la conversation) ou **Choose** (coche Codex, ZAI, OpenCode Go, Xiaomi MiMo… affichés en permanence, quel que soit le chat ouvert).
-- Données réelles via CodexBar ; noms propres (ZAI, OpenCode Go, Xiaomi MiMo), quota consommé ou restant au choix.
-
 ### Apparence
-- Presets **Dracula** et **Catppuccin Frappé**, teinte/saturation du thème réglables, fonds de sidebar personnalisés, transparence.
+- Presets **Dracula** et **Catppuccin** complets : Latte (bascule en light), Frappé, Macchiato, Mocha — palette officielle.
+- Teinte/saturation du thème réglables, fonds de sidebar personnalisés, transparence.
 - Icône app custom (ton `iconique.png`), About en tête de General, nouveautés officielles et PK côte à côte, badges PK sur les réglages du fork.
 
 ### Terminal & raccourcis

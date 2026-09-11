@@ -83,6 +83,42 @@ html.theme-preset-catppuccin-frappe {
   --color-markdown-heading: #f4b8e4;
 }
 
+html.theme-preset-catppuccin-latte {
+  --theme-hue: 219;
+  --theme-saturation: 27%;
+  --background-lightness: 94%;
+  --content-lightness: 35%;
+  --color-background-base: #eff1f5;
+  --color-content: #4c4f69;
+  --color-accent: #8839ef;
+  --link-color: #1e66f5;
+  --color-markdown-heading: #ea76cb;
+}
+
+html.theme-preset-catppuccin-macchiato {
+  --theme-hue: 234;
+  --theme-saturation: 23%;
+  --background-lightness: 18%;
+  --content-lightness: 89%;
+  --color-background-base: #24273a;
+  --color-content: #cad3f5;
+  --color-accent: #c6a0f6;
+  --link-color: #8aadf4;
+  --color-markdown-heading: #f5bde6;
+}
+
+html.theme-preset-catppuccin-mocha {
+  --theme-hue: 240;
+  --theme-saturation: 21%;
+  --background-lightness: 15%;
+  --content-lightness: 93%;
+  --color-background-base: #1e1e2e;
+  --color-content: #cdd6f4;
+  --color-accent: #cba6f7;
+  --link-color: #89b4fa;
+  --color-markdown-heading: #f5c2e7;
+}
+
 html,
 body,
 #root {
@@ -154,7 +190,10 @@ html.has-native-glass:not(.theme-light) .sidebar-glass {
 
 /* Personal presets keep every navigation pane on the same base surface. */
 html.theme-preset-dracula .sidebar-glass,
-html.theme-preset-catppuccin-frappe .sidebar-glass {
+html.theme-preset-catppuccin-frappe .sidebar-glass,
+html.theme-preset-catppuccin-latte .sidebar-glass,
+html.theme-preset-catppuccin-macchiato .sidebar-glass,
+html.theme-preset-catppuccin-mocha .sidebar-glass {
   background: var(--color-background-base) !important;
 }
 
@@ -363,11 +402,7 @@ html.theme-light .composer-send:not(:disabled):hover {
 
 html.theme-light .composer-send:disabled {
   background: color-mix(in srgb, var(--color-content) 25%, transparent);
-  color: color-mix(
-    in srgb,
-    var(--color-background-base) 75%,
-    transparent
-  );
+  color: color-mix(in srgb, var(--color-background-base) 75%, transparent);
 }
 
 .composer-field {

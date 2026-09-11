@@ -1236,10 +1236,17 @@ function useAppearanceSettings() {
   }, []);
 
   const onThemePreset = useCallback((next: ThemePreset) => {
+    // Catppuccin Latte is a light flavor: pair it with the light scheme so
+    // the palette reads correctly instead of washing over a dark canvas.
+    if (next === "catppuccin-latte") {
+      applyThemePreference("light");
+      saveThemePreference("light");
+      setThemePreference("light");
+    }
     applyThemePreset(next);
     saveThemePreset(next);
     setThemePreset(next);
-  }, []);
+  }, [setThemePreference]);
 
   const onOpacity = useCallback((percent: number) => {
     const next = applySidebarOpacity(percent / 100);
@@ -1421,7 +1428,10 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
           options={[
             { value: "default", label: "Default" },
             { value: "dracula", label: "Dracula" },
-            { value: "catppuccin-frappe", label: "Frappe" },
+            { value: "catppuccin-frappe", label: "Frappé" },
+            { value: "catppuccin-latte", label: "Latte" },
+            { value: "catppuccin-macchiato", label: "Macchiato" },
+            { value: "catppuccin-mocha", label: "Mocha" },
           ]}
           onChange={appearance.onThemePreset}
         />
