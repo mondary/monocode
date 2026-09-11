@@ -150,8 +150,7 @@ describe("SidebarUpdateFooter", () => {
       }),
     );
 
-    expect(markup).toContain("Updated to 0.1.37");
-    expect(markup).toContain("What&#x27;s new");
+    expect(markup).toContain("Mise à jour installée · 0.1.37");
     expect(markup).not.toContain("Check for updates");
     expect(markup).not.toContain("Update to");
   });
