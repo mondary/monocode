@@ -76,6 +76,8 @@ export type UsageScope = "active" | "custom";
 
 const USAGE_SCOPE_KEY = "monocode.usageScope";
 const USAGE_HIDDEN_PROVIDERS_KEY = "monocode.usageHiddenProviders";
+const USAGE_PROVIDER_SELECTION_INITIALIZED_KEY =
+  "monocode.usageProviderSelectionInitialized";
 export const USAGE_SCOPE_CHANGE_EVENT = "monocode:usage-scope-change";
 
 export function loadUsageScope(): UsageScope {
@@ -104,9 +106,14 @@ export function loadHiddenUsageProviders(): string[] {
       return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
     }
     const raw = JSON.parse(stored);
-    return Array.isArray(raw)
-      ? raw.filter((value): value is string => typeof value === "string")
-      : [];
+    if (!Array.isArray(raw)) return [];
+    if (
+      raw.length === 0 &&
+      localStorage.getItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY) !== "1"
+    ) {
+      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
+    }
+    return raw.filter((value): value is string => typeof value === "string");
   } catch {
     return [];
   }
@@ -115,6 +122,7 @@ export function loadHiddenUsageProviders(): string[] {
 export function saveHiddenUsageProviders(ids: string[]): void {
   try {
     localStorage.setItem(USAGE_HIDDEN_PROVIDERS_KEY, JSON.stringify(ids));
+    localStorage.setItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY, "1");
   } catch {
     // private mode / quota
   }
