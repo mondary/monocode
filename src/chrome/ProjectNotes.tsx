@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { File, Plus, Search, Trash2 } from "./icons";
+import { LoaderCircle, Plus, Search } from "./icons";
+import { NoteCard } from "./NoteCard";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
-import { formatRelativeTime } from "../lib/githubTasks";
+import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   createNote,
-  deleteNote,
   loadNotes,
-  notePreview,
-  noteTitle,
   requestOpenNote,
   type Note,
 } from "../lib/notes";
 import { sameProjectPath } from "../lib/recents";
+import {
+  loadTabGroupColors,
+  loadTabGroupCustomColors,
+  loadTabGroupMascots,
+} from "../lib/tabGroups";
 
 /**
- * Per-project Notes tab: the notes saved from this project's sessions and
- * composer, with quick create/delete and handoff to the full Notes view.
+ * Per-project Notes tab: the classic notes tiles for this project's notes,
+ * with search, quick create, and handoff to the full Notes view.
  */
 export function ProjectNotes({
   cwd,
@@ -31,6 +34,11 @@ export function ProjectNotes({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
+  const logos = useTabGroupLogos();
+  const [groupMascots] = useState(loadTabGroupMascots);
+  const [groupColors] = useState(loadTabGroupColors);
+  const [groupCustomColors] = useState(loadTabGroupCustomColors);
 
   const refresh = useCallback(async () => {
     try {
@@ -66,6 +74,7 @@ export function ProjectNotes({
   }, [projectNotes, query]);
 
   const create = async () => {
+    setCreating(true);
     try {
       const note = await createNote({ sourceCwd: cwd });
       await refresh();
@@ -73,15 +82,8 @@ export function ProjectNotes({
       onOpenNote?.();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const remove = async (id: string) => {
-    try {
-      await deleteNote(id);
-      await refresh();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -93,102 +95,68 @@ export function ProjectNotes({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search notes"
-            aria-label="Search project notes"
-            className="h-7 min-w-0 flex-1 rounded-md bg-content/5 pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/35 focus:bg-content/8"
+            placeholder="Filter notes"
+            aria-label="Filter project notes"
+            spellCheck={false}
+            autoComplete="off"
+            className="h-7 min-w-0 flex-1 rounded-md bg-transparent pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/40"
           />
         </div>
         <button
           type="button"
           title="New note"
           aria-label="New note"
+          disabled={creating}
           onClick={() => void create()}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-content/55 hover:bg-content/10 hover:text-content"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-40"
         >
-          <Plus className="size-3.5" strokeWidth={1.75} />
+          {creating ? (
+            <LoaderCircle
+              className="size-3.5 animate-spin"
+              strokeWidth={1.75}
+            />
+          ) : (
+            <Plus className="size-3.5" strokeWidth={1.75} />
+          )}
         </button>
       </div>
       <div
         ref={listLock}
         className="min-h-0 flex-1 overflow-y-auto overscroll-none"
       >
-        {error ? (
-          <p role="alert" className="px-3 py-2 text-[12px] text-red-400">
-            {error}
-          </p>
-        ) : loading ? (
-          <p className="px-3 py-2 text-[12px] text-content/40">Loading…</p>
+        {error && notes.length === 0 ? (
+          <p className="px-3 py-2 text-[12px] text-content/50">{error}</p>
+        ) : loading && notes.length === 0 ? (
+          <div className="flex justify-center py-10 text-content/40">
+            <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} />
+          </div>
         ) : shown.length === 0 ? (
-          <p className="px-3 py-2 text-[12px] leading-relaxed text-content/40">
-            {query
-              ? "No notes match."
-              : "No notes for this project yet. Save a finished turn with the note button, or create one with +."}
+          <p className="px-3 py-2 text-[12px] leading-relaxed text-content/50">
+            {query.trim()
+              ? "No matching notes"
+              : "No notes yet. Save a turn from the transcript, or create one with +."}
           </p>
         ) : (
-          <ul className="px-1.5 py-1">
+          <ul className="flex flex-col gap-0.5 p-1.5">
             {shown.map((note) => (
-              <NoteRow
-                key={note.id}
-                note={note}
-                onOpen={() => {
-                  requestOpenNote(note.id);
-                  onOpenNote?.();
-                }}
-                onDelete={() => void remove(note.id)}
-              />
+              <li key={note.id}>
+                <NoteCard
+                  note={note}
+                  active={false}
+                  logos={logos}
+                  mascots={groupMascots}
+                  colors={groupColors}
+                  customColors={groupCustomColors}
+                  onSelect={() => {
+                    requestOpenNote(note.id);
+                    onOpenNote?.();
+                  }}
+                />
+              </li>
             ))}
           </ul>
         )}
       </div>
     </div>
-  );
-}
-
-function NoteRow({
-  note,
-  onOpen,
-  onDelete,
-}: {
-  note: Note;
-  onOpen: () => void;
-  onDelete: () => void;
-}) {
-  const title = note.title || noteTitle(note.body) || "Untitled note";
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="group flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-content/8"
-        title={`${title} — ${formatRelativeTime(
-          new Date(note.updatedAt).toISOString(),
-        )}`}
-      >
-        <File
-          className="mt-0.5 size-3.5 shrink-0 text-content/40"
-          strokeWidth={1.75}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] leading-snug text-content">
-            {title}
-          </span>
-          <span className="block truncate text-[11px] leading-snug text-content/45">
-            {notePreview(note.body, title)}
-          </span>
-        </span>
-        <button
-          type="button"
-          title="Delete note"
-          aria-label={`Delete note ${title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onDelete();
-          }}
-          className="mt-0.5 hidden size-5 shrink-0 place-items-center rounded text-content/40 hover:bg-red-400/10 hover:text-red-400 group-hover:grid"
-        >
-          <Trash2 className="size-3" strokeWidth={1.75} />
-        </button>
-      </button>
-    </li>
   );
 }
