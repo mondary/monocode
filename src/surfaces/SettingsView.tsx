@@ -856,7 +856,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       </Row>
       <Row
         label="Sounds"
-        description="Short cues when a turn finishes, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
+        description="Short cues when a turn finishes, the agent asks a question or approval, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
       >
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>

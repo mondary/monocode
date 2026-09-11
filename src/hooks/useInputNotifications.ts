@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { notifySession, pendingInputNotifications } from "../lib/notifications";
+import { playCue } from "../lib/sounds";
 import type { Session } from "../lib/session";
 
 export function useInputNotifications(
@@ -23,10 +24,12 @@ export function useInputNotifications(
       // Coalesce this render's banners per session, but leave other requests
       // eligible for the next update (including resolution of the first one).
       notified.add(key);
-      void notifySession(
-        session,
-        event,
-        session.id === activeSessionId,
+      void notifySession(session, event, session.id === activeSessionId).then(
+        (ok) => {
+          // No OS banner (you're already looking at the session): the in-app
+          // cue stands in, same contract as turn-finished.
+          if (!ok) playCue("agentInput");
+        },
       );
     }
   }, [activeSessionId, inputNotifications]);
