@@ -14,6 +14,7 @@ import {
 import { Sidebar } from "./chrome/Sidebar";
 import { ApprovalToasts } from "./chrome/ApprovalToasts";
 import { WhatsNewDialog } from "./chrome/WhatsNewDialog";
+import { UpdateFlowDialog } from "./chrome/UpdateFlowDialog";
 import { TitleBar, type Tab as TitleTab } from "./chrome/TitleBar";
 import { MenuBar } from "./chrome/MenuBar";
 import { FilePicker } from "./chrome/FilePicker";
@@ -5762,6 +5763,7 @@ export default function App({
           onClose={() => setWhatsNew(null)}
         />
       ) : null}
+      <UpdateFlowDialog />
     </div>
   );
 }

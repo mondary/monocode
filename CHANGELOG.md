@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.13] - 2026-09-11
+
+### Changed
+
+- The PK update prompt is now an in-app dialog styled like What's New: two panes (official + PK) with commit lists, per-axis up-to-date chips, unpushed-commit warnings, and Mettre à jour / Plus tard buttons — replacing the native macOS dialog. Headless runs keep the native fallback.
+
 ## [2026.09.12] - 2026-09-11
 
 ### Added

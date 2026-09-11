@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.12**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.13**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -21,7 +21,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 | Quotas en footer | — | Vrais chiffres **CodexBar** : Codex, ZAI, OpenCode Go, MiMo… mode *Current chat* ou *Choose* |
 | Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
 | Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
-| Mises à jour | Updater binaire officiel | Deux axes : amont **+ branche PK GitHub**, liste des commits, un clic = merge + build + relance |
+| Mises à jour | Updater binaire officiel | Deux axes : amont **+ branche PK GitHub**, **dialog in-app stylé** avec liste des commits, un clic = merge + build + relance |
 | Environnement de dev | — | Variante **dev isolée** (`build:pk:dev`) : je code/tue/relance sans toucher à ta version quotidienne |
 
 ## ✨ En détail

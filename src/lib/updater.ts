@@ -6,6 +6,7 @@ import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updat
 import { PK_VERSION } from "./pkVersion";
 import { announceUpdateAvailable } from "./sounds";
 import { rememberInstalledUpdate } from "./updateNotice";
+import { requestPkUpdateDecision } from "./pkUpdateDialog";
 
 export type UpdaterPhase =
   | "idle"
@@ -121,56 +122,28 @@ export async function runUpdateFlow(
       onProgress?.(idle);
       if (manual) {
         const info = await pkUpstreamInfo();
-        const unpushed =
-          info && info.pkAhead > 0
-            ? ` — ${info.pkAhead} commit${info.pkAhead === 1 ? "" : "s"} local${info.pkAhead === 1 ? "" : "aux"} non poussé${info.pkAhead === 1 ? "" : "s"}`
-            : "";
-        const pkLine = info
-          ? info.pkBehind > 0
-            ? `MonoCodePK : ${PK_VERSION} → ${info.pkBehind} commit${info.pkBehind === 1 ? "" : "s"} disponible${info.pkBehind === 1 ? "" : "s"} sur GitHub${unpushed}`
-            : `MonoCodePK : ${PK_VERSION} — à jour${unpushed}`
-          : `MonoCodePK : ${PK_VERSION}`;
-        if (info && info.behind === 0 && info.pkBehind === 0) {
-          await message(
-            `MonoCode officiel : ${currentVersion} — à jour\n${pkLine}`,
-            { title: "Mise à jour PKmod" },
-          );
-          return idle;
-        }
-        const officialLine = info
-          ? info.behind > 0
-            ? `MonoCode officiel : ${currentVersion} → ${info.tag} (${info.behind} commit${info.behind === 1 ? "" : "s"} en retard)`
-            : `MonoCode officiel : ${currentVersion} — à jour`
-          : "";
-        const upstreamList =
-          info && info.commits.length > 0
-            ? `\n\nCommits officiels :\n${info.commits
-                .map((commit) => `• ${commit}`)
-                .join("\n")}${
-                info.behind > info.commits.length
-                  ? `\n• … et ${info.behind - info.commits.length} autres`
-                  : ""
-              }`
-            : "";
-        const pkList =
-          info && info.pkCommits.length > 0
-            ? `\n\nCommits PK :\n${info.pkCommits
-                .map((commit) => `• ${commit}`)
-                .join("\n")}${
-                info.pkBehind > info.pkCommits.length
-                  ? `\n• … et ${info.pkBehind - info.pkCommits.length} autres`
-                  : ""
-              }`
-            : "";
-        const proceed = await ask(
-          `${officialLine}\n${pkLine}${upstreamList}${pkList}\n\nPKmod va récupérer les commits officiels et PK, reconstruire l'application et la relancer.`,
-          {
-            title: "Mise à jour PKmod",
-            kind: "info",
-            okLabel: "Mettre à jour",
-            cancelLabel: "Plus tard",
-          },
-        );
+        const upToDate = !info || (info.behind === 0 && info.pkBehind === 0);
+        const proceed = await requestPkUpdateDecision({
+          upToDate,
+          axes: [
+            {
+              label: "MonoCode officiel",
+              currentVersion,
+              availableVersion: info?.tag || null,
+              behind: info?.behind ?? 0,
+              ahead: 0,
+              commits: info?.commits ?? [],
+            },
+            {
+              label: "MonoCodePK",
+              currentVersion: PK_VERSION,
+              availableVersion: null,
+              behind: info?.pkBehind ?? 0,
+              ahead: info?.pkAhead ?? 0,
+              commits: info?.pkCommits ?? [],
+            },
+          ],
+        });
         if (!proceed) return idle;
         await invoke("sync_pk_upstream");
       }
