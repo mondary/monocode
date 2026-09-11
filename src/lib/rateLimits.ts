@@ -25,6 +25,15 @@ export const USAGE_PROVIDER_IDS = [
   "kilocode",
   "codebuff",
 ] as const;
+
+/** Canonicalize CodexBar/provider labels before applying Settings selections. */
+export function normalizeUsageProviderId(provider: string): string {
+  const value = provider.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  if (value === "kilo" || value === "kilocode") return "kilocode";
+  if (value === "codebuff" || value === "codebuffai") return "codebuff";
+  if (value === "opencode") return "opencodego";
+  return value;
+}
 const DEFAULT_USAGE_PROVIDER_IDS = new Set([
   "claude",
   "codex",
@@ -118,7 +127,9 @@ export function loadHiddenUsageProviders(): string[] {
     ) {
       return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
     }
-    return raw.filter((value): value is string => typeof value === "string");
+    return raw
+      .filter((value): value is string => typeof value === "string")
+      .map(normalizeUsageProviderId);
   } catch {
     return [];
   }
