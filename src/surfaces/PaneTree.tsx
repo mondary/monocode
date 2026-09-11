@@ -92,6 +92,7 @@ type Shared = {
     requestId: number,
     reply: UserQuestionReply,
   ) => void;
+  onQuestionInteraction?: (sessionId: string, requestId: number) => void;
   onOpenFile: (path: string) => void;
   editorNavigation?: EditorNavigationTarget | null;
   onOpenDiff: (
@@ -171,6 +172,7 @@ function PaneTreeComponent({
   onHandoffCardDismiss,
   onApproval,
   onQuestionReply,
+  onQuestionInteraction,
   onOpenFile,
   editorNavigation,
   onOpenDiff,
@@ -387,6 +389,7 @@ function PaneTreeComponent({
                 onHandoffCardDismiss={onHandoffCardDismiss}
                 onApproval={onApproval}
                 onQuestionReply={onQuestionReply}
+                onQuestionInteraction={onQuestionInteraction}
                 onOpenFile={onOpenFile}
                 onOpenDiff={onOpenDiff}
                 onOpenPlan={onOpenPlan}
