@@ -95,6 +95,32 @@ export function saveSettingsSection(id: SettingsSectionId) {
 
 const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 
+/** Where the "agent finished" check replaces the project row's visuals. */
+export type DoneCheckSide = "left" | "right";
+
+export const DONE_CHECK_SIDE_DEFAULT: DoneCheckSide = "left";
+
+/** Fired on `window` when the done-check side setting changes. */
+export const DONE_CHECK_SIDE_CHANGE_EVENT = "monocode:done-check-side-change";
+
+export function loadDoneCheckSide(): DoneCheckSide {
+  try {
+    const raw = localStorage.getItem("monocode.doneCheckSide");
+    return raw === "right" ? raw : DONE_CHECK_SIDE_DEFAULT;
+  } catch {
+    return DONE_CHECK_SIDE_DEFAULT;
+  }
+}
+
+export function saveDoneCheckSide(value: DoneCheckSide): void {
+  try {
+    localStorage.setItem("monocode.doneCheckSide", value);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(DONE_CHECK_SIDE_CHANGE_EVENT));
+}
+
 const FOLLOW_UP_BEHAVIOR_KEY = "monocode.followUpBehavior";
 
 export type FollowUpBehavior = "steer" | "queue" | "choice";

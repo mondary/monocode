@@ -213,6 +213,9 @@ import {
   loadComposerRunner,
   loadDiffViewer,
   loadFollowUpBehavior,
+  loadDoneCheckSide,
+  saveDoneCheckSide,
+  type DoneCheckSide,
   loadGridArcadeEnabled,
   loadLiveAgentsEnabled,
   loadNotesEnabled,
@@ -413,6 +416,9 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
   const [followUpBehavior, setFollowUpBehavior] =
     useState<FollowUpBehavior>(loadFollowUpBehavior);
+  const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
+    loadDoneCheckSide,
+  );
   const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
@@ -491,6 +497,11 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onFollowUpBehavior = (next: FollowUpBehavior) => {
     saveFollowUpBehavior(next);
     setFollowUpBehavior(next);
+  };
+
+  const onDoneCheckSide = (next: DoneCheckSide) => {
+    saveDoneCheckSide(next);
+    setDoneCheckSide(next);
   };
 
   const onComposerRunner = (next: boolean) => {
@@ -769,6 +780,20 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
             { value: "choice", label: "Let me choose" },
           ]}
           onChange={onFollowUpBehavior}
+        />
+      </Row>
+      <Row
+        label="Finished check position"
+        description="Where the green check sits on a project row when its agent finishes: over the project icon, or over the changes counter on the right."
+      >
+        <Segmented
+          label="Finished check position"
+          value={doneCheckSide}
+          options={[
+            { value: "left", label: "Left" },
+            { value: "right", label: "Right" },
+          ]}
+          onChange={onDoneCheckSide}
         />
       </Row>
       <Row

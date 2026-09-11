@@ -76,6 +76,10 @@ import { TabGroupMenu, type TabGroupMenuExtraItem } from "./TabGroupMenu";
 import { TerminalSpinner } from "./TerminalSpinner";
 import type { SettingsSectionId } from "../lib/settings";
 import {
+  DONE_CHECK_SIDE_CHANGE_EVENT,
+  loadDoneCheckSide,
+} from "../lib/settings";
+import {
   BUSY_GLOW_CHANGE_EVENT,
   loadBusyGlowColor,
 } from "../lib/busyGlowSettings";
@@ -1012,6 +1016,15 @@ function ProjectCard({
   const logoPath = resolveTabGroupLogo(key, groupLogos) ?? autoLogos[key] ?? null;
   const [logoFailed, setLogoFailed] = useState(false);
   useEffect(() => setLogoFailed(false), [logoPath]);
+  const [doneCheckSide, setDoneCheckSide] = useState(loadDoneCheckSide);
+  useEffect(() => {
+    const onSide = () => setDoneCheckSide(loadDoneCheckSide());
+    window.addEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
+    return () =>
+      window.removeEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
+  }, []);
+  const showDoneLeft = done && !busy && doneCheckSide === "left";
+  const showDoneRight = done && !busy && doneCheckSide === "right";
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
   const dragging = sortable.draggingId === item.path;
   const showStart =
@@ -1071,7 +1084,7 @@ function ProjectCard({
         className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6"
       >
         <div className="grid size-4 shrink-0 place-items-center transition-opacity group-hover:opacity-0">
-          {done && !busy ? (
+          {showDoneLeft ? (
             <span
               title="Agent terminé — vérifier les modifications"
               aria-label="Agent terminé, modifications à vérifier"
@@ -1108,7 +1121,7 @@ function ProjectCard({
         ) : (
           <span className={nameClassName}>{name}</span>
         )}
-        {done && !busy ? (
+        {showDoneRight ? (
           <span
             title="Agent finished — review the work"
             aria-label="Finished, needs review"
@@ -1117,7 +1130,7 @@ function ProjectCard({
             <Check className="size-2.5" strokeWidth={2.5} />
           </span>
         ) : null}
-        {hasChanges ? (
+        {hasChanges && !showDoneRight ? (
           <span className="shrink-0 group-hover:hidden">
             <ProjectDiffStat additions={additions} deletions={deletions} />
           </span>
