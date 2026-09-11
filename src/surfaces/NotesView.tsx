@@ -499,6 +499,7 @@ function NoteEditor({
         id: current.id,
         title: nextTitle,
         body: nextBody,
+        tags: current.tags ?? [],
       });
       setSaveError(null);
       if (

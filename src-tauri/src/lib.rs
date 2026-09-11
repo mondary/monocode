@@ -19,6 +19,7 @@ mod custom_providers;
 mod project_logo;
 mod pty;
 mod rate_limits;
+mod reminders;
 mod search;
 mod session_store;
 mod skills;
@@ -232,6 +233,7 @@ pub fn run() {
         .setup(|app| {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
+            reminders::init(app.handle());
             checkpoint::init(app.handle())?;
             menu::install(app.handle())?;
             #[cfg(target_os = "macos")]
@@ -264,6 +266,13 @@ pub fn run() {
             notifications::request_notification_permission,
             notifications::show_notification,
             notifications::open_notification_settings,
+            reminders::reminder_list,
+            reminders::reminder_set,
+            reminders::reminder_clear,
+            reminders::reminder_configure,
+            reminders::reminder_take_open,
+            reminders::reminder_register_window,
+            reminders::reminder_open,
             fs::list_dir,
             fs::list_project_files,
             fs::git_diff_stats,
