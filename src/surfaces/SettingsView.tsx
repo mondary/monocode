@@ -158,6 +158,7 @@ import {
   saveUsageDisplayMode,
   saveUsageScope,
   saveUsageWindowVisibility,
+  USAGE_PROVIDER_IDS,
   type UsageDisplayMode,
   type UsageScope,
   type UsageWindowVisibility,
@@ -569,27 +570,9 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    // CodexBar's enabled providers, straight from its config — the full
-    // usage pass keeps the picker loading for a minute, so use it only in
-    // the footer.
-    const codexbar = invoke<string[]>("codexbar_provider_list")
-      .then((providers) => [...providers])
-      .catch(() => [] as string[]);
-    void codexbar.then((providers) => {
+    void Promise.resolve().then(() => {
       if (cancelled) return;
-      // Keep the PK quota providers selectable even when CodexBar's config
-      // probe is unavailable or an older config has not listed them yet.
-      // Their actual remaining quota still comes from CodexBar at refresh
-      // time; this only keeps the settings UI from hiding the choices.
-      const ids = new Set<string>([
-        "claude",
-        "codex",
-        "zai",
-        "opencodego",
-        "mimo",
-        ...providers,
-      ]);
-      setUsageProviderList([...ids]);
+      setUsageProviderList([...USAGE_PROVIDER_IDS]);
     });
     return () => {
       cancelled = true;

@@ -406,22 +406,11 @@ function ProviderChip({
     return best;
   }, null);
   const tooltip = allWindows
-    .map((entry) => rateLimitWindowTooltip(entry.window, now))
-    .join(" · ");
+    .map((entry) => `${usageWindowLabel(entry.key)}: ${rateLimitWindowTooltip(entry.window, now)}`)
+    .join("\n");
 
   return (
-    <span
-      className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-      title={
-        tooltip ||
-        limits.error ||
-        (disconnected
-          ? "Not connected"
-          : loading
-            ? "Loading usage…"
-            : undefined)
-      }
-    >
+    <span className="group relative inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
       <ProviderMark provider={limits.provider} />
       {loading ? (
         <span className="animate-pulse text-content/35">···</span>
@@ -448,8 +437,40 @@ function ProviderChip({
           </span>
         </>
       )}
+      {tooltip && !loading && !disconnected ? (
+        <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-56 rounded-lg border border-content/15 bg-panel px-3 py-2 text-[11px] text-content shadow-xl group-hover:block">
+          <span className="mb-1 block text-[11px] font-semibold text-content">
+            {providerDisplayLabel(limits.provider)}
+          </span>
+          <span className="grid gap-1">
+            {allWindows.map((entry) => (
+              <span key={entry.key} className="grid grid-cols-[4.5rem_1fr] gap-2">
+                <span className="text-content/45">{usageWindowLabel(entry.key)}</span>
+                <span className="text-right tabular-nums">
+                  {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)} remaining · {rateLimitWindowTooltip(entry.window, now).split(" · ").slice(-1)[0]}
+                </span>
+              </span>
+            ))}
+          </span>
+        </span>
+      ) : null}
     </span>
   );
+}
+
+function usageWindowLabel(key: string): string {
+  if (key === "session") return "5 hours";
+  if (key === "weekly") return "Weekly";
+  if (key === "monthly") return "Monthly";
+  return key;
+}
+
+function providerDisplayLabel(provider: string): string {
+  return provider === "opencodego"
+    ? "OpenCode Go"
+    : provider === "mimo"
+      ? "Xiaomi MiMo"
+      : provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
 const KNOWN_HARNESSES = new Set<HarnessId>([
