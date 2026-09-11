@@ -123,6 +123,7 @@ type TreeCtxValue = {
     entry: { path: string; isDir: boolean },
     e: ReactMouseEvent,
   ) => void;
+  moveEntryTo: (from: string, destDir: string) => Promise<void>;
 };
 
 const TreeCtx = createContext<TreeCtxValue | null>(null);
@@ -439,8 +440,23 @@ export const FileTree = memo(function FileTree({
     saveSelected(cwd, created);
   };
 
-  const duplicateAt = async (path: string) => {
-    if (path === cwd) return;
+  /** Drop-target move: same plumbing as cut/paste, minus the clipboard. */
+  const moveEntryTo = async (from: string, destDir: string) => {
+    if (from === cwd || destDir === from) return;
+    if (destDir.startsWith(`${from}/`)) {
+      throw new Error("Cannot move a folder into itself.");
+    }
+    const isDir = isDirAt(cwd, from);
+    const created = await movePath(from, destDir);
+    await refreshTouched(dirsTouchedByMove(from, created), isDir ? [from] : []);
+    remapTreePaths(from, created);
+    onFileMoved?.(from, created);
+    expandDirs([destDir]);
+    setSelectedPath(created);
+    saveSelected(cwd, created);
+  };
+
+  const duplicateAt = async (path: string) => {    if (path === cwd) return;
     const destParent = parentPath(path);
     const created = await copyPath(path, destParent);
     await refreshTouched([destParent]);
@@ -687,6 +703,7 @@ export const FileTree = memo(function FileTree({
         onRenameCommit,
         onRenameCancel,
         onItemContextMenu,
+        moveEntryTo: (from, destDir) => run(() => moveEntryTo(from, destDir)),
       }}
     >
       <div
@@ -993,6 +1010,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     onRenameCommit,
     onRenameCancel,
     onItemContextMenu,
+    moveEntryTo,
   } = useTree();
   const open = expanded.has(entry.path);
   const [children, setChildren] = useState<FsEntry[] | null>(() =>
@@ -1033,7 +1051,15 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     };
   }, [entry.isDir, entry.path, open, epoch]);
 
-  const onClick = () => {
+  const [dropHover, setDropHover] = useState(false);
+
+  const onRowClick = (e: ReactMouseEvent) => {
+    // Cmd/Ctrl+click opens the file with its system default app (like `open`).
+    if (!entry.isDir && (IS_MAC ? e.metaKey : e.ctrlKey)) {
+      e.preventDefault();
+      void openPath(entry.path);
+      return;
+    }
     onSelect(entry.path);
     if (entry.isDir) onToggle(entry.path);
     else onOpenFile(entry.path);
@@ -1061,14 +1087,46 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
           role="treeitem"
           title={entry.path}
           aria-expanded={entry.isDir ? open : undefined}
-          onClick={onClick}
+          onClick={onRowClick}
           onContextMenu={(e) => onItemContextMenu(entry, e)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/monocode-path", entry.path);
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={
+            entry.isDir
+              ? (e) => {
+                  if (!e.dataTransfer.types.includes("text/monocode-path")) {
+                    return;
+                  }
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDropHover(true);
+                }
+              : undefined
+          }
+          onDragLeave={entry.isDir ? () => setDropHover(false) : undefined}
+          onDrop={
+            entry.isDir
+              ? (e) => {
+                  e.preventDefault();
+                  setDropHover(false);
+                  const from = e.dataTransfer.getData("text/monocode-path");
+                  if (from && from !== entry.path) {
+                    void moveEntryTo(from, entry.path);
+                  }
+                }
+              : undefined
+          }
           style={{ paddingLeft: 8 + depth * 12 }}
           className={`flex h-7.5 w-full cursor-default items-center gap-1 pr-2 text-left text-[14px] leading-none ${
             selected
               ? "bg-content/10 text-content"
               : "text-content hover:bg-content/5"
-          } ${cutPath === entry.path ? "opacity-50" : ""}`}
+          } ${cutPath === entry.path ? "opacity-50" : ""} ${
+            dropHover ? "ring-1 ring-inset ring-accent" : ""
+          }`}
         >
           <span className="grid size-4 shrink-0 place-items-center text-content/50">
             {entry.isDir ? (
