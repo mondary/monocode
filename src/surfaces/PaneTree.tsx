@@ -34,6 +34,7 @@ import {
 } from "../lib/session";
 import { FilePane } from "./FilePane";
 import { SessionPane } from "./SessionPane";
+import type { SessionFolderTarget } from "../lib/sessionFolders";
 
 type Shared = {
   visible: boolean;
@@ -70,6 +71,10 @@ type Shared = {
   ) => void;
   onStop: (sessionId: string) => void;
   onCompactContext: (sessionId: string) => boolean;
+  onPlaceSessionInFolder: (
+    sessionId: string,
+    target: SessionFolderTarget,
+  ) => void;
   onDeleteQueuedMessage: (sessionId: string, messageId: string) => void;
   onEditQueuedMessage: (
     sessionId: string,
@@ -162,6 +167,7 @@ function PaneTreeComponent({
   onSubmit,
   onStop,
   onCompactContext,
+  onPlaceSessionInFolder,
   onDeleteQueuedMessage,
   onEditQueuedMessage,
   onQueuedMessageEditingChange,
@@ -379,6 +385,7 @@ function PaneTreeComponent({
                 onSubmit={onSubmit}
                 onStop={onStop}
                 onCompactContext={onCompactContext}
+                onPlaceSessionInFolder={onPlaceSessionInFolder}
                 onDeleteQueuedMessage={onDeleteQueuedMessage}
                 onEditQueuedMessage={onEditQueuedMessage}
                 onQueuedMessageEditingChange={onQueuedMessageEditingChange}
