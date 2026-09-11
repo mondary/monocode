@@ -3,6 +3,7 @@ import {
   ArrowDownCircle,
   Check,
   ChevronDown,
+  ChevronUp,
   ImagePlus,
   Loader,
   RefreshCw,
@@ -681,33 +682,57 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
                 Loading providers…
               </span>
             ) : (
-              <div className="flex max-w-md flex-wrap justify-end gap-1.5">
+              <div className="w-[min(360px,100%)] overflow-hidden rounded-xl border border-content/10 bg-content/[0.025]">
+                <div className="flex items-center justify-between border-b border-content/10 px-3 py-2">
+                  <span className="text-[11px] font-medium text-content/65">Providers affichés</span>
+                  <span className="text-[10px] text-content/35">ordre de la barre quota</span>
+                </div>
                 {usageProviderList
                   .slice()
                   .sort((a, b) => usageProviderOrder.indexOf(a) - usageProviderOrder.indexOf(b))
                   .map((id) => {
-                  const visible = !hiddenUsageProviders.includes(id);
+                  const canonicalId = normalizeUsageProviderId(id);
+                  const visible = !hiddenUsageProviders.includes(canonicalId);
+                  const position = usageProviderOrder.indexOf(canonicalId);
                   return (
-                    <button
+                    <div
                       key={id}
-                      type="button"
-                      aria-pressed={visible}
-                      onClick={() => toggleUsageProvider(id)}
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] leading-none transition-colors ${
-                        visible
-                          ? "border-accent/40 bg-accent/10 text-accent"
-                          : "border-content/15 text-content/45 hover:text-content"
-                      }`}
+                      className="flex items-center gap-2 border-b border-content/7 px-2 py-1.5 last:border-b-0"
                     >
-                      {visible ? (
-                        <Check className="size-3" strokeWidth={2.25} />
-                      ) : null}
-                      {usageProviderLabel(id)}
-                      <span className="ml-1 flex gap-0.5">
-                        <span role="button" aria-label={`Move ${usageProviderLabel(id)} up`} onClick={(event) => { event.stopPropagation(); moveUsageProvider(id, -1); }}>↑</span>
-                        <span role="button" aria-label={`Move ${usageProviderLabel(id)} down`} onClick={(event) => { event.stopPropagation(); moveUsageProvider(id, 1); }}>↓</span>
+                      <button
+                        type="button"
+                        aria-pressed={visible}
+                        onClick={() => toggleUsageProvider(canonicalId)}
+                        className={`grid size-6 shrink-0 place-items-center rounded-md border transition-colors ${
+                          visible
+                            ? "border-accent/40 bg-accent/15 text-accent"
+                            : "border-content/15 text-transparent hover:border-content/30"
+                        }`}
+                        title={visible ? "Masquer ce provider" : "Afficher ce provider"}
+                      >
+                        <Check className="size-3.5" strokeWidth={2.5} />
+                      </button>
+                      <span className={`min-w-0 flex-1 truncate text-left text-[12px] ${visible ? "text-content" : "text-content/40"}`}>
+                        {usageProviderLabel(canonicalId)}
                       </span>
-                    </button>
+                      <span className="shrink-0 text-[10px] tabular-nums text-content/25">{position + 1}</span>
+                      <div className="flex shrink-0 gap-0.5">
+                        <button
+                          type="button"
+                          aria-label={`Monter ${usageProviderLabel(canonicalId)}`}
+                          disabled={position <= 0}
+                          onClick={() => moveUsageProvider(canonicalId, -1)}
+                          className="grid size-6 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-20"
+                        ><ChevronUp className="size-3.5" /></button>
+                        <button
+                          type="button"
+                          aria-label={`Descendre ${usageProviderLabel(canonicalId)}`}
+                          disabled={position < 0 || position >= usageProviderOrder.length - 1}
+                          onClick={() => moveUsageProvider(canonicalId, 1)}
+                          className="grid size-6 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-20"
+                        ><ChevronDown className="size-3.5" /></button>
+                      </div>
+                    </div>
                   );
                   })}
               </div>
