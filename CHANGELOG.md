@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.12] - 2026-09-11
+
+### Added
+
+- Working glow color setting: pick the shimmer highlight on busy project titles (theme or six presets), and a "needs review" badge marks projects whose agent finished while you were elsewhere.
+
+### Changed
+
+- Usage providers: "Current chat" / "Choose" replace the unclear Active/Custom labels, the Choose scope fetches its picks regardless of the focused conversation, provider names render properly (ZAI, OpenCode Go, Xiaomi MiMo), and OpenCode sessions match the OpenCode Go chip.
+
 ## [2026.09.11] - 2026-09-10
 
 ### Added

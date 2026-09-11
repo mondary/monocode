@@ -1053,6 +1053,16 @@ export default function App({
   }
   const unseenFinishedIds = unseenFinishedRef.current;
 
+  // Projects whose agent finished while unfocused: the rail cards show a
+  // "needs review" badge until the user opens that session.
+  const finishedProjectPaths = useMemo(
+    () =>
+      sessions.flatMap((session) =>
+        unseenFinishedIds.has(session.id) && session.cwd ? [session.cwd] : [],
+      ),
+    [sessions, unseenFinishedIds],
+  );
+
   const liveAgents = useMemo(
     () =>
       liveAgentsEnabled
@@ -5427,6 +5437,7 @@ export default function App({
           ),
           ...terminalBusyProjectPaths,
         ]}
+        doneProjectPaths={finishedProjectPaths}
         liveAgents={liveAgents}
         onSelectAgent={onSelectLiveAgent}
         onSelectProject={onSelectProject}

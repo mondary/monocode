@@ -204,6 +204,11 @@ import {
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
 import {
+  BUSY_GLOW_PRESETS,
+  loadBusyGlowColor,
+  saveBusyGlowColor,
+} from "../lib/busyGlowSettings";
+import {
   loadExplorerHighlightActions,
   loadExplorerShowChanges,
   saveExplorerHighlightActions,
@@ -401,6 +406,7 @@ function GeneralPage({
   const [explorerHighlightActions, setExplorerHighlightActions] = useState(
     loadExplorerHighlightActions,
   );
+  const [busyGlowColor, setBusyGlowColor] = useState(loadBusyGlowColor);
   // The user may flip the switch in System Settings and come back: re-read
   // the OS state whenever the window regains focus while the toggle is on.
   useEffect(() => {
@@ -488,6 +494,11 @@ function GeneralPage({
   const onExplorerHighlightActions = (next: boolean) => {
     saveExplorerHighlightActions(next);
     setExplorerHighlightActions(next);
+  };
+
+  const onBusyGlowColor = (next: string) => {
+    saveBusyGlowColor(next);
+    setBusyGlowColor(next);
   };
 
   const onDefaultDockSide = (next: TerminalPlacement) => {
@@ -699,6 +710,43 @@ function GeneralPage({
           on={liveAgentsEnabled}
           onChange={onLiveAgentsEnabled}
         />
+      </Row>
+      <Row
+        label="Working glow color"
+        pk
+        description="Highlight color of the light sweep on project titles while an agent works on them. Theme follows the accent of the current theme."
+      >
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {BUSY_GLOW_PRESETS.map((preset) => {
+            const selected = busyGlowColor === preset.value;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                aria-pressed={selected}
+                title={preset.label}
+                aria-label={`${preset.label} glow`}
+                onClick={() => onBusyGlowColor(preset.value)}
+                className={`grid size-6 place-items-center rounded-md border transition-colors ${
+                  selected
+                    ? "border-accent/60"
+                    : "border-content/15 hover:border-content/35"
+                }`}
+              >
+                {preset.value ? (
+                  <span
+                    className="size-3 rounded-full"
+                    style={{ backgroundColor: preset.value }}
+                  />
+                ) : (
+                  <span className="text-[9px] font-medium text-content/45">
+                    auto
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </Row>
       <Row
         label="Sounds"

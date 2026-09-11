@@ -778,7 +778,7 @@ header[data-tauri-drag-region] button {
     linear-gradient(
       90deg,
       transparent calc(50% - var(--spread)),
-      var(--color-content) calc(50%),
+      var(--shimmer-highlight, var(--color-content)) calc(50%),
       transparent calc(50% + var(--spread))
     ),
     linear-gradient(

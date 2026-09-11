@@ -221,6 +221,7 @@ type Props = {
   onShowSourceControl?: () => void;
   recents?: RecentProject[];
   busyProjectPaths?: Iterable<string>;
+  doneProjectPaths?: Iterable<string>;
   liveAgents?: LiveAgent[];
   onSelectAgent?: (sessionId: string) => void;
   onSelectProject?: (path: string) => void;
@@ -297,6 +298,7 @@ function SidebarComponent({
   onShowSourceControl,
   recents = [],
   busyProjectPaths,
+  doneProjectPaths,
   liveAgents = [],
   onSelectAgent,
   onSelectProject,
@@ -1515,7 +1517,7 @@ function SidebarComponent({
           cwd={cwd}
           recents={recents}
           inboxUnseen={inboxUnseen}
-          busyPaths={busyProjectPaths}
+          donePaths={doneProjectPaths}
           liveAgents={liveAgents}
           activeSessionId={activeSessionId}
           onSelectAgent={onSelectAgent}

@@ -21,7 +21,7 @@ import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
-import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
+import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   loadProjectRailWidth,
   PROJECT_RAIL_WIDTH_DEFAULT,
@@ -74,6 +74,10 @@ import { Shimmer } from "../surfaces/Shimmer";
 import { TabGroupMenu, type TabGroupMenuExtraItem } from "./TabGroupMenu";
 import { TerminalSpinner } from "./TerminalSpinner";
 import type { SettingsSectionId } from "../lib/settings";
+import {
+  BUSY_GLOW_CHANGE_EVENT,
+  loadBusyGlowColor,
+} from "../lib/busyGlowSettings";
 
 const REVEAL_LABEL = IS_MAC
   ? "Reveal in Finder"
@@ -110,6 +114,8 @@ type Props = {
   recents: RecentProject[];
   inboxUnseen?: boolean;
   busyPaths?: Iterable<string>;
+  /** Projects whose agent finished while unfocused — waiting for review. */
+  donePaths?: Iterable<string>;
   canGoBack?: boolean;
   canGoForward?: boolean;
   onGoBack?: () => void;
@@ -143,6 +149,7 @@ export function ProjectRail({
   recents,
   inboxUnseen = false,
   busyPaths,
+  donePaths,
   canGoBack = false,
   canGoForward = false,
   onGoBack,
@@ -211,6 +218,22 @@ export function ProjectRail({
     () => projectRailSections(recents, cwd, railOrder, pinnedPaths),
     [cwd, pinnedPaths, railOrder, recents],
   );
+
+  const done = useMemo(() => {
+    const set = new Set<string>();
+    for (const path of donePaths ?? []) set.add(path);
+    return set;
+  }, [donePaths]);
+
+  const [glowColor, setGlowColor] = useState(loadBusyGlowColor);
+
+  // Settings > General can re-pick the busy glow while the rail is mounted.
+  useEffect(() => {
+    const onGlow = () => setGlowColor(loadBusyGlowColor());
+    window.addEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+    return () => window.removeEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+  }, []);
+
   const busy = useMemo(() => {
     const set = new Set<string>();
     for (const path of busyPaths ?? []) set.add(path);
@@ -438,6 +461,8 @@ export function ProjectRail({
                 items={sections.pinned}
                 cwd={cwd}
                 busy={busy}
+                done={done}
+                glowColor={glowColor}
                 sortable={pinnedSortable}
                 pinned
                 searchActive={searchActive || inboxActive || notesActive}
@@ -460,6 +485,8 @@ export function ProjectRail({
               onAdd={onOpenProject}
               cwd={cwd}
               busy={busy}
+              done={done}
+              glowColor={glowColor}
               sortable={projectSortable}
               pinned={false}
               searchActive={searchActive || inboxActive || notesActive}
@@ -787,6 +814,8 @@ function ProjectSection({
   onAdd,
   cwd,
   busy,
+  done,
+  glowColor,
   sortable,
   pinned,
   searchActive,
@@ -806,6 +835,8 @@ function ProjectSection({
   onAdd?: () => void;
   cwd: string;
   busy: Set<string>;
+  done: Set<string>;
+  glowColor: string;
   sortable: SortableHandle;
   pinned: boolean;
   searchActive: boolean;
@@ -816,7 +847,7 @@ function ProjectSection({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: ReturnType<typeof useTabGroupLogos>;
+  groupLogos: TabGroupLogos;
   groupMascots: Record<string, string>;
 }) {
   return (
@@ -849,6 +880,8 @@ function ProjectSection({
             item={item}
             selected={!searchActive && sameProjectPath(item.path, cwd)}
             busy={isBusyPath(item.path, busy)}
+            done={isDonePath(item.path, done)}
+            glowColor={glowColor}
             pinned={pinned}
             sortable={sortable}
             index={index}
@@ -875,6 +908,8 @@ function ProjectCard({
   item,
   selected,
   busy,
+  done,
+  glowColor,
   pinned,
   sortable,
   index,
@@ -891,6 +926,8 @@ function ProjectCard({
   item: RecentProject;
   selected: boolean;
   busy: boolean;
+  done: boolean;
+  glowColor: string;
   pinned: boolean;
   sortable: SortableHandle;
   index: number;
@@ -901,7 +938,7 @@ function ProjectCard({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: ReturnType<typeof useTabGroupLogos>;
+  groupLogos: TabGroupLogos;
   groupMascots: Record<string, string>;
 }) {
   const fallbackName = basename(item.path);
@@ -927,8 +964,8 @@ function ProjectCard({
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
   const hasChanges = files > 0 || additions > 0 || deletions > 0;
-  const cardTitle = projectCardTitle(item.path, name, stats, busy);
-  const cardAriaLabel = projectCardAriaLabel(name, stats, busy);
+  const cardTitle = projectCardTitle(item.path, name, stats, busy, done);
+  const cardAriaLabel = projectCardAriaLabel(name, stats, busy, done);
 
   return (
     <div
@@ -985,12 +1022,26 @@ function ProjectCard({
           )}
         </div>
         {busy ? (
-          <Shimmer as="span" duration={1.4} className={nameClassName}>
+          <Shimmer
+            as="span"
+            duration={1.4}
+            className={nameClassName}
+            highlight={glowColor || undefined}
+          >
             {name}
           </Shimmer>
         ) : (
           <span className={nameClassName}>{name}</span>
         )}
+        {done && !busy ? (
+          <span
+            title="Agent finished — review the work"
+            aria-label="Finished, needs review"
+            className="grid size-4 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-400 group-hover:hidden"
+          >
+            <Check className="size-2.5" strokeWidth={2.5} />
+          </span>
+        ) : null}
         {hasChanges ? (
           <span className="shrink-0 group-hover:hidden">
             <ProjectDiffStat additions={additions} deletions={deletions} />
@@ -1049,6 +1100,13 @@ function isBusyPath(path: string, busy: Set<string>): boolean {
   return false;
 }
 
+function isDonePath(path: string, done: Set<string>): boolean {
+  for (const other of done) {
+    if (sameProjectPath(path, other)) return true;
+  }
+  return false;
+}
+
 function ProjectDiffStat({
   additions,
   deletions,
@@ -1085,9 +1143,11 @@ function projectCardTitle(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
+  done: boolean,
 ): string {
   const parts = [name, path];
   if (busy) parts.push("Working");
+  else if (done) parts.push("Finished — needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
@@ -1116,9 +1176,11 @@ function projectCardAriaLabel(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
+  done: boolean,
 ): string {
   const parts = [name];
   if (busy) parts.push("working");
+  else if (done) parts.push("finished, needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;

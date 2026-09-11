@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  loadTabGroupLogos,
-  TAB_GROUP_LOGOS_CHANGED,
-} from "../lib/tabGroups";
+import { loadTabGroupLogos, TAB_GROUP_LOGOS_CHANGED } from "../lib/tabGroups";
 
-export function useTabGroupLogos(): Record<string, string> {
+export type TabGroupLogos = Record<string, string>;
+
+export function useTabGroupLogos(): TabGroupLogos {
   const [logos, setLogos] = useState(loadTabGroupLogos);
   useEffect(() => {
     const refresh = () => setLogos(loadTabGroupLogos());

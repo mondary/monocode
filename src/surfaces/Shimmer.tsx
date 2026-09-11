@@ -6,6 +6,8 @@ export interface ShimmerProps {
   className?: string;
   duration?: number;
   spread?: number;
+  /** CSS color for the sweeping highlight; falls back to the theme content color. */
+  highlight?: string;
 }
 
 function ShimmerComponent({
@@ -14,6 +16,7 @@ function ShimmerComponent({
   className = "",
   duration = 2,
   spread = 2,
+  highlight,
 }: ShimmerProps) {
   const dynamicSpread = useMemo(
     () => (children?.length ?? 0) * spread,
@@ -27,6 +30,7 @@ function ShimmerComponent({
         {
           "--spread": `${dynamicSpread}px`,
           "--shimmer-duration": `${duration}s`,
+          ...(highlight ? { "--shimmer-highlight": highlight } : {}),
         } as CSSProperties
       }
     >
