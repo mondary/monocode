@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.29] - 2026-09-11
+
+### Changed
+
+- Quota provider ordering now uses a dedicated vertical list with clear visibility toggles, positions, and move controls.
+
 ## [2026.09.28] - 2026-09-11
 
 ### Fixed
