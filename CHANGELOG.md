@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.14] - 2026-09-11
+
+### Changed
+
+- Provider icons: Nvidia now uses the official green eye mark (#76B900, no longer tinted), and omp renders its real gradient logo instead of the monochrome bars. ZAI, MiMo, and OpenRouter keep their official monochrome marks (those brands have no colored logo).
+
 ## [2026.09.13] - 2026-09-11
 
 ### Changed
