@@ -49,11 +49,13 @@ export function runtimeModeToCodexConfig(mode: RuntimeMode): CodexThreadConfig {
       };
     case "full-access":
       return {
-        // Explicit escalations still need an approval round-trip. "never"
-        // rejects them before the client's full-access handler can allow them.
-        approvalPolicy: "on-request",
+        // Full Access is an explicit user choice: Codex must not stop on an
+        // approval toast for ordinary commands or file changes. The runtime
+        // handler still auto-grants any legacy permission request that an
+        // older app-server sends despite this policy.
+        approvalPolicy: "never",
         sandbox: "danger-full-access",
-        approvalsReviewer: "user",
+        approvalsReviewer: "auto_review",
         sandboxPolicy: { type: "dangerFullAccess" },
       };
   }

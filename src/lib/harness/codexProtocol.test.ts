@@ -38,10 +38,10 @@ describe("runtimeModeToCodexConfig", () => {
     });
   });
 
-  it("allows explicit escalation requests in full-access", () => {
+  it("does not prompt for commands in full-access", () => {
     expect(runtimeModeToCodexConfig("full-access")).toMatchObject({
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
+      approvalPolicy: "never",
+      approvalsReviewer: "auto_review",
       sandbox: "danger-full-access",
       sandboxPolicy: { type: "dangerFullAccess" },
     });
@@ -102,7 +102,7 @@ describe("buildThreadStartParams / buildTurnStartParams", () => {
     });
     expect(turn).toMatchObject({
       approvalPolicy: "never",
-      approvalsReviewer: "user",
+      approvalsReviewer: "auto_review",
       sandboxPolicy: { type: "readOnly" },
       collaborationMode: {
         mode: "plan",
@@ -123,7 +123,10 @@ describe("buildThreadStartParams / buildTurnStartParams", () => {
         }),
       ).toMatchObject({
         approvalPolicy: "never",
-        approvalsReviewer: runtimeMode === "auto" ? "auto_review" : "user",
+        approvalsReviewer:
+          runtimeMode === "auto" || runtimeMode === "full-access"
+            ? "auto_review"
+            : "user",
         sandboxPolicy: { type: "readOnly" },
       });
     },
