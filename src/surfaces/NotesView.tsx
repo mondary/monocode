@@ -1,4 +1,8 @@
 import { LoaderCircle, Plus, Search, File, Trash2 } from "../chrome/icons";
+import {
+  consumePendingOpenNote,
+  OPEN_NOTE_EVENT,
+} from "../lib/notes";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
   Fragment,
@@ -129,6 +133,21 @@ export function NotesView({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+
+  // The sidebar Notes tab opens this view focused on one note. The id is
+  // parked in notes.ts, so consume it now and whenever it arrives late.
+  useEffect(() => {
+    const apply = () => {
+      const pending = consumePendingOpenNote();
+      if (!pending) return;
+      setSelectedId((current) =>
+        notes.some((note) => note.id === pending) ? pending : current,
+      );
+    };
+    apply();
+    window.addEventListener(OPEN_NOTE_EVENT, apply);
+    return () => window.removeEventListener(OPEN_NOTE_EVENT, apply);
+  }, [notes]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();

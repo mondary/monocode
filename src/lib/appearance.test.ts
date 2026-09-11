@@ -18,6 +18,7 @@ import {
   saveThemePreference,
   resolveColorScheme,
   THEME_PREFERENCE_DEFAULT,
+  loadSidebarTabOrder,
 } from "./appearance";
 
 const KEY = "monocode.transcriptLayout";
@@ -184,5 +185,37 @@ describe("theme preference setting", () => {
 
   it("falls back to dark without matchMedia", () => {
     expect(resolveColorScheme("system")).toBe("dark");
+  });
+});
+
+describe("sidebar tab order", () => {
+  afterEach(() => localStorage.clear());
+
+  it("appends the notes tab to a legacy saved order", () => {
+    localStorage.setItem(
+      "monocode.sidebarTabOrder",
+      JSON.stringify(["files", "sessions", "changes", "inbox"]),
+    );
+    expect(loadSidebarTabOrder()).toEqual([
+      "files",
+      "sessions",
+      "changes",
+      "inbox",
+      "notes",
+    ]);
+  });
+
+  it("honors a current full order", () => {
+    localStorage.setItem(
+      "monocode.sidebarTabOrder",
+      JSON.stringify(["notes", "sessions", "inbox", "files", "changes"]),
+    );
+    expect(loadSidebarTabOrder()).toEqual([
+      "notes",
+      "sessions",
+      "inbox",
+      "files",
+      "changes",
+    ]);
   });
 });

@@ -49,13 +49,14 @@ export const TRANSCRIPT_ANCHOR_CHANGE_EVENT = "monocode:transcriptanchorchange";
 /** Fired on `window` whenever the transcript layout flips (detail: TranscriptLayout). */
 export const TRANSCRIPT_LAYOUT_CHANGE_EVENT = "monocode:transcriptlayoutchange";
 
-export type SidebarTabId = "files" | "sessions" | "changes" | "inbox";
+export type SidebarTabId = "files" | "sessions" | "changes" | "notes" | "inbox";
 
 const DEFAULT_SIDEBAR_TAB_ORDER: SidebarTabId[] = [
   "sessions",
   "inbox",
   "files",
   "changes",
+  "notes",
 ];
 
 export const THEME_HUE_MIN = 0;
@@ -156,9 +157,7 @@ export function loadThemeSaturation(): number {
 export function saveThemeSaturation(value: number) {
   writeNumber(
     THEME_SATURATION_KEY,
-    Math.round(
-      clamp(value, THEME_SATURATION_MIN, THEME_SATURATION_MAX),
-    ),
+    Math.round(clamp(value, THEME_SATURATION_MIN, THEME_SATURATION_MAX)),
   );
 }
 
@@ -178,7 +177,10 @@ export function applyThemeTint(hue: number, saturation: number) {
 export function initAppearance() {
   document.documentElement.classList.toggle("is-mac", IS_MAC);
   applyThemePreset(loadThemePreset());
-  document.documentElement.classList.toggle("has-native-glass", HAS_NATIVE_GLASS);
+  document.documentElement.classList.toggle(
+    "has-native-glass",
+    HAS_NATIVE_GLASS,
+  );
   applyThemeTint(loadThemeHue(), loadThemeSaturation());
   applyThemePreference(loadThemePreference());
   watchSystemColorScheme();
@@ -192,7 +194,9 @@ export function initAppearance() {
 }
 
 function isThemePreset(value: unknown): value is ThemePreset {
-  return value === "default" || value === "dracula" || value === "catppuccin-frappe";
+  return (
+    value === "default" || value === "dracula" || value === "catppuccin-frappe"
+  );
 }
 
 export function loadThemePreset(): ThemePreset {
@@ -216,11 +220,18 @@ export function saveThemePreset(value: ThemePreset) {
 
 export function applyThemePreset(value: ThemePreset) {
   const root = document.documentElement;
-  root.classList.remove("theme-preset-dracula", "theme-preset-catppuccin-frappe");
+  root.classList.remove(
+    "theme-preset-dracula",
+    "theme-preset-catppuccin-frappe",
+  );
   // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
   // literal `default` remains the explicit neutral option in Settings.
   if (value !== "default") root.classList.add(`theme-preset-${value}`);
-  window.dispatchEvent(new CustomEvent<ThemePreset>("monocode:themepresetchange", { detail: value }));
+  window.dispatchEvent(
+    new CustomEvent<ThemePreset>("monocode:themepresetchange", {
+      detail: value,
+    }),
+  );
   return value;
 }
 
@@ -331,9 +342,7 @@ export function saveSidebarBlur(value: number) {
 }
 
 export function applySidebarBlur(value: number) {
-  const next = Math.round(
-    clamp(value, SIDEBAR_BLUR_MIN, SIDEBAR_BLUR_MAX),
-  );
+  const next = Math.round(clamp(value, SIDEBAR_BLUR_MIN, SIDEBAR_BLUR_MAX));
   void invoke("set_window_background_blur", { radius: next });
   return next;
 }
@@ -462,6 +471,7 @@ function isSidebarTabId(value: unknown): value is SidebarTabId {
     value === "files" ||
     value === "sessions" ||
     value === "changes" ||
+    value === "notes" ||
     value === "inbox"
   );
 }
@@ -513,9 +523,7 @@ export function loadProjectRailWidth(): number {
 export function saveProjectRailWidth(value: number) {
   writeNumber(
     PROJECT_RAIL_WIDTH_KEY,
-    Math.round(
-      clamp(value, PROJECT_RAIL_WIDTH_MIN, PROJECT_RAIL_WIDTH_MAX),
-    ),
+    Math.round(clamp(value, PROJECT_RAIL_WIDTH_MIN, PROJECT_RAIL_WIDTH_MAX)),
   );
 }
 

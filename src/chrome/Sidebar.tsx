@@ -124,6 +124,7 @@ import { ColorPickerPopover, ColorSwatchRow } from "./ColorPickerPopover";
 import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
 import { FileTree } from "./FileTree";
 import { HarnessIcon } from "./HarnessIcon";
+import { ProjectNotes } from "./ProjectNotes";
 import { ProjectRail } from "./ProjectRail";
 import { RailAction } from "./RailAction";
 import { TerminalSpinner } from "./TerminalSpinner";
@@ -150,6 +151,7 @@ const TAB_LABELS: Record<SidebarTab, string> = {
   inbox: "Inbox",
   files: "Explorer",
   changes: "Changes",
+  notes: "Notes",
 };
 
 function projectPathBusy(
@@ -492,7 +494,9 @@ function SidebarComponent({
     },
     { axis: "y" },
   );
-  const visibleTabs = tabOrder.filter((itemId) => itemId !== "inbox");
+  const visibleTabs = tabOrder.filter(
+    (itemId) => itemId !== "inbox" && (itemId !== "notes" || notesEnabled),
+  );
   const canDragTabs = visibleTabs.length > 1;
   const showProjectRail = Boolean(onSelectProject && onOpenProject);
   // Settings live in the rail slot, so they keep it visible even when the
@@ -1427,6 +1431,9 @@ function SidebarComponent({
               onOpenCommit={onOpenCommit ?? (() => {})}
             />
           </div>
+        ) : null}
+        {tab === "notes" && notesEnabled && cwd && cwd !== "~" ? (
+          <ProjectNotes cwd={cwd} active onOpenNote={onOpenNotes} />
         ) : null}
         {showSidebarFooter ? (
           <>

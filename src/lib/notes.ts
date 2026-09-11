@@ -51,6 +51,27 @@ export function noteCardMeta(card: NoteComposerCard): NoteCardMeta {
 
 export const ADD_NOTE_TO_CHAT_EVENT = "monocode:add-note-to-chat";
 
+export const OPEN_NOTE_EVENT = "monocode:open-note";
+
+let pendingOpenNoteId: string | null = null;
+
+/**
+ * Ask the app to open the Notes view focused on a note. The id is parked in
+ * a module slot so the view can consume it even if it mounts after the event
+ * (the sidebar tab dispatches before the overlay renders).
+ */
+export function requestOpenNote(id: string): void {
+  pendingOpenNoteId = id;
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OPEN_NOTE_EVENT));
+}
+
+export function consumePendingOpenNote(): string | null {
+  const id = pendingOpenNoteId;
+  pendingOpenNoteId = null;
+  return id;
+}
+
 const MAX_TITLE = 200;
 const MAX_NOTE_PICKER = 8;
 const NOTE_SLUG_RE = /(^|\s)@note\/([A-Za-z0-9_-]+)/g;

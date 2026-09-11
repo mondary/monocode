@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.14**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.15**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -32,10 +32,10 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 - Commits non poussés `↑n` par projet, bouton dépôt avec le **logo officiel GitHub** (ou GitLab selon le remote).
 - Cycle global des onglets chat/terminal (⌘⌥ flèches), carte des agents en cours.
 
-### Explorer
+### Notes & Explorer
+- **Onglet Notes par projet** à côté de Sessions / Explorer / Changes : les notes du projet en cours, recherche, création rapide, suppression, et ouverture dans la vue Notes complète centrée sur la note.
 - **Initialize project** (baguette ✨) : crée les liens symboliques de tes templates/skills et expose `AGENT.md`, `CLAUDE.md`, etc. à la racine — sources et options éditables dans *Settings > Skills*.
 - Bouton **Changes masquable** (l'onglet Source Control fait déjà le travail) et **accent PK** sur les boutons Reveal / Initialize.
-- Fichiers HTML ouverts dans le navigateur, racine Git du workspace ouverte dans Finder.
 
 ### Usage & providers
 - Footer usage : **Current chat** (suit la conversation) ou **Choose** (coche Codex, ZAI, OpenCode Go, Xiaomi MiMo… affichés en permanence, quel que soit le chat ouvert).
