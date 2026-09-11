@@ -158,7 +158,6 @@ import {
   type UsageDisplayMode,
   type UsageScope,
 } from "../lib/rateLimits";
-import { fetchCodexBarRateLimits } from "../lib/rateLimitsFetch";
 import {
   loadArchivedProjects,
   looksLikeProject,
@@ -537,10 +536,15 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchCodexBarRateLimits().then((entries) => {
+    // CodexBar's enabled providers, straight from its config — the full
+    // usage pass keeps the picker loading for a minute, so use it only in
+    // the footer.
+    const codexbar = invoke<string[]>("codexbar_provider_list")
+      .then((providers) => [...providers])
+      .catch(() => [] as string[]);
+    void codexbar.then((providers) => {
       if (cancelled) return;
-      const ids = new Set<string>(["claude", "codex"]);
-      for (const entry of entries) ids.add(entry.provider);
+      const ids = new Set<string>(["claude", "codex", ...providers]);
       setUsageProviderList([...ids]);
     });
     return () => {
