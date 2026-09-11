@@ -1,4 +1,5 @@
 import { X } from "./icons";
+import { relaunch } from "@tauri-apps/plugin-process";
 import type { InstalledUpdate } from "../lib/updateNotice";
 
 type Props = {
@@ -30,12 +31,19 @@ export function UpdateRailCard({ update, onOpen, onDismiss }: Props) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[12px] font-medium leading-tight text-content">
-            Updated to {update.version}
+            Mise à jour installée · {update.version}
           </span>
           <span className="mt-0.5 block truncate text-[11px] leading-tight text-content/50">
-            What's new
+            L'application doit être relancée pour appliquer la mise à jour.
           </span>
         </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => void relaunch()}
+        className="mx-2 mb-2 rounded-md bg-accent/15 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/25"
+      >
+        Redémarrer
       </button>
       <button
         type="button"
