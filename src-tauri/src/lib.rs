@@ -209,6 +209,8 @@ fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
         .arg(variant)
         .spawn()
         .map(|_| {
+            // Keep the in-app "update launched" dialog visible long enough to be read.
+            std::thread::sleep(std::time::Duration::from_secs(3));
             app.exit(0);
         })
         .map_err(|error| error.to_string())
