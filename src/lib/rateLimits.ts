@@ -5,6 +5,31 @@ export type RateLimitProvider = string;
 export type UsageDisplayMode = "used" | "remaining";
 export type UsageWindowVisibility = "all" | "session" | "weekly";
 
+/** Stable PK quota picker: discovery must never silently add footer chips. */
+export const USAGE_PROVIDER_IDS = [
+  "claude",
+  "codex",
+  "zai",
+  "opencodego",
+  "mimo",
+  "cursor",
+  "grok",
+  "antigravity",
+  "gemini",
+  "openrouter",
+  "nvidia",
+  "pi",
+  "omp",
+  "fx",
+] as const;
+const DEFAULT_USAGE_PROVIDER_IDS = new Set([
+  "claude",
+  "codex",
+  "zai",
+  "opencodego",
+  "mimo",
+]);
+
 const USAGE_DISPLAY_MODE_KEY = "monocode.usageDisplayMode";
 const USAGE_WINDOW_VISIBILITY_KEY = "monocode.usageWindowVisibility";
 export const USAGE_DISPLAY_MODE_CHANGE_EVENT = "monocode:usage-display-mode";
@@ -74,9 +99,11 @@ export function saveUsageScope(scope: UsageScope): void {
 
 export function loadHiddenUsageProviders(): string[] {
   try {
-    const raw = JSON.parse(
-      localStorage.getItem(USAGE_HIDDEN_PROVIDERS_KEY) ?? "[]",
-    );
+    const stored = localStorage.getItem(USAGE_HIDDEN_PROVIDERS_KEY);
+    if (stored == null) {
+      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
+    }
+    const raw = JSON.parse(stored);
     return Array.isArray(raw)
       ? raw.filter((value): value is string => typeof value === "string")
       : [];
