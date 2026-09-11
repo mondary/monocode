@@ -15,8 +15,10 @@ import {
   loadHiddenUsageProviders,
   loadUsageDisplayMode,
   loadUsageScope,
+  loadUsageWindowVisibility,
   USAGE_DISPLAY_MODE_CHANGE_EVENT,
   USAGE_SCOPE_CHANGE_EVENT,
+  USAGE_WINDOW_VISIBILITY_CHANGE_EVENT,
   idleRateLimits,
   RATE_LIMIT_POLL_MS,
   rateLimitWindowTooltip,
@@ -26,6 +28,7 @@ import {
   type RateLimitWindow,
   type UsageDisplayMode,
   type UsageScope,
+  type UsageWindowVisibility,
 } from "../lib/rateLimits";
 import {
   harnessLabel,
@@ -67,6 +70,8 @@ export function UsageFooter({
     loadUsageDisplayMode,
   );
   const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
+  const [windowVisibility, setWindowVisibility] =
+    useState<UsageWindowVisibility>(loadUsageWindowVisibility);
   const [hiddenProviders, setHiddenProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
@@ -167,13 +172,16 @@ export function UsageFooter({
     const onChange = () => {
       setDisplayMode(loadUsageDisplayMode());
       setUsageScope(loadUsageScope());
+      setWindowVisibility(loadUsageWindowVisibility());
       setHiddenProviders(loadHiddenUsageProviders());
     };
     window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
     window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
     return () => {
       window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
       window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
     };
   }, []);
 
@@ -217,6 +225,7 @@ export function UsageFooter({
               limits={limits}
               now={now}
               displayMode={displayMode}
+              windowVisibility={windowVisibility}
             />
           ))}
         </>
@@ -369,28 +378,34 @@ function ProviderChip({
   limits,
   now,
   displayMode,
+  windowVisibility,
 }: {
   limits: ProviderRateLimits;
   now: number;
   displayMode: UsageDisplayMode;
+  windowVisibility: UsageWindowVisibility;
 }) {
   const loading =
     limits.status === "idle" ||
     (limits.status === "fetching" && !limits.session && !limits.weekly);
   const disconnected = limits.status === "unavailable";
-  const windows = [
+  const allWindows = [
     limits.session ? { key: "session", window: limits.session } : null,
     limits.weekly ? { key: "weekly", window: limits.weekly } : null,
+    limits.monthly ? { key: "monthly", window: limits.monthly } : null,
   ].filter((entry): entry is { key: string; window: RateLimitWindow } => {
     return entry != null;
   });
+  const windows = allWindows.filter((entry) =>
+    windowVisibility === "all" || entry.key === windowVisibility,
+  );
   const tightest = windows.reduce<RateLimitWindow | null>((best, entry) => {
     if (!best || entry.window.usedPercent > best.usedPercent) {
       return entry.window;
     }
     return best;
   }, null);
-  const tooltip = windows
+  const tooltip = allWindows
     .map((entry) => rateLimitWindowTooltip(entry.window, now))
     .join(" · ");
 

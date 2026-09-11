@@ -3,9 +3,12 @@ import { asRecord } from "./harness/codexProtocol";
 export type RateLimitProvider = string;
 
 export type UsageDisplayMode = "used" | "remaining";
+export type UsageWindowVisibility = "all" | "session" | "weekly";
 
 const USAGE_DISPLAY_MODE_KEY = "monocode.usageDisplayMode";
+const USAGE_WINDOW_VISIBILITY_KEY = "monocode.usageWindowVisibility";
 export const USAGE_DISPLAY_MODE_CHANGE_EVENT = "monocode:usage-display-mode";
+export const USAGE_WINDOW_VISIBILITY_CHANGE_EVENT = "monocode:usage-window-visibility";
 
 export function loadUsageDisplayMode(): UsageDisplayMode {
   try {
@@ -24,6 +27,24 @@ export function saveUsageDisplayMode(mode: UsageDisplayMode): void {
     // private mode / quota
   }
   window.dispatchEvent(new Event(USAGE_DISPLAY_MODE_CHANGE_EVENT));
+}
+
+export function loadUsageWindowVisibility(): UsageWindowVisibility {
+  try {
+    const value = localStorage.getItem(USAGE_WINDOW_VISIBILITY_KEY);
+    return value === "session" || value === "weekly" ? value : "all";
+  } catch {
+    return "all";
+  }
+}
+
+export function saveUsageWindowVisibility(value: UsageWindowVisibility): void {
+  try {
+    localStorage.setItem(USAGE_WINDOW_VISIBILITY_KEY, value);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT));
 }
 
 export type UsageScope = "active" | "custom";
@@ -89,6 +110,7 @@ export type ProviderRateLimits = {
   provider: RateLimitProvider;
   session: RateLimitWindow | null;
   weekly: RateLimitWindow | null;
+  monthly: RateLimitWindow | null;
   updatedAt: number;
   error: string | null;
   status: RateLimitStatus;
@@ -145,6 +167,7 @@ export function idleRateLimits(
     provider,
     session: null,
     weekly: null,
+    monthly: null,
     updatedAt: 0,
     error: null,
     status: "idle",
@@ -162,6 +185,7 @@ export function fetchingRateLimits(
     provider,
     session: previous?.session ?? null,
     weekly: previous?.weekly ?? null,
+    monthly: previous?.monthly ?? null,
     updatedAt: previous?.updatedAt ?? 0,
     error: null,
     status: "fetching",
@@ -176,6 +200,7 @@ export function unavailableRateLimits(
     provider,
     session: null,
     weekly: null,
+    monthly: null,
     updatedAt: Date.now(),
     error,
     status: "unavailable",
@@ -199,6 +224,7 @@ export function errorRateLimits(
     provider,
     session: null,
     weekly: null,
+    monthly: null,
     updatedAt: Date.now(),
     error,
     status: "error",
@@ -350,6 +376,7 @@ export function parseClaudeOAuthUsage(body: string): ProviderRateLimits {
     provider: "claude",
     session: mapUsageWindow(rec.five_hour, SESSION_WINDOW_MINUTES),
     weekly: mapUsageWindow(rec.seven_day, WEEKLY_WINDOW_MINUTES),
+    monthly: null,
     updatedAt: Date.now(),
     error: null,
     status: "ok",
@@ -373,6 +400,7 @@ export function parseCodexRateLimits(result: unknown): ProviderRateLimits {
     provider: "codex",
     session: mapCodexSnapshot(classified.session, SESSION_WINDOW_MINUTES),
     weekly: mapCodexSnapshot(classified.weekly, WEEKLY_WINDOW_MINUTES),
+    monthly: null,
     updatedAt: Date.now(),
     error: null,
     status: "ok",
@@ -409,6 +437,7 @@ export function parseCodexBarUsage(body: string): ProviderRateLimits[] {
       provider,
       session: windows[0] ?? null,
       weekly: windows[1] ?? null,
+      monthly: windows[2] ?? null,
       updatedAt: Date.now(),
       error: null,
       status: "ok",

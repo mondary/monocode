@@ -153,11 +153,14 @@ import {
   loadHiddenUsageProviders,
   loadUsageDisplayMode,
   loadUsageScope,
+  loadUsageWindowVisibility,
   saveHiddenUsageProviders,
   saveUsageDisplayMode,
   saveUsageScope,
+  saveUsageWindowVisibility,
   type UsageDisplayMode,
   type UsageScope,
+  type UsageWindowVisibility,
 } from "../lib/rateLimits";
 import {
   loadArchivedProjects,
@@ -415,6 +418,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [usageDisplayMode, setUsageDisplayMode] =
     useState<UsageDisplayMode>(loadUsageDisplayMode);
   const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
+  const [usageWindowVisibility, setUsageWindowVisibility] =
+    useState<UsageWindowVisibility>(loadUsageWindowVisibility);
   const [hiddenUsageProviders, setHiddenUsageProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
@@ -547,6 +552,11 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onUsageScope = (next: UsageScope) => {
     saveUsageScope(next);
     setUsageScope(next);
+  };
+
+  const onUsageWindowVisibility = (next: UsageWindowVisibility) => {
+    saveUsageWindowVisibility(next);
+    setUsageWindowVisibility(next);
   };
 
   const toggleUsageProvider = (id: string) => {
@@ -699,6 +709,22 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
             )
           ) : null}
         </div>
+      </Row>
+      <Row
+        label="Usage windows"
+        pk
+        description="Choose which quota window is shown in the footer. Hover a provider to see every available window, including monthly data."
+      >
+        <Segmented
+          label="Usage windows"
+          value={usageWindowVisibility}
+          options={[
+            { value: "session", label: "5 hours" },
+            { value: "weekly", label: "Weekly" },
+            { value: "all", label: "All" },
+          ]}
+          onChange={onUsageWindowVisibility}
+        />
       </Row>
       <Row
         label="Follow-up behavior"
