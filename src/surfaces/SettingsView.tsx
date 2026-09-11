@@ -352,7 +352,7 @@ export function SettingsView({
 
       <div
         ref={lockOverscroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-none"
+        className="settings-body min-h-0 flex-1 overflow-y-auto overscroll-none"
       >
         <div className="mx-auto w-full max-w-5xl px-8 py-8">
           <PageHeader
@@ -567,7 +567,18 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       .catch(() => [] as string[]);
     void codexbar.then((providers) => {
       if (cancelled) return;
-      const ids = new Set<string>(["claude", "codex", ...providers]);
+      // Keep the PK quota providers selectable even when CodexBar's config
+      // probe is unavailable or an older config has not listed them yet.
+      // Their actual remaining quota still comes from CodexBar at refresh
+      // time; this only keeps the settings UI from hiding the choices.
+      const ids = new Set<string>([
+        "claude",
+        "codex",
+        "zai",
+        "opencodego",
+        "mimo",
+        ...providers,
+      ]);
       setUsageProviderList([...ids]);
     });
     return () => {

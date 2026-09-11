@@ -1523,6 +1523,7 @@ function SidebarComponent({
         <ProjectRail
           cwd={cwd}
           recents={recents}
+          busyPaths={busyProjectPaths}
           inboxUnseen={inboxUnseen}
           donePaths={doneProjectPaths}
           liveAgents={liveAgents}

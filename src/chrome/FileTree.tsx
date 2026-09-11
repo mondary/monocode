@@ -10,7 +10,7 @@ import {
   Search,
   WandSparkles,
 } from "./icons";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   createContext,
   memo,
@@ -525,7 +525,22 @@ export const FileTree = memo(function FileTree({
         onOpenTerminal?.(target.isDir ? target.path : parentPath(target.path));
         return;
       case "open-browser":
-        await run(() => openUrl(fileUrl(target.path)));
+        await run(async () => {
+          try {
+            // Prefer the URL API so HTML files use the user's browser, not
+            // whichever editor happens to own the file association.
+            await openUrl(fileUrl(target.path));
+          } catch (error) {
+            // Some macOS installations reject local file:// URLs through the
+            // opener URL scope. The path API still delegates the file to the
+            // system's HTML handler, so Open in Browser remains useful.
+            try {
+              await openPath(target.path);
+            } catch {
+              throw error;
+            }
+          }
+        });
         return;
     }
   };

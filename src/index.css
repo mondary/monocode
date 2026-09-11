@@ -316,6 +316,13 @@ input,
   user-select: text;
 }
 
+/* Settings is documentation as much as a control panel: allow copying
+   endpoints, paths, provider ids and explanatory text with the mouse. */
+.settings-body {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .inbox-comment-md.agent-markdown p:first-child,
 .inbox-comment-md.agent-markdown li:first-child,
 .inbox-comment-md.agent-markdown blockquote:first-child {
