@@ -19,6 +19,11 @@ project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 log_file="$project_dir/pk-update.log"
 exec >>"$log_file" 2>&1
 
+# GUI-launched Tauri commands do not inherit the interactive shell PATH.
+# Include the common Homebrew and nvm locations so npm is available during
+# an update started from MonoCode itself.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.nvm/current/bin:$PATH"
+
 notify() {
   osascript -e "display notification \"$1\" with title \"Mise à jour PKmod\" sound name \"Basso\"" || true
 }
@@ -53,6 +58,16 @@ if ! git merge --no-edit upstream/main; then
   # Lockfiles: la version amont suffit, ils sont régénérés au build.
   git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
   git add Cargo.lock package-lock.json 2>/dev/null || true
+  # Upstream tests can evolve in parallel with PK-only test coverage. Prefer
+  # the upstream test file; production source conflicts still stop the sync.
+  while IFS= read -r conflict; do
+    case "$conflict" in
+      *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx)
+        git checkout --theirs -- "$conflict"
+        git add -- "$conflict"
+        ;;
+    esac
+  done < <(git diff --name-only --diff-filter=U)
   if test -n "$(git diff --name-only --diff-filter=U)"; then
     echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
     git merge --abort
