@@ -107,9 +107,12 @@ import { consumeQuoteRequest, type QuoteRequest } from "../lib/quoteDraft";
 import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   COMPOSER_RUNNER_CHANGE_EVENT,
+  FOLLOW_UP_BEHAVIOR_CHANGE_EVENT,
   loadComposerRunner,
+  loadFollowUpBehavior,
   loadNotesEnabled,
   subscribeNotesEnabled,
+  type FollowUpBehavior,
 } from "../lib/settings";
 import {
   isNoteMentionPath,
@@ -182,7 +185,7 @@ type Props = {
   onSubmit: (
     text: string,
     attachments: Attachment[],
-    options?: { intent?: TurnIntent },
+    options?: { intent?: TurnIntent; followUpBehavior?: FollowUpBehavior },
   ) => void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
@@ -488,6 +491,8 @@ export function Composer({
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [runnerEnabled, setRunnerEnabled] = useState(loadComposerRunner);
+  const [followUpChoice, setFollowUpChoice] =
+    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [runnerLive, setRunnerLive] = useState(
     () => busy && loadComposerRunner(),
   );
@@ -627,6 +632,13 @@ export function Composer({
     window.addEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
     return () =>
       window.removeEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setFollowUpChoice(loadFollowUpBehavior());
+    window.addEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
+    return () =>
+      window.removeEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
   }, []);
 
   useEffect(() => {
@@ -958,7 +970,7 @@ export function Composer({
     };
   }, [addAttachments, attachmentsSupported, enabled]);
 
-  const submit = (value: string) => {
+  const submit = (value: string, behavior?: FollowUpBehavior) => {
     const folderCommand = consumeSessionFolderCommand(value);
     if (folderCommand.matched && onPlaceInFolder && !sessionFolderSelected) {
       openSessionFolderPicker();
@@ -993,6 +1005,7 @@ export function Composer({
     if (!text && files.length === 0 && !noteCard && !handoffCard) return;
     onSubmit(text, files, {
       intent: planSelected || command.planning ? "plan" : "default",
+      followUpBehavior: behavior,
     });
     if (!ref.current) return;
     ref.current.value = "";
@@ -1524,7 +1537,10 @@ export function Composer({
               <ComposerAction
                 busy={busy}
                 hasValue={hasValue}
-                onSend={() => submit(ref.current?.value ?? "")}
+                choice={followUpChoice === "choice"}
+                onSend={(behavior) =>
+                  submit(ref.current?.value ?? "", behavior)
+                }
                 onStop={() => onStop?.()}
               />
             </div>
@@ -1614,15 +1630,41 @@ function MentionRuns({
 function ComposerAction({
   busy,
   hasValue,
+  choice,
   onSend,
   onStop,
 }: {
   busy: boolean;
   hasValue: boolean;
-  onSend: () => void;
+  choice: boolean;
+  onSend: (behavior?: FollowUpBehavior) => void;
   onStop: () => void;
 }) {
   if (busy) {
+    if (hasValue && choice) {
+      return (
+        <>
+          <button
+            type="button"
+            title="Steer — send now, into the active turn"
+            aria-label="Steer"
+            onClick={() => onSend("steer")}
+            className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+          >
+            <ArrowUp className="size-3.5" strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            title="Queue — send when the active turn finishes"
+            aria-label="Queue"
+            onClick={() => onSend("queue")}
+            className="grid size-6.5 place-items-center rounded-md bg-white/20 text-white hover:bg-white/30"
+          >
+            <ListEnd className="size-3.5" strokeWidth={2.25} />
+          </button>
+        </>
+      );
+    }
     return (
       <>
         {hasValue ? (
@@ -1630,7 +1672,7 @@ function ComposerAction({
             type="button"
             title="Send"
             aria-label="Send"
-            onClick={onSend}
+            onClick={() => onSend()}
             className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
           >
             <ArrowUp className="size-3.5" strokeWidth={2.25} />
@@ -1655,7 +1697,7 @@ function ComposerAction({
       title="Send"
       aria-label="Send"
       disabled={!hasValue}
-      onClick={onSend}
+      onClick={() => onSend()}
       className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90 disabled:cursor-default disabled:bg-white/30 disabled:text-black/40 disabled:hover:bg-white/30"
     >
       <ArrowUp className="size-3.5" strokeWidth={2.25} />

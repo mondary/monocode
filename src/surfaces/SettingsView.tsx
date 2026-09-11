@@ -766,6 +766,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           options={[
             { value: "queue", label: "Queue" },
             { value: "steer", label: "Steer" },
+            { value: "choice", label: "Let me choose" },
           ]}
           onChange={onFollowUpBehavior}
         />

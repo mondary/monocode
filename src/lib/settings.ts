@@ -97,14 +97,18 @@ const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 
 const FOLLOW_UP_BEHAVIOR_KEY = "monocode.followUpBehavior";
 
-export type FollowUpBehavior = "steer" | "queue";
+export type FollowUpBehavior = "steer" | "queue" | "choice";
 
 export const FOLLOW_UP_BEHAVIOR_DEFAULT: FollowUpBehavior = "steer";
+
+/** Fired on `window` when the follow-up behavior setting changes. */
+export const FOLLOW_UP_BEHAVIOR_CHANGE_EVENT =
+  "monocode:follow-up-behavior-change";
 
 export function loadFollowUpBehavior(): FollowUpBehavior {
   try {
     const raw = localStorage.getItem(FOLLOW_UP_BEHAVIOR_KEY);
-    return raw === "queue" || raw === "steer"
+    return raw === "queue" || raw === "steer" || raw === "choice"
       ? raw
       : FOLLOW_UP_BEHAVIOR_DEFAULT;
   } catch {
@@ -115,6 +119,7 @@ export function loadFollowUpBehavior(): FollowUpBehavior {
 export function saveFollowUpBehavior(value: FollowUpBehavior) {
   try {
     localStorage.setItem(FOLLOW_UP_BEHAVIOR_KEY, value);
+    window.dispatchEvent(new Event(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT));
   } catch {
     // private mode / quota
   }
