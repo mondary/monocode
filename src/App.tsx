@@ -23,7 +23,6 @@ import { UsageFooter } from "./chrome/UsageFooter";
 import { useProjectBranches } from "./hooks/useProjectBranches";
 import {
   loadProjectRailOpen,
-  loadSidebarTabOrder,
   saveProjectRailOpen,
   type SidebarTabId,
 } from "./lib/appearance";
@@ -655,7 +654,7 @@ export default function App({
   const currentProjectDock = findProjectTerminal(projectTerminals, projectCwd);
   const dockVisible = !!currentProjectDock?.open;
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(
-    () => loadSidebarTabOrder()[0] ?? "sessions",
+    () => "changes",
   );
   const [filesSearchOpen, setFilesSearchOpen] = useState(false);
   const [searchFocusToken, setSearchFocusToken] = useState(0);
