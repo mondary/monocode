@@ -12,6 +12,7 @@ type Props = {
   imageClassName?: string;
   fallback?: IconComponent;
   fallbackStrokeWidth?: number;
+  onLoadError?: () => void;
 };
 
 export function ProjectLogoIcon({
@@ -20,8 +21,10 @@ export function ProjectLogoIcon({
   imageClassName,
   fallback: Fallback = Folder,
   fallbackStrokeWidth = 1.5,
+  onLoadError,
 }: Props) {
   const [revision, setRevision] = useState(tabGroupLogoDisplayRevision);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const refresh = () => setRevision(tabGroupLogoDisplayRevision());
@@ -29,7 +32,9 @@ export function ProjectLogoIcon({
     return () => window.removeEventListener(TAB_GROUP_LOGOS_CHANGED, refresh);
   }, []);
 
-  const src = projectLogoSrc(path);
+  useEffect(() => setFailed(false), [path]);
+
+  const src = failed ? null : projectLogoSrc(path);
   if (src) {
     return (
       <img
@@ -37,6 +42,10 @@ export function ProjectLogoIcon({
         src={src}
         alt=""
         className={`rounded-sm object-cover ${className} ${imageClassName ?? ""}`}
+        onError={() => {
+          setFailed(true);
+          onLoadError?.();
+        }}
       />
     );
   }

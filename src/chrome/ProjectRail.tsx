@@ -1010,6 +1010,8 @@ function ProjectCard({
   const seed = projectName(item.path);
   const name = resolveTabGroupLabel(key, groupLabels, fallbackName);
   const logoPath = resolveTabGroupLogo(key, groupLogos) ?? autoLogos[key] ?? null;
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [logoPath]);
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
   const dragging = sortable.draggingId === item.path;
   const showStart =
@@ -1077,11 +1079,12 @@ function ProjectCard({
             >
               <Check className="size-3" strokeWidth={2.5} />
             </span>
-          ) : logoPath && !busy ? (
+          ) : logoPath && !logoFailed && !busy ? (
             <ProjectLogoIcon
               path={logoPath}
               className="size-4 rounded-sm"
               imageClassName="size-4"
+              onLoadError={() => setLogoFailed(true)}
             />
           ) : (
             <ProjectMascot
