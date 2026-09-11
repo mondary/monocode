@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Sidebar } from "./chrome/Sidebar";
 import { ApprovalToasts } from "./chrome/ApprovalToasts";
+import { UpdateRestartToast } from "./chrome/UpdateRestartToast";
 import { WhatsNewDialog } from "./chrome/WhatsNewDialog";
 import { UpdateFlowDialog } from "./chrome/UpdateFlowDialog";
 import { TitleBar, type Tab as TitleTab } from "./chrome/TitleBar";
@@ -5806,6 +5807,11 @@ export default function App({
         notices={hiddenApprovalToasts}
         onFocusSession={onOpenApprovalSession}
         onApproval={onApproval}
+      />
+      <UpdateRestartToast
+        update={updateNotice}
+        onOpenWhatsNew={onOpenWhatsNew}
+        onDismiss={() => setUpdateNotice(null)}
       />
       {whatsNew ? (
         <WhatsNewDialog
