@@ -114,9 +114,26 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
+  const icon = HARNESS_ICONS[harness];
+  if (!icon) {
+    // Custom providers have no brand asset: initial letter chip.
+    const letter = harness
+      .replace("pk-custom-", "")
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 1)
+      .toUpperCase();
+    return (
+      <span
+        aria-hidden
+        className={`grid shrink-0 place-items-center rounded-sm bg-content/15 font-semibold text-content/70 ${className}`}
+      >
+        {letter || "•"}
+      </span>
+    );
+  }
   return (
     <img
-      src={HARNESS_ICONS[harness]}
+      src={icon}
       alt=""
       draggable={false}
       className={`block object-contain ${

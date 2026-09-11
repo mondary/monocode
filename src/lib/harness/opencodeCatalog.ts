@@ -7,6 +7,7 @@ import {
   type ModelSettingChoice,
 } from "../models";
 import { execChild, resolveOpenCodeBinary } from "./child";
+import type { CustomHarnessId } from "../session";
 import {
   compareSemver,
   inferDefaultAgent,
@@ -278,6 +279,10 @@ function isRetiredModel(nativeId: string): boolean {
 }
 
 function providerHarness(providerID: string): AgentModel["harness"] {
+  // Starts-with check proven above; the template-literal type needs the cast.
+  if (providerID.startsWith("pk-custom-")) {
+    return providerID as CustomHarnessId;
+  }
   if (
     providerID === "zai" ||
     providerID === "zai-coding-plan"

@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.18**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.19**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -19,8 +19,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 |---|---|---|
 | Providers directs | Claude, Codex, Cursor, Grok, OpenCode, Pi, omp, fx | + **Z.ai (GLM)**, **Xiaomi MiMo**, Zen, onglets OpenAI-compatibles |
 | Quotas en footer | — | Vrais chiffres **CodexBar** : Codex, ZAI, OpenCode Go, MiMo… mode *Current chat* ou *Choose* |
-| **Providers custom** | — | Endpoints OpenAI-compatibles (base URL + API key + **bouton Test**), routés via OpenCode |
-| Image de fond | Chat uniquement | **Par panneau** : Chat / Workspace / Terminal, activables |
+| **Providers custom** | — | Endpoints OpenAI-compatibles (base URL + API key + **bouton Test**), **onglet dédié** dans le picker, routés via OpenCode |
 | Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
 | Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
 | Mises à jour | Updater binaire officiel | Deux axes : amont **+ branche PK GitHub**, **dialog in-app stylé** avec liste des commits, un clic = merge + build + relance |

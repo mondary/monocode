@@ -1,3 +1,5 @@
+import { loadCustomProviders } from "../customProviders";
+import type { HarnessId } from "../session";
 import { ensureClaudeRegistered } from "./claudeAdapter";
 import { ensureCodexRegistered } from "./codexAdapter";
 import { ensureCursorRegistered } from "./cursorAdapter";
@@ -24,4 +26,12 @@ export function registerBuiltinHarnesses(): void {
   ensurePiRegistered();
   ensureOmpRegistered();
   ensureFxRegistered();
+  registerCustomProviderHarnesses();
+}
+
+/** Custom providers from Settings ride the OpenCode runtime, one tab each. */
+export function registerCustomProviderHarnesses(): void {
+  for (const provider of loadCustomProviders()) {
+    ensureOpenCodeProviderRegistered(provider.id as HarnessId);
+  }
 }

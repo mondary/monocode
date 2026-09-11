@@ -7,7 +7,10 @@ import {
   type SessionSidebarFilters,
   type SessionTimeFilter,
 } from "../lib/sessionFilters";
-import { HARNESS_TITLE, type HarnessId } from "../lib/session";
+import {
+  harnessTitle,
+  type HarnessId,
+} from "../lib/session";
 import { HarnessIcon } from "./HarnessIcon";
 
 const MENU_WIDTH = 228;
@@ -112,7 +115,7 @@ export function SessionFiltersMenu({
           {harnesses.map((harness) => (
             <FilterItem
               key={harness}
-              label={HARNESS_TITLE[harness]}
+              label={harnessTitle(harness)}
               checked={!hiddenHarnesses.has(harness)}
               icon={
                 <HarnessIcon harness={harness} className="size-3.5 shrink-0" />

@@ -34,7 +34,10 @@ import {
 } from "../lib/models";
 import { LAYER } from "../lib/layers";
 import { secondOpinionTargets } from "../lib/secondOpinion";
-import { HARNESS_TITLE, type HarnessId } from "../lib/session";
+import {
+  harnessTitle,
+  type HarnessId,
+} from "../lib/session";
 import { HarnessIcon } from "./HarnessIcon";
 import { Popover } from "./Popover";
 
@@ -358,7 +361,7 @@ export function SecondOpinionButton({
                   >
                     <HarnessIcon harness={harness} className="size-3.5" />
                     <span className="min-w-0 flex-1 truncate">
-                      {HARNESS_TITLE[harness]}
+                      {harnessTitle(harness)}
                     </span>
                     {modelsFor(harness).length > 0 ? (
                       <ChevronRight
@@ -383,7 +386,7 @@ export function SecondOpinionButton({
               maxHeight={SUBMENU_MAX_HEIGHT}
               layer={LAYER.submenu}
               role="menu"
-              aria-label={`${HARNESS_TITLE[activeHarness]} models`}
+              aria-label={`${harnessTitle(activeHarness)} models`}
               onMouseEnter={() => setInSubmenu(true)}
               data-provider-target
               className="overflow-y-auto overscroll-none p-1"

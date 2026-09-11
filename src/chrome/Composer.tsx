@@ -67,7 +67,10 @@ import type {
   RuntimeMode,
   TurnIntent,
 } from "../lib/session";
-import { HARNESS_TITLE, harnessSupportsAttachments } from "../lib/session";
+import {
+  harnessSupportsAttachments,
+  harnessTitle,
+} from "../lib/session";
 import type {
   UserQuestionPrompt,
   UserQuestionReply,
@@ -1315,7 +1318,7 @@ export function Composer({
                       <span className="block text-[11px] leading-4 text-content/45">
                         {attachmentsSupported
                           ? "Attach files or images to this message"
-                          : `${HARNESS_TITLE[harness]} does not support attachments`}
+                          : `${harnessTitle(harness)} does not support attachments`}
                       </span>
                     </span>
                   </button>

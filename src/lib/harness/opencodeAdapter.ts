@@ -53,7 +53,7 @@ export function ensureOpenCodeRegistered(): void {
  * provider tabs in MonoCode. The selected model's native id tells OpenCode
  * which provider/model pair to route to.
  */
-export function ensureOpenCodeProviderRegistered(id: Exclude<HarnessId, "opencode">): void {
+export function ensureOpenCodeProviderRegistered(id: HarnessId): void {
   if (registeredProviders.has(id)) return;
   registerHarness({ ...openCodeAdapter, id, refreshCatalog: refreshOpenCodeCatalog });
   registeredProviders.add(id);

@@ -230,8 +230,6 @@ import {
 } from "./lib/workspaceTabGroups";
 import { runSessionRemoval } from "./lib/sessionRemoval";
 import {
-  HARNESS_LABEL,
-  HARNESS_TITLE,
   canReplaceSessionTitle,
   formatSessionTitle,
   sessionNeedsInput,
@@ -250,6 +248,8 @@ import {
   type SecondOpinionMeta,
   type Session,
   type TurnIntent,
+  harnessTitle,
+  harnessLabel,
 } from "./lib/session";
 
 import {
@@ -464,7 +464,7 @@ function withHarnessChoice(
     modelSettings,
     title:
       session.blocks.length === 0
-        ? HARNESS_LABEL[harness]
+        ? harnessLabel(harness)
         : formatSessionTitle(
             harness,
             sessionDisplayTitle(session.title, session.harness),
@@ -3792,7 +3792,7 @@ export default function App({
       const placeholderTitle = canReplaceSessionTitle(
         current.title,
         current.harness,
-        HARNESS_LABEL[current.harness],
+        harnessLabel(current.harness),
       );
       const titleSeed =
         isFirstTurn &&
@@ -4492,7 +4492,7 @@ export default function App({
           session.id === sessionId
             ? applyHarnessEvent(session, {
                 type: "status",
-                text: `${HARNESS_TITLE[current.harness]} does not support manual context compaction.`,
+                text: `${harnessTitle(current.harness)} does not support manual context compaction.`,
               })
             : session,
         );

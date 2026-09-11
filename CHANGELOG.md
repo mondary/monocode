@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.19] - 2026-09-11
+
+### Changed
+
+- Custom providers get their own tab in the model picker and their own row in Settings > Providers (models, default, picker visibility), instead of nesting inside OpenCode. Brand-less marks render as an initial-letter chip.
+
 ## [2026.09.18] - 2026-09-11
 
 ### Added

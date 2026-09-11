@@ -27,7 +27,11 @@ import {
   type UsageDisplayMode,
   type UsageScope,
 } from "../lib/rateLimits";
-import { HARNESS_LABEL, HARNESS_TITLE, type HarnessId } from "../lib/session";
+import {
+  harnessLabel,
+  harnessTitle,
+  type HarnessId,
+} from "../lib/session";
 import {
   runningTerminalChipLabel,
   type RunningTerminal,
@@ -264,10 +268,10 @@ function SessionChip({ session }: { session: UsageFooterSession }) {
   return (
     <span
       className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-      title={HARNESS_TITLE[session.harness]}
+      title={harnessTitle(session.harness)}
     >
       <HarnessIcon harness={session.harness} className="size-3 shrink-0" />
-      <span>{HARNESS_LABEL[session.harness]}</span>
+      <span>{harnessLabel(session.harness)}</span>
     </span>
   );
 }

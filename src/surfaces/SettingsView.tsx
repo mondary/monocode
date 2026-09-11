@@ -120,6 +120,7 @@ import {
   subscribeHarnessAvailability,
 } from "../lib/harness/availability";
 import { refreshHarnessCatalogs } from "../lib/harness/registry";
+import { ensureOpenCodeProviderRegistered } from "../lib/harness/opencodeAdapter";
 import {
   defaultModelId,
   getModelSnapshot,
@@ -166,9 +167,9 @@ import {
 } from "../lib/recents";
 import {
   HARNESSES,
-  HARNESS_TITLE,
   sessionDisplayTitle,
   type HarnessId,
+  harnessTitle,
 } from "../lib/session";
 import {
   loadSessionSidebarFilters,
@@ -1765,6 +1766,8 @@ function CustomProvidersSection() {
       apiKey: draft.apiKey,
       models: probe.models,
     };
+    ensureOpenCodeProviderRegistered(entry.id as HarnessId);
+    void refreshHarnessCatalogs([entry.id as HarnessId]);
     setProviders(upsertCustomProvider(entry));
     setDraft({ name: "", baseUrl: "", apiKey: "" });
     setBusyId(null);
@@ -2068,7 +2071,10 @@ function ProvidersPage() {
         The model beside each provider is what new conversations use when that
         provider is selected; Use by default picks the provider itself.
       </p>
-      {HARNESSES.map((harness) => (
+      {[
+        ...HARNESSES,
+        ...loadCustomProviders().map((provider) => provider.id as HarnessId),
+      ].map((harness) => (
         <ProviderRow
           key={harness}
           harness={harness}
@@ -2132,7 +2138,7 @@ function ProviderRow({
       label={
         <span className="flex items-center gap-2">
           <HarnessIcon harness={harness} className="size-4 shrink-0" />
-          {HARNESS_TITLE[harness]}
+          {harnessTitle(harness)}
           {PK_PROVIDERS.has(harness) ? <PkBadge /> : null}
           {isDefault ? (
             <span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
@@ -2149,7 +2155,7 @@ function ProviderRow({
     >
       {current ? (
         <Select
-          label={`${HARNESS_TITLE[harness]} model`}
+          label={`${harnessTitle(harness)} model`}
           value={current.id}
           onChange={(next) => onModelChange(harness, next)}
           options={models.map((item) => ({
@@ -2167,7 +2173,7 @@ function ProviderRow({
       <div className="flex items-center gap-2">
         <span className="text-[12px] text-content/50">Show in picker</span>
         <Toggle
-          label={`Show ${HARNESS_TITLE[harness]} in the model picker`}
+          label={`Show ${harnessTitle(harness)} in the model picker`}
           on={inPicker}
           onChange={onPickerVisible}
         />

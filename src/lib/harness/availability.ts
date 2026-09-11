@@ -1,5 +1,9 @@
-import type { HarnessId } from "../session";
-import { HARNESSES } from "../session";
+import {
+  HARNESSES,
+  isCustomHarness,
+  type BuiltinHarnessId,
+  type HarnessId,
+} from "../session";
 import {
   resolveClaudeBinary,
   resolveCodexBinary,
@@ -12,7 +16,7 @@ import {
 } from "./child";
 import { isLiveHarness } from "./registry";
 
-export type HarnessAvailability = Record<HarnessId, boolean>;
+export type HarnessAvailability = Record<BuiltinHarnessId, boolean>;
 
 /**
  * We only ever check whether the binary exists, never whether it is
@@ -84,10 +88,14 @@ export function hasProbedHarnessAvailability(): boolean {
 }
 
 export function isHarnessAvailable(id: HarnessId): boolean {
+  if (isCustomHarness(id)) return true;
   return availability[id];
 }
 
 export function harnessUnavailableHint(id: HarnessId): string {
+  if (isCustomHarness(id)) {
+    return "Custom provider — requires the OpenCode CLI and a saved entry in Settings > Custom providers.";
+  }
   const { name, install } = CLI[id];
   const how = install ? ` (\`${install}\`)` : "";
   return `${name} not found${how}. Install it, or restart MonoCode if it is already installed.`;

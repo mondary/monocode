@@ -3,10 +3,10 @@ import { limitSection } from "./jsonText";
 import { displayPath } from "./paths";
 import {
   HARNESSES,
-  HARNESS_TITLE,
   type Block,
   type HarnessId,
   type SecondOpinionMeta,
+  harnessTitle,
 } from "./session";
 
 const USER_LIMIT = 400;
@@ -103,7 +103,7 @@ export function buildSecondOpinionPrompt(input: {
   report: string;
   files: string[];
 }): string {
-  const fromTitle = HARNESS_TITLE[input.from];
+  const fromTitle = harnessTitle(input.from);
   const request = input.userRequest.trim();
   const report = input.report.trim();
   const files = input.files.map((path) => path.trim()).filter(Boolean);

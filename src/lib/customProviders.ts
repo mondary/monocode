@@ -21,6 +21,21 @@ export type CustomProviderProbe = {
 
 export const CUSTOM_PROVIDERS_CHANGE_EVENT = "monocode:custom-providers-change";
 
+
+let changeVersion = 0;
+const changeListeners = new Set<() => void>();
+
+/** React store over the saved custom providers (ModelPicker tabs). */
+export function subscribeCustomProviders(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener(CUSTOM_PROVIDERS_CHANGE_EVENT, onStoreChange);
+  return () =>
+    window.removeEventListener(CUSTOM_PROVIDERS_CHANGE_EVENT, onStoreChange);
+}
+
+export function getCustomProvidersSnapshot(): number {
+  return changeVersion;
+}
 export function slugCustomProviderId(name: string): string {
   const slug = name
     .trim()
@@ -69,7 +84,12 @@ export function saveCustomProviders(providers: CustomProvider[]): void {
   } catch {
     // private mode / quota
   }
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    changeVersion += 1;
+    return;
+  }
+  changeVersion += 1;
+  for (const listener of changeListeners) listener();
   window.dispatchEvent(new Event("monocode:custom-providers-change"));
   // Push the current set into OpenCode's config so the runtime can route.
   void invoke("custom_provider_sync", { providers }).catch(() => undefined);

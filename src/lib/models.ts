@@ -1,5 +1,6 @@
 import type { HarnessId } from "./session";
 import { HARNESSES } from "./session";
+import { loadCustomProviders } from "./customProviders";
 
 export type ModelSettingChoice = {
   value: string;
@@ -493,7 +494,10 @@ export function saveFavoriteModels(ids: string[]) {
 }
 
 function isHarnessId(value: string): value is HarnessId {
-  return HARNESS_ORDER.includes(value as HarnessId);
+  return (
+    HARNESS_ORDER.includes(value as HarnessId) ||
+    value.startsWith("pk-custom-")
+  );
 }
 
 export function loadModelPickerTab(): ModelPickerTab {
@@ -587,7 +591,10 @@ export function showProviderInModelPicker(
 export function modelPickerTabs(
   available: (id: HarnessId) => boolean,
 ): ModelPickerTab[] {
-  return ["favorites", ...HARNESSES.filter(available)];
+  const customIds = loadCustomProviders().map(
+    (provider) => provider.id as HarnessId,
+  );
+  return ["favorites", ...HARNESSES.filter(available), ...customIds];
 }
 
 export function coerceModelPickerTab(

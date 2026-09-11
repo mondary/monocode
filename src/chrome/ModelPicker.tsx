@@ -27,6 +27,11 @@ import {
   type ModelPickerTab,
 } from "../lib/models";
 import {
+  getCustomProvidersSnapshot,
+  loadCustomProviders,
+  subscribeCustomProviders,
+} from "../lib/customProviders";
+import {
   harnessUnavailableHint,
   hasProbedHarnessAvailability,
   isHarnessAvailable,
@@ -37,9 +42,9 @@ import {
 import { refreshHarnessCatalogs } from "../lib/harness/registry";
 import {
   HARNESSES,
-  HARNESS_LABEL,
-  HARNESS_TITLE,
   type HarnessId,
+  harnessTitle,
+  harnessLabel,
 } from "../lib/session";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { HarnessIcon } from "./HarnessIcon";
@@ -80,6 +85,11 @@ export function ModelPicker({
     getPickerVisibilitySnapshot,
     getPickerVisibilitySnapshot,
   );
+  const customProvidersVersion = useSyncExternalStore(
+    subscribeCustomProviders,
+    getCustomProvidersSnapshot,
+    getCustomProvidersSnapshot,
+  );
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<ModelPickerTab>(() => loadModelPickerTab());
   const [query, setQuery] = useState("");
@@ -100,7 +110,12 @@ export function ModelPicker({
       isHarnessAvailable(id),
       hasProbedHarnessAvailability(),
     );
-  const pickerHarnesses = HARNESSES.filter(shownInPicker);
+  const pickerHarnesses = [
+    ...HARNESSES.filter(shownInPicker),
+    ...loadCustomProviders()
+      .map((provider) => provider.id as HarnessId)
+      .filter(shownInPicker),
+  ];
   const visibleTab = coerceModelPickerTab(tab, shownInPicker);
   if (visibleTab !== tab) {
     setTab(visibleTab);
@@ -226,7 +241,7 @@ export function ModelPicker({
     if (!needle) return pool;
     return pool.filter((item) => {
       const hay =
-        `${item.name} ${HARNESS_TITLE[item.harness]} ${HARNESS_LABEL[item.harness]}`.toLowerCase();
+        `${item.name} ${harnessTitle(item.harness)} ${harnessLabel(item.harness)}`.toLowerCase();
       return hay.includes(needle);
     });
     // Catalog, install probes, and picker-visibility all feed this list:
@@ -238,6 +253,7 @@ export function ModelPicker({
     catalogVersion,
     availabilityVersion,
     visibilityVersion,
+    customProvidersVersion,
   ]);
 
   useEffect(() => {
@@ -297,8 +313,8 @@ export function ModelPicker({
     <div ref={root} className="relative">
       <button
         type="button"
-        title={`${HARNESS_TITLE[current.harness]} · ${current.name} (${MOD}.)`}
-        aria-label={`${HARNESS_TITLE[current.harness]} ${current.name}`}
+        title={`${harnessTitle(current.harness)} · ${current.name} (${MOD}.)`}
+        aria-label={`${harnessTitle(current.harness)} ${current.name}`}
         aria-keyshortcuts={`${MOD}.`}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -358,7 +374,7 @@ export function ModelPicker({
             {pickerHarnesses.map((id) => (
               <ProviderTabButton
                 key={id}
-                title={HARNESS_TITLE[id]}
+                title={harnessTitle(id)}
                 selected={visibleTab === id}
                 onSelect={() => selectTab(id)}
               >
@@ -557,8 +573,8 @@ function ModelList({
                     className="size-3 shrink-0 opacity-80"
                   />
                   <span className="truncate">
-                    {HARNESS_TITLE[item.harness]} ·{" "}
-                    {HARNESS_LABEL[item.harness]}
+                    {harnessTitle(item.harness)} ·{" "}
+                    {harnessLabel(item.harness)}
                   </span>
                 </span>
               </span>

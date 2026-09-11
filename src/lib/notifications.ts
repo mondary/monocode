@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { HARNESS_TITLE, sessionDisplayTitle, type Session } from "./session";
+import {
+  harnessTitle,
+  sessionDisplayTitle,
+  type Session,
+} from "./session";
 import { loadSoundsEnabled } from "./sounds";
 
 const KEY = "monocode.notifications";
@@ -163,7 +167,7 @@ export function notificationText(
 ): NotificationText {
   const title = "MonoCode";
   const subtitle = sessionDisplayTitle(session.title, session.harness);
-  const harness = HARNESS_TITLE[session.harness];
+  const harness = harnessTitle(session.harness);
   if (event !== "finished") {
     if (event.kind === "question") {
       const question =
