@@ -16,6 +16,7 @@ import {
   Settings,
   Trash2,
 } from "./icons";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
@@ -29,7 +30,7 @@ import {
   PROJECT_RAIL_WIDTH_MIN,
   saveProjectRailWidth,
 } from "../lib/appearance";
-import { basename, revealPath, type GitDiffStats } from "../lib/fs";
+import { basename, gitDiffIndex, listProjectFiles, revealPath, type GitDiffStats } from "../lib/fs";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
 import { projectKey, projectName } from "../lib/paths";
 import {
@@ -78,6 +79,7 @@ import {
   BUSY_GLOW_CHANGE_EVENT,
   loadBusyGlowColor,
 } from "../lib/busyGlowSettings";
+import { GithubMark, GitlabMark } from "./InboxProviderMark";
 
 const REVEAL_LABEL = IS_MAC
   ? "Reveal in Finder"
@@ -85,9 +87,24 @@ const REVEAL_LABEL = IS_MAC
     ? "Reveal in File Explorer"
     : "Open Containing Folder";
 
+function remoteWebUrl(remote: string): string | null {
+  const value = remote.trim();
+  if (value.startsWith("git@")) {
+    const match = value.match(/^git@([^:]+):(.+)$/);
+    return match ? `https://${match[1]}/${match[2].replace(/\.git$/, "")}` : null;
+  }
+  if (value.startsWith("ssh://git@")) return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
+  return value.replace(/\.git$/, "");
+}
+
+function remoteHost(remote: string): string {
+  try { return new URL(remoteWebUrl(remote) ?? remote).hostname.toLowerCase(); } catch { return ""; }
+}
+
 function projectMenuExtraItems(
   pinned: boolean,
   canRemove: boolean,
+  remoteUrl: string | null,
 ): TabGroupMenuExtraItem[] {
   const items: TabGroupMenuExtraItem[] = [
     {
@@ -100,6 +117,15 @@ function projectMenuExtraItems(
       : { id: "pin", label: "Pin project", icon: Pin },
     { id: "reveal", label: REVEAL_LABEL, icon: FolderOpen },
   ];
+  if (remoteUrl) {
+    const github = remoteHost(remoteUrl) === "github.com";
+    items.push({
+      id: "remote",
+      label: github ? "Open on GitHub" : "Open repository",
+      icon: (github ? GithubMark : GitlabMark) as unknown as TabGroupMenuExtraItem["icon"],
+      sepBefore: true,
+    });
+  }
   if (canRemove) {
     items.push(
       { id: "archive", label: "Archive", icon: Archive, sepBefore: true },
@@ -193,11 +219,13 @@ export function ProjectRail({
   const [groupCustomColors, setGroupCustomColors] = useState(
     loadTabGroupCustomColors,
   );
+  const [autoLogos, setAutoLogos] = useState<Record<string, string>>({});
   const [projectMenu, setProjectMenu] = useState<{
     x: number;
     y: number;
     path: string;
     projectKey: string;
+    remoteUrl: string | null;
   } | null>(null);
   const [removing, setRemoving] = useState<{
     path: string;
@@ -214,6 +242,22 @@ export function ProjectRail({
     () => collectRailProjects(recents, cwd),
     [cwd, recents],
   );
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      [...allProjects.keys()].map(async (path) => {
+        const files = await listProjectFiles(path).catch(() => []);
+        const icon = files.find((file) =>
+          /^(icon|icone)\.(png|jpe?g)$/i.test(file.name) && !file.relative.includes("/"),
+        );
+        return icon ? [projectKey(path), icon.path] as const : null;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setAutoLogos(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry != null)));
+    });
+    return () => { cancelled = true; };
+  }, [allProjects]);
   const sections = useMemo(
     () => projectRailSections(recents, cwd, railOrder, pinnedPaths),
     [cwd, pinnedPaths, railOrder, recents],
@@ -272,7 +316,15 @@ export function ProjectRail({
       y,
       path,
       projectKey: projectKey(path),
+      remoteUrl: null,
     });
+    void gitDiffIndex(path).then((index) => {
+      setProjectMenu((current) =>
+        current?.path === path
+          ? { ...current, remoteUrl: index.remoteUrl }
+          : current,
+      );
+    }).catch(() => undefined);
   };
 
   const onProjectContextMenu = (
@@ -363,6 +415,10 @@ export function ProjectRail({
         name: resolveTabGroupLabel(projectKey, groupLabels, basename(path)),
       });
     } else if (action === "reveal") void revealPath(path);
+    else if (action === "remote" && projectMenu.remoteUrl) {
+      const url = remoteWebUrl(projectMenu.remoteUrl);
+      if (url) void openUrl(url).catch(() => undefined);
+    }
     else if (action === "archive") {
       onRemoveProject?.(path, { purgeData: false });
     } else if (action === "delete") {
@@ -474,6 +530,7 @@ export function ProjectRail({
                 groupColors={groupColors}
                 groupCustomColors={groupCustomColors}
                 groupLogos={groupLogos}
+                autoLogos={autoLogos}
                 groupMascots={groupMascots}
               />
             ) : null}
@@ -498,6 +555,7 @@ export function ProjectRail({
               groupColors={groupColors}
               groupCustomColors={groupCustomColors}
               groupLogos={groupLogos}
+              autoLogos={autoLogos}
               groupMascots={groupMascots}
             />
           </div>
@@ -551,7 +609,7 @@ export function ProjectRail({
             groupCustomColors,
             projectName(projectMenu.path),
           )}
-          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos)}
+          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos) ?? autoLogos[projectMenu.projectKey] ?? null}
           logoProject={projectMenu.path}
           mascotName={resolveTabGroupMascot(
             projectMenu.projectKey,
@@ -571,6 +629,7 @@ export function ProjectRail({
               sameProjectPath(pinned, projectMenu.path),
             ),
             Boolean(onRemoveProject),
+            projectMenu.remoteUrl,
           )}
           onExtraPick={onProjectMenuPick}
         />
@@ -827,6 +886,7 @@ function ProjectSection({
   groupColors,
   groupCustomColors,
   groupLogos,
+  autoLogos,
   groupMascots,
 }: {
   label: string;
@@ -848,6 +908,7 @@ function ProjectSection({
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
   groupLogos: TabGroupLogos;
+  autoLogos: Record<string, string>;
   groupMascots: Record<string, string>;
 }) {
   return (
@@ -893,6 +954,7 @@ function ProjectSection({
             groupColors={groupColors}
             groupCustomColors={groupCustomColors}
             groupLogos={groupLogos}
+            autoLogos={autoLogos}
             groupMascots={groupMascots}
           />
         ))}
@@ -921,6 +983,7 @@ function ProjectCard({
   groupColors,
   groupCustomColors,
   groupLogos,
+  autoLogos,
   groupMascots,
 }: {
   item: RecentProject;
@@ -939,13 +1002,14 @@ function ProjectCard({
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
   groupLogos: TabGroupLogos;
+  autoLogos: Record<string, string>;
   groupMascots: Record<string, string>;
 }) {
   const fallbackName = basename(item.path);
   const key = projectKey(item.path);
   const seed = projectName(item.path);
   const name = resolveTabGroupLabel(key, groupLabels, fallbackName);
-  const logoPath = resolveTabGroupLogo(key, groupLogos);
+  const logoPath = resolveTabGroupLogo(key, groupLogos) ?? autoLogos[key] ?? null;
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
   const dragging = sortable.draggingId === item.path;
   const showStart =

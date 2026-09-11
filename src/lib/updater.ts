@@ -109,6 +109,7 @@ export async function runUpdateFlow(
         ],
       });
       if (!proceed) return { phase: "idle", currentVersion };
+      rememberInstalledUpdate(PK_VERSION);
       await invoke("sync_pk_upstream");
       return { phase: "idle", currentVersion };
     }
@@ -172,6 +173,7 @@ export async function runUpdateFlow(
           ],
         });
         if (!proceed) return idle;
+        rememberInstalledUpdate(PK_VERSION);
         await invoke("sync_pk_upstream");
       }
       return idle;

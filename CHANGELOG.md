@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.23] - 2026-09-11
+
+### Added
+
+- Project context menus can open the detected GitHub/GitLab repository directly.
+- Root `icon.png`, `icon.jpg`, or `icon.jpeg` is used automatically as the project logo when no custom logo is set.
+
+## [2026.09.22] - 2026-09-11
+
+### Added
+
+- A persistent post-update notification with an explicit Redémarrer button.
+
 ## [2026.09.21] - 2026-09-11
 
 ### Changed

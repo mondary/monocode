@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.21**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.23**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
