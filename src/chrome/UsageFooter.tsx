@@ -385,6 +385,8 @@ function ProviderChip({
   displayMode: UsageDisplayMode;
   windowVisibility: UsageWindowVisibility;
 }) {
+  const root = useRef<HTMLButtonElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const loading =
     limits.status === "idle" ||
     (limits.status === "fetching" && !limits.session && !limits.weekly);
@@ -410,7 +412,15 @@ function ProviderChip({
     .join("\n");
 
   return (
-    <span className="group relative inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+    <>
+    <button
+      ref={root}
+      type="button"
+      className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded px-1 -mx-1 hover:bg-content/10 hover:text-content"
+      aria-label={`${providerDisplayLabel(limits.provider)} quota details`}
+      aria-expanded={detailsOpen}
+      onClick={() => setDetailsOpen((open) => !open)}
+    >
       <ProviderMark provider={limits.provider} />
       {loading ? (
         <span className="animate-pulse text-content/35">···</span>
@@ -437,24 +447,34 @@ function ProviderChip({
           </span>
         </>
       )}
-      {tooltip && !loading && !disconnected ? (
-        <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden w-56 rounded-lg border border-content/15 bg-panel px-3 py-2 text-[11px] text-content shadow-xl group-hover:block">
-          <span className="mb-1 block text-[11px] font-semibold text-content">
-            {providerDisplayLabel(limits.provider)}
-          </span>
-          <span className="grid gap-1">
-            {allWindows.map((entry) => (
-              <span key={entry.key} className="grid grid-cols-[4.5rem_1fr] gap-2">
-                <span className="text-content/45">{usageWindowLabel(entry.key)}</span>
-                <span className="text-right tabular-nums">
-                  {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)} remaining · {rateLimitWindowTooltip(entry.window, now).split(" · ").slice(-1)[0]}
+    </button>
+    {detailsOpen && tooltip && !loading && !disconnected ? (
+      <Popover
+        anchor={root}
+        side="top"
+        align="start"
+        onDismiss={() => setDetailsOpen(false)}
+        className="w-64 p-3"
+      >
+        <div className="mb-2 text-[11px] font-semibold text-content">
+          {providerDisplayLabel(limits.provider)}
+        </div>
+        <div className="grid gap-1.5">
+          {allWindows.map((entry) => (
+            <div key={entry.key} className="grid grid-cols-[4.5rem_1fr] gap-2 text-[11px]">
+              <span className="text-content/45">{usageWindowLabel(entry.key)}</span>
+              <span className="text-right tabular-nums">
+                {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)} remaining
+                <span className="block text-content/45">
+                  {rateLimitWindowTooltip(entry.window, now).split(" · ").slice(-1)[0]}
                 </span>
               </span>
-            ))}
-          </span>
-        </span>
-      ) : null}
-    </span>
+            </div>
+          ))}
+        </div>
+      </Popover>
+    ) : null}
+    </>
   );
 }
 
