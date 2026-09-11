@@ -37,6 +37,8 @@ const USAGE_DISPLAY_MODE_KEY = "monocode.usageDisplayMode";
 const USAGE_WINDOW_VISIBILITY_KEY = "monocode.usageWindowVisibility";
 export const USAGE_DISPLAY_MODE_CHANGE_EVENT = "monocode:usage-display-mode";
 export const USAGE_WINDOW_VISIBILITY_CHANGE_EVENT = "monocode:usage-window-visibility";
+export const USAGE_PROVIDER_ORDER_CHANGE_EVENT = "monocode:usage-provider-order";
+const USAGE_PROVIDER_ORDER_KEY = "monocode.usageProviderOrder";
 
 export function loadUsageDisplayMode(): UsageDisplayMode {
   try {
@@ -130,6 +132,24 @@ export function saveHiddenUsageProviders(ids: string[]): void {
     // private mode / quota
   }
   window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
+}
+
+export function loadUsageProviderOrder(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(USAGE_PROVIDER_ORDER_KEY) ?? "[]");
+    if (!Array.isArray(raw)) return [...USAGE_PROVIDER_IDS];
+    const known = raw.filter((value): value is string =>
+      typeof value === "string" && USAGE_PROVIDER_IDS.includes(value as never),
+    );
+    return [...known, ...USAGE_PROVIDER_IDS.filter((id) => !known.includes(id))];
+  } catch {
+    return [...USAGE_PROVIDER_IDS];
+  }
+}
+
+export function saveUsageProviderOrder(order: string[]): void {
+  try { localStorage.setItem(USAGE_PROVIDER_ORDER_KEY, JSON.stringify(order)); } catch { /* private mode */ }
+  window.dispatchEvent(new Event(USAGE_PROVIDER_ORDER_CHANGE_EVENT));
 }
 
 export type RateLimitStatus =

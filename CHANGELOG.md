@@ -5,18 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.25] - 2026-09-11
+
+### Fixed
+
+- The post-update restart notification is now displayed globally above the application, even when the sidebar is hidden.
+
+## [2026.09.24] - 2026-09-11
+
+### Changed
+
+- Quota providers now normalize CodexBar aliases such as `kilo`/Kilo Code, and their footer order can be customized from Settings.
+
 ## [2026.09.23] - 2026-09-11
 
 ### Added
 
 - Project context menus can open the detected GitHub/GitLab repository directly.
 - Root `icon.png`, `icon.jpg`, or `icon.jpeg` is used automatically as the project logo when no custom logo is set.
+- The project logo picker now exposes the detected root icon as the default without replacing a manually chosen logo.
 
 ## [2026.09.22] - 2026-09-11
 
 ### Added
 
 - A persistent post-update notification with an explicit Redémarrer button.
+
+- The quota picker now includes Devin, Kilo Code, and CodeBuff, and provider details open in a readable click-based card.
 
 ## [2026.09.21] - 2026-09-11
 
