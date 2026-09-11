@@ -158,6 +158,8 @@ import {
   saveUsageDisplayMode,
   saveUsageScope,
   saveUsageWindowVisibility,
+  loadUsageProviderOrder,
+  saveUsageProviderOrder,
   USAGE_PROVIDER_IDS,
   type UsageDisplayMode,
   type UsageScope,
@@ -421,6 +423,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
   const [usageWindowVisibility, setUsageWindowVisibility] =
     useState<UsageWindowVisibility>(loadUsageWindowVisibility);
+  const [usageProviderOrder, setUsageProviderOrder] = useState(loadUsageProviderOrder);
   const [hiddenUsageProviders, setHiddenUsageProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
@@ -568,6 +571,16 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setHiddenUsageProviders(next);
   };
 
+  const moveUsageProvider = (id: string, delta: -1 | 1) => {
+    const index = usageProviderOrder.indexOf(id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= usageProviderOrder.length) return;
+    const next = [...usageProviderOrder];
+    [next[index], next[target]] = [next[target], next[index]];
+    saveUsageProviderOrder(next);
+    setUsageProviderOrder(next);
+  };
+
   useEffect(() => {
     let cancelled = false;
     void Promise.resolve().then(() => {
@@ -667,7 +680,10 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
               </span>
             ) : (
               <div className="flex max-w-md flex-wrap justify-end gap-1.5">
-                {usageProviderList.map((id) => {
+                {usageProviderList
+                  .slice()
+                  .sort((a, b) => usageProviderOrder.indexOf(a) - usageProviderOrder.indexOf(b))
+                  .map((id) => {
                   const visible = !hiddenUsageProviders.includes(id);
                   return (
                     <button
@@ -685,9 +701,13 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
                         <Check className="size-3" strokeWidth={2.25} />
                       ) : null}
                       {usageProviderLabel(id)}
+                      <span className="ml-1 flex gap-0.5">
+                        <span role="button" aria-label={`Move ${usageProviderLabel(id)} up`} onClick={(event) => { event.stopPropagation(); moveUsageProvider(id, -1); }}>↑</span>
+                        <span role="button" aria-label={`Move ${usageProviderLabel(id)} down`} onClick={(event) => { event.stopPropagation(); moveUsageProvider(id, 1); }}>↓</span>
+                      </span>
                     </button>
                   );
-                })}
+                  })}
               </div>
             )
           ) : null}

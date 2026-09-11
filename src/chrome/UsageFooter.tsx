@@ -15,10 +15,12 @@ import {
   loadHiddenUsageProviders,
   loadUsageDisplayMode,
   loadUsageScope,
+  loadUsageProviderOrder,
   loadUsageWindowVisibility,
   USAGE_DISPLAY_MODE_CHANGE_EVENT,
   USAGE_SCOPE_CHANGE_EVENT,
   USAGE_WINDOW_VISIBILITY_CHANGE_EVENT,
+  USAGE_PROVIDER_ORDER_CHANGE_EVENT,
   idleRateLimits,
   RATE_LIMIT_POLL_MS,
   rateLimitWindowTooltip,
@@ -72,6 +74,7 @@ export function UsageFooter({
   const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
   const [windowVisibility, setWindowVisibility] =
     useState<UsageWindowVisibility>(loadUsageWindowVisibility);
+  const [providerOrder, setProviderOrder] = useState(loadUsageProviderOrder);
   const [hiddenProviders, setHiddenProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
@@ -173,15 +176,18 @@ export function UsageFooter({
       setDisplayMode(loadUsageDisplayMode());
       setUsageScope(loadUsageScope());
       setWindowVisibility(loadUsageWindowVisibility());
+      setProviderOrder(loadUsageProviderOrder());
       setHiddenProviders(loadHiddenUsageProviders());
     };
     window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
     window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
     window.addEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
     return () => {
       window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
       window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
       window.removeEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
     };
   }, []);
 
@@ -199,8 +205,9 @@ export function UsageFooter({
           usageProviderMatches(entry.provider, providers),
         )
       : mergedUsage.filter(
-          (entry) => !hiddenProviders.includes(entry.provider),
-        );
+        (entry) => !hiddenProviders.includes(normalizeUsageProvider(entry.provider)),
+        )
+      .sort((a, b) => providerOrder.indexOf(normalizeUsageProvider(a.provider)) - providerOrder.indexOf(normalizeUsageProvider(b.provider)));
   const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
   const showRight = showUsage || showTerminals;
@@ -521,8 +528,12 @@ function usageProviderMatches(provider: string, providers: string[]): boolean {
 }
 
 function entryMatchesHarness(provider: string, harness: string): boolean {
-  if (provider === harness) return true;
+  if (normalizeUsageProvider(provider) === normalizeUsageProvider(harness)) return true;
   return (USAGE_PROVIDER_ALIASES[harness] ?? []).includes(provider);
+}
+
+function normalizeUsageProvider(provider: string): string {
+  return provider === "kilo" ? "kilocode" : provider === "code_buff" ? "codebuff" : provider;
 }
 function ProviderMark({ provider }: { provider: string }) {
   if (KNOWN_HARNESSES.has(provider as HarnessId)) {
