@@ -20,7 +20,10 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
-import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
+import {
+  useProjectDiffStats,
+  useProjectDiffStatsMap,
+} from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
 import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
@@ -78,6 +81,8 @@ import type { SettingsSectionId } from "../lib/settings";
 import {
   DONE_CHECK_SIDE_CHANGE_EVENT,
   loadDoneCheckSide,
+  loadProjectSort,
+  PROJECT_SORT_CHANGE_EVENT,
 } from "../lib/settings";
 import {
   BUSY_GLOW_CHANGE_EVENT,
@@ -267,6 +272,41 @@ export function ProjectRail({
     [cwd, pinnedPaths, railOrder, recents],
   );
 
+  // Sorting (Settings > General): manual keeps the drag order; the other
+  // modes re-sort the unpinned list on every render pass below.
+  const [projectSort, setProjectSort] = useState(loadProjectSort);
+  useEffect(() => {
+    const onSort = () => setProjectSort(loadProjectSort());
+    window.addEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
+    return () => window.removeEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
+  }, []);
+  const statsMap = useProjectDiffStatsMap(
+    sections.projects.map((item) => item.path),
+    projectSort === "unpushed",
+  );
+  const sortedProjects = useMemo(() => {
+    if (projectSort === "manual") return sections.projects;
+    const byOpenedAt = new Map(
+      recents.map((item) => [item.path, item.openedAt]),
+    );
+    const list = [...sections.projects];
+    if (projectSort === "recent") {
+      list.sort(
+        (a, b) => (byOpenedAt.get(b.path) ?? 0) - (byOpenedAt.get(a.path) ?? 0),
+      );
+    } else if (projectSort === "alphabetical") {
+      list.sort((a, b) =>
+        projectName(a.path).localeCompare(projectName(b.path)),
+      );
+    } else {
+      list.sort(
+        (a, b) =>
+          (statsMap.get(b.path)?.ahead ?? 0) - (statsMap.get(a.path)?.ahead ?? 0),
+      );
+    }
+    return list;
+  }, [projectSort, recents, sections.projects, statsMap]);
+
   const done = useMemo(() => {
     const set = new Set<string>();
     for (const path of donePaths ?? []) set.add(path);
@@ -441,6 +481,15 @@ export function ProjectRail({
 
   const pinnedIds = sections.pinned.map((item) => item.path);
   const projectIds = sections.projects.map((item) => item.path);
+  // Reordering a sorted list fights the sort — neutralize drag there.
+  const NO_DRAG = {
+    draggingId: null,
+    toIndex: null,
+    fromIndex: null,
+    consumeClick: () => false,
+    setItemRef: () => undefined,
+    onItemPointerDown: () => undefined,
+  } as unknown as typeof projectSortable;
   const pinnedSortable = useSortable(pinnedIds, onReorderPinned, {
     axis: "y",
     onActivate: onSelectProject,
@@ -541,14 +590,14 @@ export function ProjectRail({
 
             <ProjectSection
               label="Projects"
-              items={sections.projects}
+              items={sortedProjects}
               emptyLabel="No projects yet"
               onAdd={onOpenProject}
               cwd={cwd}
               busy={busy}
               done={done}
               glowColor={glowColor}
-              sortable={projectSortable}
+              sortable={projectSort === "manual" ? projectSortable : NO_DRAG}
               pinned={false}
               searchActive={searchActive || inboxActive || notesActive}
               onSelect={onSelectProject}

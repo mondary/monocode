@@ -121,6 +121,34 @@ export function saveDoneCheckSide(value: DoneCheckSide): void {
   window.dispatchEvent(new Event(DONE_CHECK_SIDE_CHANGE_EVENT));
 }
 
+/** How the project rail orders the (unpinned) project list. */
+export type ProjectSortMode = "manual" | "recent" | "alphabetical" | "unpushed";
+
+export const PROJECT_SORT_DEFAULT: ProjectSortMode = "manual";
+
+/** Fired on `window` when the project sort mode changes. */
+export const PROJECT_SORT_CHANGE_EVENT = "monocode:project-sort-change";
+
+export function loadProjectSort(): ProjectSortMode {
+  try {
+    const raw = localStorage.getItem("monocode.projectSort");
+    return raw === "recent" || raw === "alphabetical" || raw === "unpushed"
+      ? raw
+      : PROJECT_SORT_DEFAULT;
+  } catch {
+    return PROJECT_SORT_DEFAULT;
+  }
+}
+
+export function saveProjectSort(value: ProjectSortMode): void {
+  try {
+    localStorage.setItem("monocode.projectSort", value);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(PROJECT_SORT_CHANGE_EVENT));
+}
+
 const FOLLOW_UP_BEHAVIOR_KEY = "monocode.followUpBehavior";
 
 export type FollowUpBehavior = "steer" | "queue" | "choice";

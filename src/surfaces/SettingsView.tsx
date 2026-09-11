@@ -215,7 +215,10 @@ import {
   loadFollowUpBehavior,
   loadDoneCheckSide,
   saveDoneCheckSide,
+  loadProjectSort,
+  saveProjectSort,
   type DoneCheckSide,
+  type ProjectSortMode,
   loadGridArcadeEnabled,
   loadLiveAgentsEnabled,
   loadNotesEnabled,
@@ -419,6 +422,9 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
     loadDoneCheckSide,
   );
+  const [projectSort, setProjectSort] = useState<ProjectSortMode>(
+    loadProjectSort,
+  );
   const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
@@ -502,6 +508,11 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onDoneCheckSide = (next: DoneCheckSide) => {
     saveDoneCheckSide(next);
     setDoneCheckSide(next);
+  };
+
+  const onProjectSort = (next: ProjectSortMode) => {
+    saveProjectSort(next);
+    setProjectSort(next);
   };
 
   const onComposerRunner = (next: boolean) => {
@@ -794,6 +805,22 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
             { value: "right", label: "Right" },
           ]}
           onChange={onDoneCheckSide}
+        />
+      </Row>
+      <Row
+        label="Project list order"
+        description="How the project rail sorts your projects. Manual keeps the order you drag them into; the others re-sort automatically. Pinned projects stay on top either way."
+      >
+        <Segmented
+          label="Project list order"
+          value={projectSort}
+          options={[
+            { value: "manual", label: "Manual" },
+            { value: "recent", label: "Recent" },
+            { value: "alphabetical", label: "A–Z" },
+            { value: "unpushed", label: "Unpushed" },
+          ]}
+          onChange={onProjectSort}
         />
       </Row>
       <Row

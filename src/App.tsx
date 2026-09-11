@@ -2576,6 +2576,19 @@ export default function App({
     [projectOfTab],
   );
 
+  /** Swap the active tab with its neighbor in the strip (no focus change). */
+  const onMoveTab = useCallback(
+    (delta: 1 | -1) => {
+      const index = deckProjectTabs.findIndex((t) => t.id === activeTabId);
+      const target = index >= 0 ? index + delta : -1;
+      if (target < 0 || target >= deckProjectTabs.length) return;
+      const ids = deckProjectTabs.map((t) => t.id);
+      [ids[index], ids[target]] = [ids[target], ids[index]];
+      onReorderTabs(ids, activeTabId ?? undefined);
+    },
+    [activeTabId, deckProjectTabs, onReorderTabs],
+  );
+
   const onReorderFiles = useCallback((paneId: string, ids: string[]) => {
     setTabs((prev) =>
       prev.map((tab) => {
@@ -5118,6 +5131,7 @@ export default function App({
     onToggleProjectTerminal,
     onNavigateSessionList,
     onNavigateProjectList,
+    onMoveTab,
     openSettings,
     onOpenApprovalSession,
   });
@@ -5147,6 +5161,7 @@ export default function App({
     onToggleProjectTerminal,
     onNavigateSessionList,
     onNavigateProjectList,
+    onMoveTab,
     openSettings,
     onOpenApprovalSession,
   };
@@ -5253,6 +5268,8 @@ export default function App({
         else if (cmd === "close") run("close", a.onClosePane);
         else if (cmd === "cycle-next") run("cycle-next", a.onCycleNext);
         else if (cmd === "cycle-prev") run("cycle-prev", a.onCyclePrev);
+        else if (cmd === "move-left") run("move-left", () => a.onMoveTab(-1));
+        else if (cmd === "move-right") run("move-right", () => a.onMoveTab(1));
         else if (cmd === "next") run("next", a.onNext);
         else if (cmd === "prev") run("prev", a.onPrev);
         else if (cmd === "back") run("back", a.onVisitBack);

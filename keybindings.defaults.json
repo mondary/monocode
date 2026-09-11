@@ -107,6 +107,18 @@
     "when": "Always",
     "binding": "CmdOrCtrl+Alt+Left"
   },
+  "move_tab_left": {
+    "label": "Tab: Move Left",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Shift+["
+  },
+  "move_tab_right": {
+    "label": "Tab: Move Right",
+    "group": "Tab",
+    "when": "Always",
+    "binding": "CmdOrCtrl+Alt+Shift+]"
+  },
   "back_tab": {
     "label": "Tab: Back",
     "group": "Tab",

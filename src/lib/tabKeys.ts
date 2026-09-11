@@ -39,6 +39,8 @@ export type TabCommand =
   | "prev"
   | "cycle-next"
   | "cycle-prev"
+  | "move-left"
+  | "move-right"
   | "back"
   | "forward"
   | "split-right"
@@ -64,6 +66,8 @@ export function tabCommand(e: KeyboardEvent): TabCommand | null {
 
   if (matchesAction(e, "cycle_next_tab")) return "cycle-next";
   if (matchesAction(e, "cycle_prev_tab")) return "cycle-prev";
+  if (matchesAction(e, "move_tab_left")) return "move-left";
+  if (matchesAction(e, "move_tab_right")) return "move-right";
   if (matchesAction(e, "close_other_tabs")) return "close-others";
   if (matchesAction(e, "focus_left")) return { focus: "left" };
   if (matchesAction(e, "focus_right")) return { focus: "right" };

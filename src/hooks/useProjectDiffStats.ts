@@ -1,4 +1,9 @@
-import { useCallback, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useReducer,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 import { gitDiffStats, subscribeGitChanged, type GitDiffStats } from "../lib/fs";
 
 type Entry = {
@@ -119,4 +124,33 @@ export function useProjectDiffStats(
   }, [active, cwd]);
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** Stats for many cwds at once (project-rail sorting); re-renders on any change. */
+export function useProjectDiffStatsMap(
+  cwds: string[],
+  enabled: boolean,
+): Map<string, GitDiffStats | null> {
+  const key = cwds.join("\0");
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!enabled) return;
+    const unsubs = key.split("\0").map((cwd) => {
+      if (!cwd || cwd === "~") return () => undefined;
+      const entry = entryFor(cwd);
+      entry.listeners.add(bump);
+      if (entry.listeners.size === 1) start(entry);
+      return () => {
+        entry.listeners.delete(bump);
+        if (entry.listeners.size === 0) stop(entry);
+      };
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [enabled, key, bump]);
+  return new Map(
+    key.split("\0").map((cwd) => [
+      cwd,
+      cwd === "~" ? null : (entryFor(cwd).stats ?? null),
+    ]),
+  );
 }
