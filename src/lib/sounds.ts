@@ -13,6 +13,7 @@ export type SoundCue =
   | "turnFinished"
   | "agentInput"
   | "inboxUnseen"
+  | "linkedActivity"
   | "updateAvailable"
   | "switch"
   | "copy";
@@ -21,6 +22,7 @@ const CUES: Record<SoundCue, SoundName> = {
   turnFinished: "success",
   agentInput: "droplet",
   inboxUnseen: "bloom",
+  linkedActivity: "chime",
   updateAvailable: "arrival",
   switch: "toggle",
   copy: "scan",

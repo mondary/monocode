@@ -69,7 +69,16 @@ describe("buildThreadStartParams / buildTurnStartParams", () => {
       threadId: "thr_1",
       runtimeMode: "auto-accept-edits",
       prompt: "hello",
-      attachments: [{ type: "image", url: "data:image/png;base64,abc" }],
+      attachments: [
+        {
+          id: "img",
+          name: "shot.png",
+          kind: "image",
+          mimeType: "image/png",
+          size: 3,
+          data: "abc",
+        },
+      ],
       model: "gpt-5.4",
       effort: "high",
       serviceTier: "fast",
@@ -343,6 +352,22 @@ describe("mapCodexNotification", () => {
     });
   });
 
+  it("retains the explicitly selected spawn model", () => {
+    const { events } = mapCodexNotification("item/completed", {
+      item: {
+        id: "spawn",
+        type: "collabAgentToolCall",
+        tool: "spawnAgent",
+        model: "gpt-5.6-sol",
+        status: "completed",
+      },
+    });
+    expect(events[0]).toMatchObject({
+      kind: "agent",
+      agentModel: "gpt-5.6-sol",
+    });
+  });
+
   it("maps current collab-agent failures with their provider detail", () => {
     const started = mapCodexNotification("item/started", {
       item: {
@@ -354,11 +379,13 @@ describe("mapCodexNotification", () => {
         agentsStates: {},
       },
     });
+    // Waiting is bookkeeping against rows that already exist, not a third
+    // subagent of its own.
     expect(started.events[0]).toMatchObject({
       type: "tool.started",
       callId: "collab_1",
       title: "Wait for 2 subagents",
-      kind: "agent",
+      kind: "other",
       status: "in_progress",
     });
 
@@ -378,7 +405,7 @@ describe("mapCodexNotification", () => {
     expect(failed.events[0]).toMatchObject({
       type: "tool.updated",
       callId: "collab_1",
-      kind: "agent",
+      kind: "other",
       status: "failed",
       detail: "worker disconnected",
     });
@@ -421,6 +448,67 @@ describe("mapCodexNotification", () => {
     expect(mapped.turnCompleted?.status).toBe("interrupted");
     expect(mapped.activeTurnId).toBeNull();
   });
+
+  it.each([
+    { error: { message: "Reconnecting... 1/5" }, willRetry: true },
+    { message: "Temporary service interruption", willRetry: true },
+  ])("keeps retry notifications diagnostic-only: %j", (params) => {
+    expect(mapCodexNotification("error", params)).toEqual({
+      events: [],
+      diagnostic: params.error?.message ?? params.message,
+    });
+  });
+
+  it.each([false, undefined, "true"])(
+    "keeps errors visible unless willRetry is explicitly true: %s",
+    (willRetry) => {
+      for (const message of [
+        "Reconnecting... 5/5",
+        "Falling back from WebSockets to HTTPS transport. Connection failed",
+        "Unauthorized",
+        "quota exceeded",
+      ]) {
+        expect(
+          mapCodexNotification("error", { error: { message }, willRetry }),
+        ).toEqual({ events: [{ type: "session.error", message }] });
+      }
+    },
+  );
+
+  it.each([
+    "Falling back from WebSockets to HTTPS transport",
+    "Falling back from WebSockets to HTTPS transport. unexpected status 404 Not Found",
+    "Falling back from WebSockets to HTTPS transport: connection closed",
+  ])(
+    "keeps the known runtime fallback warning diagnostic-only: %s",
+    (message) => {
+      expect(mapCodexNotification("warning", { message })).toEqual({
+        events: [],
+        diagnostic: message,
+      });
+    },
+  );
+
+  it.each([
+    "Reconnecting to the MCP server failed",
+    "Proxy error: Falling back from WebSockets to HTTPS transport failed",
+    "Falling back from WebSockets to HTTPS transport is disabled",
+    "An unrelated runtime warning",
+  ])("preserves other runtime warnings: %s", (message) => {
+    expect(mapCodexNotification("warning", { message })).toEqual({
+      events: [{ type: "status", text: message }],
+    });
+  });
+
+  it.each(["summary", "message", "details"])(
+    "preserves configuration warnings from %s even with fallback wording",
+    (field) => {
+      const message = "Falling back from WebSockets to HTTPS transport.";
+      expect(
+        mapCodexNotification("configWarning", { [field]: message }),
+      ).toEqual({ events: [{ type: "status", text: message }] });
+    },
+  );
 
   it("maps failed turns to session.error", () => {
     const mapped = mapCodexNotification("turn/completed", {

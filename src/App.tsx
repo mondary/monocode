@@ -20,6 +20,7 @@ import { MenuBar } from "./chrome/MenuBar";
 import { FilePicker } from "./chrome/FilePicker";
 import { UsageFooter } from "./chrome/UsageFooter";
 import { useProjectBranches } from "./hooks/useProjectBranches";
+import { useInboxActivity } from "./hooks/useInboxUnseen";
 import {
   loadProjectRailOpen,
   saveProjectRailOpen,
@@ -51,6 +52,7 @@ import {
   invalidateProjectFiles,
   prefetchProjectFiles,
   rememberOpenedFile,
+  resolveFileOpenRequest,
   resolveOpenablePath,
 } from "./lib/fileIndex";
 import {
@@ -195,6 +197,7 @@ import {
   preferredModelSettings,
   resolveModel,
   saveLastModelSettings,
+  saveRecentModelChoice,
 } from "./lib/models";
 import {
   buildPlanPrompt,
@@ -275,6 +278,9 @@ import {
 import { syncDockBadge } from "./lib/dockBadge";
 import { liveAgentsFromSessions } from "./lib/liveAgents";
 import { hiddenApprovalNotices } from "./lib/approvalToast";
+import { useSessionReminders } from "./hooks/useSessionReminders";
+import { ReminderNotices } from "./chrome/ReminderNotices";
+import { LinkedWorkItemUpdateNotice } from "./chrome/LinkedWorkItemUpdateNotice";
 import { nextUnseenFinishedSessions } from "./lib/sessionDone";
 import {
   loadNotificationsEnabled,
@@ -339,12 +345,25 @@ import type { ConnectableInboxSource } from "./lib/inboxFilters";
 import { InboxView } from "./surfaces/InboxView";
 import type { InboxSessionPortal } from "./surfaces/InboxDiscussionPanel";
 import { inboxAskKey, inboxAskPrompt } from "./lib/inboxAsk";
+import { requestAddToChat } from "./lib/quoteDraft";
 import { NotesView } from "./surfaces/NotesView";
-import { inboxComposerCard, type InboxItem } from "./lib/githubTasks";
+import {
+  githubWorkItemThread,
+  inboxComposerCard,
+  type InboxItem,
+} from "./lib/githubTasks";
 import {
   linkedWorkItemFromInboxItem,
   resolveLinkedWorkItem,
 } from "./lib/sessionWorkItem";
+import {
+  completeLinkedWorkItemUpdateCard,
+  failLinkedWorkItemUpdateCard,
+  pendingLinkedWorkItemUpdateCard,
+  type LinkedWorkItemUpdateCard,
+} from "./lib/linkedWorkItemActivity";
+import type { LinkedSessionUpdate } from "./lib/linkedSessionUpdates";
+import { markLinkedSessionUpdateSeen } from "./lib/linkedSessionSeen";
 import { linearIssueDetails, peekLinearIssueDetails } from "./lib/linear";
 import { gitlabWorkItemDetails, peekGitlabWorkItemDetails } from "./lib/gitlab";
 import {
@@ -720,6 +739,10 @@ export default function App({
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
+  const linkedSessionUpdatesRef = useRef<
+    ReadonlyMap<string, LinkedSessionUpdate>
+  >(new Map());
+  const linkedWorkItemActivityFetches = useRef(new Map<string, number>());
   const queueDispatchingRef = useRef(new Set<string>());
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
@@ -1096,6 +1119,9 @@ export default function App({
     () => hiddenApprovalNotices(sessions, activeTabId, tabs, composerFocused),
     [sessions, activeTabId, tabs, composerFocused],
   );
+  const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
+  const [linkedActivityNoticeHeight, setLinkedActivityNoticeHeight] =
+    useState(0);
 
   useEffect(() => {
     syncDockBadge(sessions);
@@ -1628,6 +1654,35 @@ export default function App({
     );
   }, []);
 
+  const setLinkedWorkItemUpdateCard = useCallback(
+    (
+      sessionId: string,
+      update: (
+        card: LinkedWorkItemUpdateCard | undefined,
+      ) => LinkedWorkItemUpdateCard | undefined,
+    ) => {
+      const previous = sessionsRef.current;
+      const next = previous.map((session) => {
+        if (session.id !== sessionId) return session;
+        const card = update(session.linkedWorkItemUpdateCard);
+        return card === session.linkedWorkItemUpdateCard
+          ? session
+          : { ...session, linkedWorkItemUpdateCard: card };
+      });
+      if (!next.some((session, index) => session !== previous[index])) return;
+      sessionsRef.current = next;
+      setSessions(next);
+    },
+    [],
+  );
+
+  const onLinkedWorkItemUpdateCardDismiss = useCallback(
+    (sessionId: string) => {
+      setLinkedWorkItemUpdateCard(sessionId, () => undefined);
+    },
+    [setLinkedWorkItemUpdateCard],
+  );
+
   const onNoteCardDismiss = useCallback((sessionId: string) => {
     setSessions((prev) =>
       prev.map((session) =>
@@ -1863,6 +1918,34 @@ export default function App({
       );
     };
     void confirmCloseTerminal(file).then((ok) => ok && finishClose());
+  }, []);
+
+  const onCloseOtherProjectTerminals = useCallback((fileId: string) => {
+    const projectPath = projectCwdRef.current;
+    const dock = findProjectTerminal(projectTerminalsRef.current, projectPath);
+    if (!dock?.pane.files.some((file) => file.id === fileId)) return;
+    const closingFiles = dock.pane.files.filter((file) => file.id !== fileId);
+    if (closingFiles.length === 0) return;
+    const closingIds = new Set(closingFiles.map((file) => file.id));
+
+    const finishClose = () => {
+      setProjectTerminals((prev) =>
+        mapProjectTerminal(prev, projectPath, (entry) => {
+          if (!entry.pane.files.some((file) => file.id === fileId)) {
+            return entry;
+          }
+          const files = entry.pane.files.filter(
+            (file) => !closingIds.has(file.id),
+          );
+          return {
+            ...entry,
+            pane: { ...entry.pane, files, activeFileId: fileId },
+          };
+        }),
+      );
+    };
+
+    void confirmCloseTerminals(closingFiles).then((ok) => ok && finishClose());
   }, []);
 
   const onTerminalMetaChange = useCallback(
@@ -2201,6 +2284,66 @@ export default function App({
     },
     [activeTabId, onCloseTab, projectCwd, tabCloseScope],
   );
+
+  const onCloseOtherFiles = useCallback((paneId: string, fileId: string) => {
+    const tab = tabsRef.current.find((entry) => findSurfacePane(entry, paneId));
+    if (!tab) return;
+    const found = findSurfacePane(tab, paneId);
+    if (!found?.pane.files.some((file) => file.id === fileId)) return;
+    const closingFiles = found.pane.files.filter((file) => file.id !== fileId);
+    if (closingFiles.length === 0) return;
+    const closingIds = new Set(closingFiles.map((file) => file.id));
+    const unsaved = closingFiles.filter(
+      (file) => isFilesystemTab(file) && dirtyFilesRef.current.has(file.id),
+    );
+    const terminals = closingFiles.filter((file) => file.terminal);
+
+    const finishClose = () => {
+      setTabs((prev) =>
+        prev.map((entry) => {
+          if (entry.id !== tab.id) return entry;
+          const current = findSurfacePane(entry, paneId);
+          if (!current?.pane.files.some((file) => file.id === fileId)) {
+            return entry;
+          }
+          return withSurfacePanes(
+            { ...entry, focusedId: paneId },
+            current.kind,
+            surfacePanes(entry, current.kind).map((pane) =>
+              pane.id === paneId
+                ? {
+                    ...pane,
+                    files: pane.files.filter(
+                      (file) => !closingIds.has(file.id),
+                    ),
+                    activeFileId: fileId,
+                  }
+                : pane,
+            ),
+          );
+        }),
+      );
+      setDirtyFiles((prev) => {
+        const next = new Set(prev);
+        for (const id of closingIds) next.delete(id);
+        return next;
+      });
+    };
+
+    void (async () => {
+      if (unsaved.length > 0) {
+        const ok = await confirmDiscardUnsaved(
+          "Close other tabs with unsaved files?",
+        );
+        if (!ok) return;
+      }
+      if (terminals.length > 0) {
+        const ok = await confirmCloseTerminals(terminals);
+        if (!ok) return;
+      }
+      finishClose();
+    })();
+  }, []);
 
   const onClearTabSession = useCallback(
     (id: string) => {
@@ -2713,6 +2856,82 @@ export default function App({
     [refreshHistory, sidebarCwd],
   );
 
+  const revealLinkedSessionUpdate = useCallback(
+    (sessionId: string, update: LinkedSessionUpdate) => {
+      const session = sessionsRef.current.find(
+        (entry) => entry.id === sessionId,
+      );
+      if (!session?.linkedWorkItem) return;
+      if (
+        session.linkedWorkItemUpdateCard?.updatedAt === update.updatedAt &&
+        session.linkedWorkItemUpdateCard.status !== "error"
+      ) {
+        return;
+      }
+      if (
+        linkedWorkItemActivityFetches.current.get(sessionId) ===
+        update.updatedAt
+      ) {
+        return;
+      }
+      const pending = pendingLinkedWorkItemUpdateCard(update);
+      linkedWorkItemActivityFetches.current.set(sessionId, update.updatedAt);
+      // A stale/error card should not remain visible while fresh details load.
+      // The session itself is already open; this request stays fully detached
+      // from the navigation path.
+      setLinkedWorkItemUpdateCard(sessionId, (current) =>
+        current?.updatedAt === update.updatedAt && current.status === "ready"
+          ? current
+          : undefined,
+      );
+
+      void githubWorkItemThread(
+        session.cwd,
+        session.linkedWorkItem.kind,
+        session.linkedWorkItem.number,
+        { force: true },
+      ).then(
+        (thread) => {
+          if (
+            linkedWorkItemActivityFetches.current.get(sessionId) !==
+            pending.updatedAt
+          ) {
+            return;
+          }
+          linkedWorkItemActivityFetches.current.delete(sessionId);
+          if (
+            linkedSessionUpdatesRef.current.get(sessionId)?.updatedAt !==
+            pending.updatedAt
+          ) {
+            return;
+          }
+          setLinkedWorkItemUpdateCard(sessionId, () =>
+            completeLinkedWorkItemUpdateCard(pending, thread),
+          );
+        },
+        () => {
+          if (
+            linkedWorkItemActivityFetches.current.get(sessionId) !==
+            pending.updatedAt
+          ) {
+            return;
+          }
+          linkedWorkItemActivityFetches.current.delete(sessionId);
+          if (
+            linkedSessionUpdatesRef.current.get(sessionId)?.updatedAt !==
+            pending.updatedAt
+          ) {
+            return;
+          }
+          setLinkedWorkItemUpdateCard(sessionId, () =>
+            failLinkedWorkItemUpdateCard(pending),
+          );
+        },
+      );
+    },
+    [setLinkedWorkItemUpdateCard],
+  );
+
   const onAskInboxItem = useCallback(
     (item: InboxItem): Promise<string> => {
       const key = inboxAskKey(item);
@@ -2738,12 +2957,12 @@ export default function App({
                   (item.kind === "issue" || item.kind === "pr")
                 ? (
                     peekGitlabWorkItemDetails(
-                      item.projectPath,
+                      item.repo,
                       item.kind,
                       item.number,
                     ) ??
                     (await gitlabWorkItemDetails(
-                      item.projectPath,
+                      item.repo,
                       item.kind,
                       item.number,
                     ))
@@ -2823,21 +3042,70 @@ export default function App({
 
   const onSelectHistorySession = useCallback(
     async (sessionId: string) => {
-      if (focusOpenSession(sessionId)) return;
+      const linkedUpdate = linkedSessionUpdatesRef.current.get(sessionId);
+      if (focusOpenSession(sessionId)) {
+        if (linkedUpdate) revealLinkedSessionUpdate(sessionId, linkedUpdate);
+        return;
+      }
       const session = await ensureOpenSession(sessionId);
       if (!session || session.inboxAsk) return;
-      if (replaceBlankPaneWithSession(session)) return;
+      if (replaceBlankPaneWithSession(session)) {
+        if (linkedUpdate) revealLinkedSessionUpdate(sessionId, linkedUpdate);
+        return;
+      }
       const tab = newTab(session.id);
       appendTab(tab, session.cwd);
       setActiveTabId(tab.id);
       setComposerFocused(true);
+      if (linkedUpdate) revealLinkedSessionUpdate(sessionId, linkedUpdate);
     },
     [
       appendTab,
       ensureOpenSession,
       focusOpenSession,
       replaceBlankPaneWithSession,
+      revealLinkedSessionUpdate,
     ],
+  );
+
+  const openReminderSession = useCallback(
+    async (sessionId: string) => {
+      const session = await ensureOpenSession(sessionId);
+      if (!session)
+        throw new Error("This conversation is no longer available.");
+      setSearchViewOpen(false);
+      setInboxViewOpen(false);
+      setNotesViewOpen(false);
+      setSettingsOpen(false);
+      setFilePickerOpen(false);
+      setSidebarTab("sessions");
+      setProjectCwd(session.cwd);
+      setRecents(rememberProject(session.cwd));
+      await onSelectHistorySession(sessionId);
+    },
+    [ensureOpenSession, onSelectHistorySession],
+  );
+
+  const ensureReminderSessionsSaved = useCallback(
+    async (ids: readonly string[]) => {
+      for (const id of ids) {
+        const session = sessionsRef.current.find(
+          (session) => session.id === id,
+        );
+        if (session && !(await upsertSession(session))) {
+          throw new Error(
+            "Send a message in this conversation before setting a reminder.",
+          );
+        }
+      }
+    },
+    [],
+  );
+
+  const sessionReminders = useSessionReminders(
+    openReminderSession,
+    ensureReminderSessionsSaved,
+    sessions.filter((session) => !session.inboxAsk).map((session) => session.id),
   );
 
   const onPlaceSessionOnPane = useCallback(
@@ -3567,10 +3835,13 @@ export default function App({
   }, []);
 
   const onOpenFile = useCallback<OpenFileFn>(
-    (path, navigation) => {
+    (path, navigation, options) => {
       void (async () => {
-        const resolved =
-          (await resolveOpenablePath(gitCwdRef.current, path)) ?? path;
+        const resolved = await resolveFileOpenRequest(
+          gitCwdRef.current,
+          path,
+          options,
+        );
         rememberOpenedFile(sidebarCwdRef.current, resolved);
         const tab = tabsRef.current.find((entry) => entry.id === activeTabId);
         if (!tab) return;
@@ -3665,6 +3936,7 @@ export default function App({
       if (!current) return;
       if (isPreparingHandoff(current)) return;
       const resolved = resolveModel(harness, model);
+      saveRecentModelChoice(resolved.harness, resolved.id);
       if (current.modelSettings) {
         saveLastModelSettings(current.modelSettings, "fill");
       }
@@ -3778,6 +4050,7 @@ export default function App({
         return;
       }
       if (isPreparingHandoff(current)) return;
+      saveRecentModelChoice(current.harness, current.model);
       const workCwd = sessionWorkCwd(current);
       const submittedText = intent === "build" ? "Build approved plan" : text;
       const rawCommand = isNativeCommandPrompt(submittedText, current.harness);
@@ -4829,6 +5102,12 @@ export default function App({
       }),
     [history, projectBranches, sessions, sidebarCwd],
   );
+  const {
+    unseen: inboxUnseen,
+    linkedSessionUpdateIds,
+    linkedSessionUpdates,
+  } = useInboxActivity(recents, sidebarCwd, sidebarHistory);
+  linkedSessionUpdatesRef.current = linkedSessionUpdates;
   const inboxRelatedSessions = useMemo(() => {
     const byId = new Map<string, SessionSummary>();
     for (const session of storedLinkedSessions) byId.set(session.id, session);
@@ -5528,6 +5807,9 @@ export default function App({
         onArchiveSessions={onArchiveHistorySessions}
         onPinSession={onPinHistorySession}
         onPinSessions={onPinHistorySessions}
+        reminders={sessionReminders.reminders}
+        onSetReminders={sessionReminders.schedule}
+        onCancelReminders={sessionReminders.cancel}
         onDeleteSession={onDeleteHistorySession}
         onDeleteSessions={onDeleteHistorySessions}
         onOpenFile={onOpenFile}
@@ -5582,6 +5864,8 @@ export default function App({
         projectRailOpen={projectRailOpen}
         onToggleProjectRail={onToggleProjectRail}
         unseenFinishedIds={unseenFinishedIds}
+        inboxUnseen={inboxUnseen}
+        linkedSessionUpdateIds={linkedSessionUpdateIds}
         settingsOpen={settingsOpen}
         settingsSection={settingsSection}
         onOpenSettings={onOpenSettings}
@@ -5695,11 +5979,20 @@ export default function App({
                       onAddTerminal={() =>
                         onOpenTerminal(active?.cwd ?? projectCwd)
                       }
+<<<<<<< HEAD
                        onSelectTerminal={onSelectProjectTerminal}
                        onCloseTerminal={onCloseProjectTerminal}
                        onReorderTerminals={onReorderProjectTerminals}
                        onTerminalMetaChange={onTerminalMetaChange}
                      />
+=======
+                      onSelectTerminal={onSelectProjectTerminal}
+                      onCloseTerminal={onCloseProjectTerminal}
+                      onCloseOtherTerminals={onCloseOtherProjectTerminals}
+                      onReorderTerminals={onReorderProjectTerminals}
+                      onTerminalMetaChange={onTerminalMetaChange}
+                    />
+>>>>>>> refs/rewritten/onto
                   </div>
                 );
               })}
@@ -5746,6 +6039,7 @@ export default function App({
                           }
                           onSelectFile={onSelectFileSurface}
                           onCloseFile={onCloseFile}
+                          onCloseOtherFiles={onCloseOtherFiles}
                           onReorderFiles={onReorderFiles}
                           onFileDirtyChange={onFileDirtyChange}
                           onFileErrorCountChange={onFileErrorCountChange}
@@ -5829,6 +6123,7 @@ export default function App({
           <NotesView
             besideRail={projectRailOpen}
             cwd={projectCwd}
+            recents={recents}
             onClose={onLeaveNotes}
             onToggleSidebar={onToggleSidebar}
           />
@@ -5878,10 +6173,77 @@ export default function App({
 
       <ApprovalToasts
         notices={hiddenApprovalToasts}
+        topOffset={
+          12 +
+          (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0) +
+          (linkedActivityNoticeHeight ? linkedActivityNoticeHeight + 8 : 0)
+        }
         onFocusSession={onOpenApprovalSession}
         onApproval={onApproval}
       />
+<<<<<<< HEAD
       {whatsNew ? (
+=======
+      <LinkedWorkItemUpdateNotice
+        card={
+          searchViewOpen || inboxViewOpen || notesViewOpen || settingsOpen
+            ? undefined
+            : sessions.find((session) => session.id === activeTab?.focusedId)
+                ?.linkedWorkItemUpdateCard
+        }
+        topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)}
+        onAcknowledge={() => {
+          const session = sessions.find(
+            (entry) => entry.id === activeTab?.focusedId,
+          );
+          const updatedAt = session?.linkedWorkItemUpdateCard?.updatedAt;
+          if (session && updatedAt != null) {
+            markLinkedSessionUpdateSeen(session.id, updatedAt);
+          }
+        }}
+        onDismiss={() => {
+          if (activeTab?.focusedId) {
+            onLinkedWorkItemUpdateCardDismiss(activeTab.focusedId);
+          }
+        }}
+        onOpenDiscussion={() => {
+          const session = sessions.find(
+            (entry) => entry.id === activeTab?.focusedId,
+          );
+          if (session?.linkedWorkItem) {
+            onOpenLinkedWorkItem(session.linkedWorkItem);
+          }
+        }}
+        onAddToChat={(text) => {
+          requestAddToChat(text, "plain");
+          setComposerFocused(true);
+        }}
+        onArchiveSession={() => {
+          const sessionId = activeTab?.focusedId;
+          return sessionId
+            ? onArchiveHistorySession(sessionId, true)
+            : Promise.resolve(false);
+        }}
+        onDeleteSession={() => {
+          const sessionId = activeTab?.focusedId;
+          return sessionId
+            ? onDeleteHistorySession(sessionId)
+            : Promise.resolve(false);
+        }}
+        onHeightChange={setLinkedActivityNoticeHeight}
+      />
+      <ReminderNotices
+        reminders={sessionReminders.due}
+        error={sessionReminders.error}
+        onOpen={sessionReminders.open}
+        onSnooze={sessionReminders.schedule}
+        onDismiss={sessionReminders.cancel}
+        onRetry={sessionReminders.refresh}
+        onOpenSettings={() => openSettings()}
+        onHeightChange={setReminderNoticesHeight}
+      />
+      {whatsNewVersion ? (
+>>>>>>> refs/rewritten/onto
         <WhatsNewDialog
           officialVersion={whatsNew.official}
           pkVersion={whatsNew.pk}

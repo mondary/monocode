@@ -40,7 +40,8 @@ import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useColorScheme } from "../hooks/useColorScheme";
 import {
   applyChatBackground,
-  applyChatBackgroundOpacity,
+  applyChatBackgroundEmptyOpacity,
+  applyChatBackgroundSessionOpacity,
   applyChatBackgroundScope,
   applyBackgroundPanels,
   applyBodyGlass,
@@ -50,15 +51,17 @@ import {
   applySidebarOpacity,
   applyThemeTint,
   BODY_GLASS_DEFAULT,
-  CHAT_BACKGROUND_OPACITY_DEFAULT,
+  CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT,
   CHAT_BACKGROUND_OPACITY_MAX,
   CHAT_BACKGROUND_OPACITY_MIN,
+  CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT,
   CHAT_BACKGROUND_SCOPE_DEFAULT,
   THEME_PREFERENCE_DEFAULT,
   chatBackgroundSrc,
   loadBodyGlass,
-  loadChatBackgroundOpacity,
+  loadChatBackgroundEmptyOpacity,
   loadChatBackgroundPath,
+  loadChatBackgroundSessionOpacity,
   loadChatBackgroundScope,
   loadBackgroundPanels,
   type BackgroundPanel,
@@ -71,8 +74,9 @@ import {
   loadTranscriptLayout,
   loadTranscriptAnchor,
   saveBodyGlass,
-  saveChatBackgroundOpacity,
+  saveChatBackgroundEmptyOpacity,
   saveChatBackgroundPath,
+  saveChatBackgroundSessionOpacity,
   saveChatBackgroundScope,
   saveBackgroundPanels,
   saveThemePreference,
@@ -210,6 +214,7 @@ import {
   buildKeybindingRows,
   filterKeybindings,
   loadClaudeHooks,
+  loadComposerEffortVisible,
   loadComposerRunner,
   loadDiffViewer,
   loadFollowUpBehavior,
@@ -223,6 +228,7 @@ import {
   loadLiveAgentsEnabled,
   loadNotesEnabled,
   saveClaudeHooks,
+  saveComposerEffortVisible,
   saveComposerRunner,
   saveDiffViewer,
   saveFollowUpBehavior,
@@ -320,13 +326,14 @@ export function SettingsView({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       event.stopPropagation();
       onCloseRef.current();
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    // Let dialogs and other Settings controls handle Escape first.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (
@@ -364,6 +371,7 @@ export function SettingsView({
         {IS_MAC ? null : <WindowControls />}
       </div>
 
+<<<<<<< HEAD
       <div
         ref={lockOverscroll}
         className="settings-body min-h-0 flex-1 overflow-y-auto overscroll-none"
@@ -403,10 +411,52 @@ export function SettingsView({
               onDeleteSession={onDeleteSession}
               onRestoreProject={onRestoreProject}
               onDeleteProject={onDeleteProject}
+=======
+      {section === "skills" ? (
+        <SkillsPage
+          key={cwd}
+          cwd={cwd}
+          header={
+            <PageHeader
+              title={settingsSectionLabel(section)}
+              description={settingsSectionDescription(section)}
+>>>>>>> refs/rewritten/onto
             />
-          ) : null}
+          }
+        />
+      ) : (
+        <div
+          ref={lockOverscroll}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-none"
+        >
+          <div className="mx-auto w-full max-w-5xl px-8 py-8">
+            <PageHeader
+              title={settingsSectionLabel(section)}
+              description={settingsSectionDescription(section)}
+            />
+            {section === "general" ? (
+              <GeneralPage onOpenWhatsNew={onOpenWhatsNew} />
+            ) : null}
+            {section === "appearance" ? (
+              <AppearancePage appearance={appearance} />
+            ) : null}
+            {section === "keybindings" ? <KeybindingsPage /> : null}
+            {section === "providers" ? <ProvidersPage /> : null}
+            {section === "inbox" ? <InboxPage /> : null}
+            {section === "archive" ? (
+              <ArchivePage
+                cwd={cwd}
+                sessions={sessions}
+                onOpenSession={onOpenSession}
+                onArchiveSession={onArchiveSession}
+                onDeleteSession={onDeleteSession}
+                onRestoreProject={onRestoreProject}
+                onDeleteProject={onDeleteProject}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -419,11 +469,16 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
   const [followUpBehavior, setFollowUpBehavior] =
     useState<FollowUpBehavior>(loadFollowUpBehavior);
+<<<<<<< HEAD
   const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
     loadDoneCheckSide,
   );
   const [projectSort, setProjectSort] = useState<ProjectSortMode>(
     loadProjectSort,
+=======
+  const [composerEffortVisible, setComposerEffortVisible] = useState(
+    loadComposerEffortVisible,
+>>>>>>> refs/rewritten/onto
   );
   const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
@@ -505,6 +560,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setFollowUpBehavior(next);
   };
 
+<<<<<<< HEAD
   const onDoneCheckSide = (next: DoneCheckSide) => {
     saveDoneCheckSide(next);
     setDoneCheckSide(next);
@@ -513,6 +569,11 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onProjectSort = (next: ProjectSortMode) => {
     saveProjectSort(next);
     setProjectSort(next);
+=======
+  const onComposerEffortVisible = (next: boolean) => {
+    saveComposerEffortVisible(next);
+    setComposerEffortVisible(next);
+>>>>>>> refs/rewritten/onto
   };
 
   const onComposerRunner = (next: boolean) => {
@@ -834,6 +895,16 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
+        label="Effort control"
+        description="Show the current effort as a separate control beside the model picker for quicker changes. When off, effort stays inside the model menu."
+      >
+        <Toggle
+          label="Show effort beside model picker"
+          on={composerEffortVisible}
+          onChange={onComposerEffortVisible}
+        />
+      </Row>
+      <Row
         label="Composer mascot"
         description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
       >
@@ -914,7 +985,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       </Row>
       <Row
         label="Notifications"
-        description="Notify when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
+        description="Notify when a reminder is due, or when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
       >
         {notificationsEnabled && notificationPermission === "denied" ? (
           <NotificationsBlocked />
@@ -1454,9 +1525,11 @@ function useAppearanceSettings() {
   const [chatBackgroundPath, setChatBackgroundPath] = useState(
     loadChatBackgroundPath,
   );
-  const [chatBackgroundOpacity, setChatBackgroundOpacity] = useState(
-    loadChatBackgroundOpacity,
+  const [chatBackgroundEmptyOpacity, setChatBackgroundEmptyOpacity] = useState(
+    loadChatBackgroundEmptyOpacity,
   );
+  const [chatBackgroundSessionOpacity, setChatBackgroundSessionOpacity] =
+    useState(loadChatBackgroundSessionOpacity);
   const [chatBackgroundScope, setChatBackgroundScope] =
     useState<ChatBackgroundScope>(loadChatBackgroundScope);
   const [backgroundPanels, setBackgroundPanels] =
@@ -1552,10 +1625,16 @@ function useAppearanceSettings() {
     }
   }, []);
 
-  const onChatBackgroundOpacity = useCallback((percent: number) => {
-    const next = applyChatBackgroundOpacity(percent / 100);
-    saveChatBackgroundOpacity(next);
-    setChatBackgroundOpacity(next);
+  const onChatBackgroundEmptyOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundEmptyOpacity(percent / 100);
+    saveChatBackgroundEmptyOpacity(next);
+    setChatBackgroundEmptyOpacity(next);
+  }, []);
+
+  const onChatBackgroundSessionOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundSessionOpacity(percent / 100);
+    saveChatBackgroundSessionOpacity(next);
+    setChatBackgroundSessionOpacity(next);
   }, []);
 
   const onChatBackgroundScope = useCallback((next: ChatBackgroundScope) => {
@@ -1587,7 +1666,12 @@ function useAppearanceSettings() {
     onBlur(SIDEBAR_BLUR_DEFAULT);
     onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
     onBodyGlass(BODY_GLASS_DEFAULT);
-    onChatBackgroundOpacity(Math.round(CHAT_BACKGROUND_OPACITY_DEFAULT * 100));
+    onChatBackgroundEmptyOpacity(
+      Math.round(CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT * 100),
+    );
+    onChatBackgroundSessionOpacity(
+      Math.round(CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT * 100),
+    );
     onChatBackgroundScope(CHAT_BACKGROUND_SCOPE_DEFAULT);
     onBackgroundPanel("chat", true);
     onBackgroundPanel("workspace", false);
@@ -1598,7 +1682,8 @@ function useAppearanceSettings() {
     chatBackgroundPath,
     onBlur,
     onBodyGlass,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onClearChatBackground,
     onThemePreference,
@@ -1617,7 +1702,8 @@ function useAppearanceSettings() {
     themeSaturation,
     bodyGlass,
     chatBackgroundPath,
-    chatBackgroundOpacity,
+    chatBackgroundEmptyOpacity,
+    chatBackgroundSessionOpacity,
     chatBackgroundScope,
     backgroundPanels,
     chatBackgroundBusy,
@@ -1631,7 +1717,8 @@ function useAppearanceSettings() {
     onBodyGlass,
     onChooseChatBackground,
     onClearChatBackground,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onBackgroundPanel,
     onUiScale,
@@ -1781,7 +1868,12 @@ function ChatBackgroundCard({
 }) {
   const src = chatBackgroundSrc(appearance.chatBackgroundPath);
   const hasImage = Boolean(appearance.chatBackgroundPath && src);
-  const visibility = Math.round(appearance.chatBackgroundOpacity * 100);
+  const emptyVisibility = Math.round(
+    appearance.chatBackgroundEmptyOpacity * 100,
+  );
+  const sessionVisibility = Math.round(
+    appearance.chatBackgroundSessionOpacity * 100,
+  );
   const busy = appearance.chatBackgroundBusy;
 
   return (
@@ -1825,10 +1917,10 @@ function ChatBackgroundCard({
               alt=""
               draggable={false}
               className="size-full object-cover"
-              style={{ opacity: appearance.chatBackgroundOpacity }}
+              style={{ opacity: appearance.chatBackgroundEmptyOpacity }}
             />
             <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
-              Preview at {visibility}%
+              Empty chat preview at {emptyVisibility}%
             </span>
           </div>
         ) : (
@@ -1867,6 +1959,7 @@ function ChatBackgroundCard({
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
               <div className="min-w-0">
+<<<<<<< HEAD
                 <div className="text-[12px] text-content">Panels</div>
                 <p className="text-[11px] text-content/40">
                   Extend the image to the workspace panes and terminals.
@@ -1905,17 +1998,40 @@ function ChatBackgroundCard({
             <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
               <div className="min-w-0">
                 <div className="text-[12px] text-content">Visibility</div>
+=======
+                <div className="text-[12px] text-content">
+                  Empty chat visibility
+                </div>
+>>>>>>> refs/rewritten/onto
                 <p className="text-[11px] text-content/40">
-                  Keep it subtle so long conversations stay readable.
+                  Background strength before a chat has messages.
                 </p>
               </div>
               <Slider
-                label="Background visibility"
-                value={visibility}
-                display={`${visibility}%`}
+                label="Empty chat background visibility"
+                value={emptyVisibility}
+                display={`${emptyVisibility}%`}
                 min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
                 max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
-                onChange={appearance.onChatBackgroundOpacity}
+                onChange={appearance.onChatBackgroundEmptyOpacity}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12px] text-content">
+                  Session visibility
+                </div>
+                <p className="text-[11px] text-content/40">
+                  Background strength once the conversation has messages.
+                </p>
+              </div>
+              <Slider
+                label="Session background visibility"
+                value={sessionVisibility}
+                display={`${sessionVisibility}%`}
+                min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
+                max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
+                onChange={appearance.onChatBackgroundSessionOpacity}
               />
             </div>
           </div>

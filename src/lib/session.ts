@@ -5,6 +5,7 @@ import { loadCustomProviders } from "./customProviders";
 import type { InboxComposerCard } from "./githubTasks";
 import type { InboxAskContext } from "./inboxAsk";
 import type { NoteCardMeta, NoteComposerCard } from "./notes";
+import type { LinkedWorkItemUpdateCard } from "./linkedWorkItemActivity";
 import {
   defaultSessionChoice,
   preferredModelId,
@@ -144,6 +145,35 @@ export type ToolPreview = {
   output?: string;
 };
 
+/** One thing a subagent did, mirrored into the parent transcript. */
+export type AgentStepKind = "tool" | "message" | "reasoning";
+
+export type AgentStep = {
+  /** Provider step identity, so repeats merge instead of stacking up. */
+  id: string;
+  kind: AgentStepKind;
+  /** Tool label, or the prose the subagent wrote. */
+  text: string;
+  toolKind?: string;
+  status?: string;
+  preview?: ToolPreview;
+};
+
+/**
+ * The inside of a delegated run: what the subagent is called, and the trail it
+ * left. Held on the parent Agent tool block so the transcript can open it
+ * without a second session.
+ */
+export type AgentRunMeta = {
+  /** What the subagent is called, e.g. "Correctness review". */
+  name: string;
+  /** Provider agent type, e.g. "code-reviewer". */
+  agentType?: string;
+  /** Model reported for the child, which may differ from its parent. */
+  model?: string;
+  steps: AgentStep[];
+};
+
 export type AttachmentKind = "image" | "audio" | "file";
 
 export type Attachment = {
@@ -171,6 +201,13 @@ export type QueuedMessage = {
 
 export type MessageQueueStatus = "active" | "paused" | "resuming";
 
+/** Provider/model provenance captured when a user turn is submitted. */
+export type TurnModel = {
+  harness: HarnessId;
+  id: string;
+  name: string;
+};
+
 export type Block = {
   id: string;
   role: BlockRole;
@@ -181,6 +218,8 @@ export type Block = {
   startedAt?: number;
   /** How long the agent worked on this user turn, in ms. */
   durationMs?: number;
+  /** Stable model label for this turn. Present on newly created user blocks. */
+  turnModel?: TurnModel;
   tool?: {
     callId?: string;
     title?: string;
@@ -193,6 +232,8 @@ export type Block = {
     requestId: number;
     decided?: "allow" | "deny" | "cancelled";
   };
+  /** Inner activity of a delegated run. Present on Agent/Task tool blocks. */
+  agentRun?: AgentRunMeta;
   taskList?: TaskListMeta;
   plan?: PlanBlockMeta;
   handoff?: HandoffMeta;
@@ -277,6 +318,8 @@ export type Session = {
   inboxCard?: InboxComposerCard;
   /** GitHub issue or pull request shown on the persisted session card. */
   linkedWorkItem?: LinkedWorkItem;
+  /** New linked-item activity shown above the composer. In-memory, one-shot. */
+  linkedWorkItemUpdateCard?: LinkedWorkItemUpdateCard;
   /** Note chip shown above the composer. In-memory, one-shot. */
   noteCard?: NoteComposerCard;
   /** Handoff chip shown above the composer. In-memory, one-shot. */
