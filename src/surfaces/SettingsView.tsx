@@ -595,15 +595,15 @@ function GeneralPage({
       <Row
         label="Usage providers"
         pk
-        description="Show only the active conversation's provider in the footer, or pick exactly which providers appear."
+        description="Footer chips: follow the current conversation's provider (Claude, Codex, ZAI, OpenCode Go…), or hand-pick the providers that always appear."
       >
         <div className="flex flex-col items-end gap-2">
           <Segmented
             label="Usage providers"
             value={usageScope}
             options={[
-              { value: "active", label: "Active" },
-              { value: "custom", label: "Custom" },
+              { value: "active", label: "Current chat" },
+              { value: "custom", label: "Choose" },
             ]}
             onChange={onUsageScope}
           />
@@ -1057,11 +1057,7 @@ function LinearSettings() {
   );
 }
 
-function UpdateRow({
-  onOpenWhatsNew,
-}: {
-  onOpenWhatsNew: () => void;
-}) {
+function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [snapshot, setSnapshot] = useState<UpdaterSnapshot>({
     phase: "idle",
     currentVersion: "…",
@@ -2095,8 +2091,22 @@ function Row({
   );
 }
 
+const USAGE_PROVIDER_LABELS: Record<string, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  zai: "ZAI",
+  opencode: "OpenCode",
+  opencodego: "OpenCode Go",
+  mimo: "Xiaomi MiMo",
+  antigravity: "Antigravity",
+  gemini: "Gemini",
+  cursor: "Cursor",
+  grok: "Grok",
+  openrouter: "OpenRouter",
+};
+
 function usageProviderLabel(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1);
+  return USAGE_PROVIDER_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
 function PkBadge() {
@@ -2392,14 +2402,9 @@ function Select({
                     : "text-content hover:bg-content/5"
                 }`}
               >
-                <span className="min-w-0 flex-1 truncate">
-                  {option.label}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 {isSelected ? (
-                  <Check
-                    className="size-3.5 shrink-0"
-                    strokeWidth={2.25}
-                  />
+                  <Check className="size-3.5 shrink-0" strokeWidth={2.25} />
                 ) : null}
               </button>
             );

@@ -52,8 +52,6 @@ export function UsageFooter({
   terminalOpen?: boolean;
   onToggleTerminal?: (fileId: string) => void;
 }) {
-  const wantClaude = providers.includes("claude");
-  const wantCodex = providers.includes("codex");
   const [claude, setClaude] = useState<ProviderRateLimits>(() =>
     idleRateLimits("claude"),
   );
@@ -68,6 +66,17 @@ export function UsageFooter({
   const [hiddenProviders, setHiddenProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
+  // "Current chat" scope tracks the active session's provider. "Choose"
+  // (custom) must fetch and show picks regardless of which chat is focused —
+  // the old session-driven gate made the Claude chip vanish on other chats.
+  const wantClaude =
+    usageScope === "custom"
+      ? !hiddenProviders.includes("claude")
+      : providers.includes("claude");
+  const wantCodex =
+    usageScope === "custom"
+      ? !hiddenProviders.includes("codex")
+      : providers.includes("codex");
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const inflight = useRef<Promise<void> | null>(null);
@@ -78,57 +87,59 @@ export function UsageFooter({
   codexRef.current = codex;
   codexbarRef.current = codexbar;
 
-  const refresh = useCallback((force = false) => {
-    if (inflight.current) return inflight.current;
-    const visible = document.visibilityState === "visible";
-    const fetchClaude =
-      wantClaude &&
-      shouldFetchProvider(claudeRef.current, { force, visible });
-    const fetchCodex =
-      wantCodex &&
-      shouldFetchProvider(codexRef.current, { force, visible });
-    const fetchCodexbar =
-      providers.length > 0 &&
-      (force ||
-        codexbarRef.current.length === 0 ||
-        codexbarRef.current.some((entry) =>
-          shouldFetchProvider(entry, { force, visible }),
-        ));
-    if (!fetchClaude && !fetchCodex && !fetchCodexbar) return;
-    if (force) setRefreshing(true);
-    const jobs: Promise<void>[] = [];
-    if (fetchClaude) {
-      setClaude((current) => fetchingRateLimits("claude", current));
-      jobs.push(
-        fetchClaudeRateLimits().then((value) => {
-          setClaude(value);
-        }),
-      );
-    }
-    if (fetchCodex) {
-      setCodex((current) => fetchingRateLimits("codex", current));
-      jobs.push(
-        fetchCodexRateLimits().then((value) => {
-          setCodex(value);
-        }),
-      );
-    }
-    if (fetchCodexbar) {
-      jobs.push(
-        fetchCodexBarRateLimits().then((value) => {
-          if (value.length > 0) setCodexbar(value);
-        }),
-      );
-    }
-    const run = Promise.allSettled(jobs)
-      .then(() => undefined)
-      .finally(() => {
-        inflight.current = null;
-        setRefreshing(false);
-      });
-    inflight.current = run;
-    return run;
-  }, [providers.length, wantClaude, wantCodex]);
+  const refresh = useCallback(
+    (force = false) => {
+      if (inflight.current) return inflight.current;
+      const visible = document.visibilityState === "visible";
+      const fetchClaude =
+        wantClaude &&
+        shouldFetchProvider(claudeRef.current, { force, visible });
+      const fetchCodex =
+        wantCodex && shouldFetchProvider(codexRef.current, { force, visible });
+      const fetchCodexbar =
+        (usageScope === "custom" || providers.length > 0) &&
+        (force ||
+          codexbarRef.current.length === 0 ||
+          codexbarRef.current.some((entry) =>
+            shouldFetchProvider(entry, { force, visible }),
+          ));
+      if (!fetchClaude && !fetchCodex && !fetchCodexbar) return;
+      if (force) setRefreshing(true);
+      const jobs: Promise<void>[] = [];
+      if (fetchClaude) {
+        setClaude((current) => fetchingRateLimits("claude", current));
+        jobs.push(
+          fetchClaudeRateLimits().then((value) => {
+            setClaude(value);
+          }),
+        );
+      }
+      if (fetchCodex) {
+        setCodex((current) => fetchingRateLimits("codex", current));
+        jobs.push(
+          fetchCodexRateLimits().then((value) => {
+            setCodex(value);
+          }),
+        );
+      }
+      if (fetchCodexbar) {
+        jobs.push(
+          fetchCodexBarRateLimits().then((value) => {
+            if (value.length > 0) setCodexbar(value);
+          }),
+        );
+      }
+      const run = Promise.allSettled(jobs)
+        .then(() => undefined)
+        .finally(() => {
+          inflight.current = null;
+          setRefreshing(false);
+        });
+      inflight.current = run;
+      return run;
+    },
+    [providers.length, usageScope, wantClaude, wantCodex],
+  );
 
   useEffect(() => {
     void refresh();
@@ -162,10 +173,9 @@ export function UsageFooter({
     };
   }, []);
 
-  const native = [
-    wantClaude ? claude : null,
-    wantCodex ? codex : null,
-  ].filter((entry): entry is ProviderRateLimits => entry != null);
+  const native = [wantClaude ? claude : null, wantCodex ? codex : null].filter(
+    (entry): entry is ProviderRateLimits => entry != null,
+  );
   const codexbarProviders = new Set(codexbar.map((entry) => entry.provider));
   const mergedUsage = [
     ...codexbar,
@@ -173,7 +183,9 @@ export function UsageFooter({
   ];
   const usage =
     usageScope === "active"
-      ? mergedUsage.filter((entry) => providers.includes(entry.provider))
+      ? mergedUsage.filter((entry) =>
+          usageProviderMatches(entry.provider, providers),
+        )
       : mergedUsage.filter(
           (entry) => !hiddenProviders.includes(entry.provider),
         );
@@ -335,7 +347,9 @@ function RunningTerminalChip({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => toggle(terminal.id)}
             >
-              <span className="min-w-0 flex-1 truncate">{terminal.process}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {terminal.process}
+              </span>
               <span className="max-w-[7rem] shrink-0 truncate text-[11px] text-content/40">
                 {terminal.label}
               </span>
@@ -404,7 +418,10 @@ function ProviderChip({
               <span key={entry.key} className="inline-flex items-center gap-1">
                 {index > 0 ? <span className="text-content/25">·</span> : null}
                 <span>
-                  {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)}{" "}
+                  {formatDisplayedUsagePercent(
+                    entry.window.usedPercent,
+                    displayMode,
+                  )}{" "}
                   {formatRateLimitWindowChipLabel(entry.window, now)}
                 </span>
               </span>
@@ -431,6 +448,22 @@ const KNOWN_HARNESSES = new Set<HarnessId>([
   "fx",
 ]);
 
+/** CodexBar names some providers differently from the app's harness ids. */
+const USAGE_PROVIDER_ALIASES: Record<string, string[]> = {
+  opencode: ["opencode", "opencodego"],
+};
+
+function usageProviderMatches(provider: string, providers: string[]): boolean {
+  for (const harness of providers) {
+    if (entryMatchesHarness(provider, harness)) return true;
+  }
+  return false;
+}
+
+function entryMatchesHarness(provider: string, harness: string): boolean {
+  if (provider === harness) return true;
+  return (USAGE_PROVIDER_ALIASES[harness] ?? []).includes(provider);
+}
 function ProviderMark({ provider }: { provider: string }) {
   if (KNOWN_HARNESSES.has(provider as HarnessId)) {
     return (
