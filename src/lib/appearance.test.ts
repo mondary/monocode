@@ -19,6 +19,9 @@ import {
   resolveColorScheme,
   THEME_PREFERENCE_DEFAULT,
   loadSidebarTabOrder,
+  loadBackgroundPanels,
+  saveBackgroundPanels,
+  applyBackgroundPanels,
 } from "./appearance";
 
 const KEY = "monocode.transcriptLayout";

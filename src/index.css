@@ -189,6 +189,49 @@ html.chat-background-empty-only
   opacity: 0;
 }
 
+/* Panel scope: the same image extends to the workspace panes (sidebar +
+   project rail) and behind the transparent terminal canvases. */
+html.has-chat-background.background-workspace .sidebar-glass {
+  position: relative;
+  isolation: isolate;
+}
+
+html.has-chat-background.background-workspace .sidebar-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--chat-background-image, none);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: var(--chat-background-opacity);
+  pointer-events: none;
+}
+
+html.has-chat-background.background-terminal .monocode-terminal {
+  position: relative;
+  isolation: isolate;
+}
+
+html.has-chat-background.background-terminal .monocode-terminal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--chat-background-image, none);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: var(--chat-background-opacity);
+  pointer-events: none;
+}
+
+/* Chat panel turned off: suppress the per-pane layer entirely. */
+html.no-background-chat .chat-pane-background::before {
+  opacity: 0 !important;
+}
+
 .transcript-turn {
   content-visibility: auto;
   contain-intrinsic-block-size: auto 240px;

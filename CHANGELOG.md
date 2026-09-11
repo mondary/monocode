@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.16] - 2026-09-11
+
+### Added
+
+- Background image panel scope: after picking an image, enable it per panel — Chat, Workspace (sidebar + project rail), Terminal (transparent xterm canvases) — from Settings > Appearance.
+- Custom OpenAI-compatible providers (Settings > Providers > Custom providers): endpoint + API key + Test button that lists the models the endpoint returns. Saved providers are merged into OpenCode's config (`opencode.json`) so their models appear in the OpenCode tab; keys stay on this device.
+
 ## [2026.09.15] - 2026-09-11
 
 ### Added

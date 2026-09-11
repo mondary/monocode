@@ -15,6 +15,7 @@ mod menu;
 mod notes;
 mod notifications;
 mod project_init;
+mod custom_providers;
 mod project_logo;
 mod pty;
 mod rate_limits;
@@ -314,6 +315,8 @@ pub fn run() {
             fs::reveal_path,
             fs::open_project_path,
             project_init::initialize_project,
+            custom_providers::custom_provider_test,
+            custom_providers::custom_provider_sync,
             fs::clone_repo,
             fs::read_file_preview,
             fs::stat_files,

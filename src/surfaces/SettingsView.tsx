@@ -8,6 +8,16 @@ import {
   RotateCcw,
   Search,
 } from "../chrome/icons";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  customProviderTestLabel,
+  deleteCustomProvider,
+  loadCustomProviders,
+  slugCustomProviderId,
+  upsertCustomProvider,
+  type CustomProvider,
+  type CustomProviderProbe,
+} from "../lib/customProviders";
 import {
   useCallback,
   useEffect,
@@ -30,6 +40,7 @@ import {
   applyChatBackground,
   applyChatBackgroundOpacity,
   applyChatBackgroundScope,
+  applyBackgroundPanels,
   applyBodyGlass,
   applyThemePreference,
   applyThemePreset,
@@ -47,6 +58,8 @@ import {
   loadChatBackgroundOpacity,
   loadChatBackgroundPath,
   loadChatBackgroundScope,
+  loadBackgroundPanels,
+  type BackgroundPanel,
   loadThemePreference,
   loadThemePreset,
   loadSidebarBlur,
@@ -59,6 +72,7 @@ import {
   saveChatBackgroundOpacity,
   saveChatBackgroundPath,
   saveChatBackgroundScope,
+  saveBackgroundPanels,
   saveThemePreference,
   saveThemePreset,
   saveSidebarBlur,
@@ -359,11 +373,7 @@ export function SettingsView({
   );
 }
 
-function GeneralPage({
-  onOpenWhatsNew,
-}: {
-  onOpenWhatsNew: () => void;
-}) {
+function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [transcriptLayout, setTranscriptLayout] =
     useState<TranscriptLayout>(loadTranscriptLayout);
   const [transcriptAnchor, setTranscriptAnchor] =
@@ -378,9 +388,8 @@ function GeneralPage({
   const [dockSide, setDockSide] = useState<TerminalPlacement>(
     loadDefaultTerminalPlacement,
   );
-  const [usageDisplayMode, setUsageDisplayMode] = useState<UsageDisplayMode>(
-    loadUsageDisplayMode,
-  );
+  const [usageDisplayMode, setUsageDisplayMode] =
+    useState<UsageDisplayMode>(loadUsageDisplayMode);
   const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
   const [hiddenUsageProviders, setHiddenUsageProviders] = useState<string[]>(
     loadHiddenUsageProviders,
@@ -1210,6 +1219,8 @@ function useAppearanceSettings() {
   );
   const [chatBackgroundScope, setChatBackgroundScope] =
     useState<ChatBackgroundScope>(loadChatBackgroundScope);
+  const [backgroundPanels, setBackgroundPanels] =
+    useState<Record<BackgroundPanel, boolean>>(loadBackgroundPanels);
   const [chatBackgroundBusy, setChatBackgroundBusy] = useState(false);
   const [chatBackgroundError, setChatBackgroundError] = useState<string | null>(
     null,
@@ -1303,6 +1314,16 @@ function useAppearanceSettings() {
     setChatBackgroundScope(next);
   }, []);
 
+  const onBackgroundPanel = useCallback(
+    (panel: BackgroundPanel, value: boolean) => {
+      const next = { ...loadBackgroundPanels(), [panel]: value };
+      applyBackgroundPanels(next);
+      saveBackgroundPanels(next);
+      setBackgroundPanels(next);
+    },
+    [],
+  );
+
   const onUiScale = useCallback((percent: number) => {
     const next = saveUiScale(percent / 100);
     setUiScale(next);
@@ -1318,6 +1339,9 @@ function useAppearanceSettings() {
     onBodyGlass(BODY_GLASS_DEFAULT);
     onChatBackgroundOpacity(Math.round(CHAT_BACKGROUND_OPACITY_DEFAULT * 100));
     onChatBackgroundScope(CHAT_BACKGROUND_SCOPE_DEFAULT);
+    onBackgroundPanel("chat", true);
+    onBackgroundPanel("workspace", false);
+    onBackgroundPanel("terminal", false);
     if (chatBackgroundPath) void onClearChatBackground();
     onUiScale(Math.round(UI_SCALE_DEFAULT * 100));
   }, [
@@ -1345,6 +1369,7 @@ function useAppearanceSettings() {
     chatBackgroundPath,
     chatBackgroundOpacity,
     chatBackgroundScope,
+    backgroundPanels,
     chatBackgroundBusy,
     chatBackgroundError,
     uiScale,
@@ -1358,6 +1383,7 @@ function useAppearanceSettings() {
     onClearChatBackground,
     onChatBackgroundOpacity,
     onChatBackgroundScope,
+    onBackgroundPanel,
     onUiScale,
     restoreDefaults,
   };
@@ -1588,6 +1614,43 @@ function ChatBackgroundCard({
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
               <div className="min-w-0">
+                <div className="text-[12px] text-content">Panels</div>
+                <p className="text-[11px] text-content/40">
+                  Extend the image to the workspace panes and terminals.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {(["chat", "workspace", "terminal"] as BackgroundPanel[]).map(
+                  (panel) => {
+                    const on = appearance.backgroundPanels[panel];
+                    return (
+                      <button
+                        key={panel}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => appearance.onBackgroundPanel(panel, !on)}
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] leading-none transition-colors ${
+                          on
+                            ? "border-accent/40 bg-accent/10 text-accent"
+                            : "border-content/15 text-content/45 hover:text-content"
+                        }`}
+                      >
+                        {on ? (
+                          <Check className="size-3" strokeWidth={2.25} />
+                        ) : null}
+                        {panel === "workspace"
+                          ? "Workspace"
+                          : panel === "terminal"
+                            ? "Terminal"
+                            : "Chat"}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
+              <div className="min-w-0">
                 <div className="text-[12px] text-content">Visibility</div>
                 <p className="text-[11px] text-content/40">
                   Keep it subtle so long conversations stay readable.
@@ -1614,6 +1677,201 @@ function ChatBackgroundCard({
   );
 }
 
+function CustomProvidersSection() {
+  const [providers, setProviders] = useState(loadCustomProviders);
+  const [draft, setDraft] = useState({
+    name: "",
+    baseUrl: "",
+    apiKey: "",
+  });
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [probes, setProbes] = useState<Record<string, CustomProviderProbe>>({});
+
+  useEffect(() => {
+    setProviders(loadCustomProviders());
+  }, []);
+
+  const testProbe = async (
+    id: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<CustomProviderProbe | null> => {
+    setBusyId(id);
+    try {
+      const probe = await invoke<CustomProviderProbe>("custom_provider_test", {
+        baseUrl,
+        apiKey,
+      });
+      setProbes((current) => ({ ...current, [id]: probe }));
+      return probe;
+    } catch (error) {
+      setProbes((current) => ({
+        ...current,
+        [id]: {
+          ok: false,
+          status: 0,
+          models: [],
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }));
+      return null;
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveDraft = async () => {
+    const name = draft.name.trim();
+    const baseUrl = draft.baseUrl.trim().replace(/\/+$/, "");
+    if (!name || !baseUrl) {
+      setDraftError("Name and endpoint are required.");
+      return;
+    }
+    setBusyId("draft");
+    const probe =
+      (await testProbe(slugCustomProviderId(name), baseUrl, draft.apiKey)) ??
+      null;
+    if (!probe || !probe.ok) {
+      setBusyId(null);
+      return;
+    }
+    const entry: CustomProvider = {
+      id: slugCustomProviderId(name),
+      name,
+      baseUrl,
+      apiKey: draft.apiKey,
+      models: probe.models,
+    };
+    setProviders(upsertCustomProvider(entry));
+    setDraft({ name: "", baseUrl: "", apiKey: "" });
+    setBusyId(null);
+  };
+
+  const retestSaved = async (entry: CustomProvider) => {
+    const probe = await testProbe(entry.id, entry.baseUrl, entry.apiKey);
+    if (probe?.ok) {
+      setProviders(upsertCustomProvider({ ...entry, models: probe.models }));
+    }
+  };
+
+  const remove = (id: string) => {
+    setProviders(deleteCustomProvider(id));
+  };
+
+  return (
+    <section className="border-b border-content/5 py-4 last:border-b-0">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-content">
+        Custom providers
+        <PkBadge />
+      </div>
+      <p className="mt-1 text-[12px] leading-relaxed text-content/45">
+        OpenAI-compatible endpoints run through the OpenCode runtime: save a
+        provider, and its models appear in the OpenCode tab of the model picker.
+        Keys stay on this device and are written to OpenCode's config.
+      </p>
+
+      <div className="mt-3 space-y-2">
+        {providers.length === 0 ? (
+          <p className="rounded-md border border-dashed border-content/10 px-3 py-2 text-[11px] text-content/40">
+            No custom provider yet.
+          </p>
+        ) : (
+          providers.map((entry) => (
+            <div
+              key={entry.id}
+              className="rounded-lg border border-content/10 px-3 py-2.5"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-content">
+                  {entry.name}
+                </span>
+                <span
+                  className="shrink-0 font-mono text-[10px] text-content/35"
+                  title={entry.baseUrl}
+                >
+                  {customProviderTestLabel(probes[entry.id] ?? null) ??
+                    `${entry.models.length} model${entry.models.length === 1 ? "" : "s"}`}
+                </span>
+                <SecondaryButton
+                  onClick={() => void retestSaved(entry)}
+                  disabled={busyId === entry.id}
+                >
+                  {busyId === entry.id ? (
+                    <Loader className="size-3 animate-spin" aria-hidden />
+                  ) : null}
+                  Test
+                </SecondaryButton>
+                <SecondaryButton danger onClick={() => remove(entry.id)}>
+                  Remove
+                </SecondaryButton>
+              </div>
+              <p className="mt-1 truncate font-mono text-[10px] text-content/35">
+                {entry.baseUrl} · {entry.models.join(", ") || "no models yet"}
+              </p>
+            </div>
+          ))
+        )}
+
+        <div className="rounded-lg border border-content/10 px-3 py-2.5">
+          <div className="grid gap-2">
+            <input
+              value={draft.name}
+              onChange={(event) =>
+                setDraft((prev) => ({ ...prev, name: event.target.value }))
+              }
+              placeholder="Name — e.g. Acme AI"
+              aria-label="Custom provider name"
+              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 text-[12px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
+            />
+            <input
+              value={draft.baseUrl}
+              onChange={(event) =>
+                setDraft((prev) => ({ ...prev, baseUrl: event.target.value }))
+              }
+              placeholder="Endpoint — https://api.example.com/v1"
+              aria-label="Custom provider endpoint"
+              spellCheck={false}
+              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 font-mono text-[11px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
+            />
+            <input
+              value={draft.apiKey}
+              type="password"
+              onChange={(event) =>
+                setDraft((prev) => ({ ...prev, apiKey: event.target.value }))
+              }
+              placeholder="API key"
+              aria-label="Custom provider API key"
+              spellCheck={false}
+              autoComplete="off"
+              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 font-mono text-[11px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
+            />
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            {draftError ? (
+              <span className="text-[12px] text-red-400">{draftError}</span>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <SecondaryButton
+                onClick={() => void saveDraft()}
+                disabled={
+                  busyId === "draft" ||
+                  !draft.name.trim() ||
+                  !draft.baseUrl.trim()
+                }
+              >
+                {busyId === "draft" ? (
+                  <Loader className="size-3 animate-spin" aria-hidden />
+                ) : null}
+                Test & save
+              </SecondaryButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 function KeybindingsPage() {
   const [query, setQuery] = useState("");
   const [version, setVersion] = useState(0);
@@ -1803,6 +2061,7 @@ function ProvidersPage() {
           onModelChange={onModelChange}
         />
       ))}
+      <CustomProvidersSection />
     </>
   );
 }

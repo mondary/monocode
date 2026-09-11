@@ -191,6 +191,7 @@ export function initAppearance() {
   applyChatBackgroundOpacity(loadChatBackgroundOpacity());
   applyChatBackgroundScope(loadChatBackgroundScope());
   void applyUiScale(loadUiScale());
+  applyBackgroundPanels(loadBackgroundPanels());
 }
 
 function isThemePreset(value: unknown): value is ThemePreset {
@@ -435,6 +436,54 @@ export function applyChatBackgroundOpacity(value: number) {
     String(next),
   );
   return next;
+}
+
+const BACKGROUND_PANELS_KEY = "monocode.backgroundPanels";
+export const BACKGROUND_PANELS_CHANGE_EVENT =
+  "monocode:background-panels-change";
+
+export const BACKGROUND_PANELS_DEFAULT: Record<BackgroundPanel, boolean> = {
+  chat: true,
+  workspace: false,
+  terminal: false,
+};
+
+export type BackgroundPanel = "chat" | "workspace" | "terminal";
+
+/** Which app panes receive the background image (chat is on by default). */
+export function loadBackgroundPanels(): Record<BackgroundPanel, boolean> {
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(BACKGROUND_PANELS_KEY) ?? "{}",
+    ) as Record<string, unknown>;
+    return {
+      chat: typeof raw.chat === "boolean" ? raw.chat : true,
+      workspace: raw.workspace === true,
+      terminal: raw.terminal === true,
+    };
+  } catch {
+    return { ...BACKGROUND_PANELS_DEFAULT };
+  }
+}
+
+export function saveBackgroundPanels(
+  value: Record<BackgroundPanel, boolean>,
+): void {
+  try {
+    localStorage.setItem(BACKGROUND_PANELS_KEY, JSON.stringify(value));
+  } catch {
+    // private mode / quota
+  }
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(BACKGROUND_PANELS_CHANGE_EVENT));
+}
+
+export function applyBackgroundPanels(value: Record<BackgroundPanel, boolean>) {
+  const root = document.documentElement;
+  root.classList.toggle("background-workspace", !!value.workspace);
+  root.classList.toggle("background-terminal", !!value.terminal);
+  root.classList.toggle("no-background-chat", !value.chat);
+  return value;
 }
 
 function isChatBackgroundScope(value: unknown): value is ChatBackgroundScope {
