@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.20] - 2026-09-11
+
+### Fixed
+
+- The update dialog always shows both MonoCode official and MonoCodePK axes, including delayed PK commits, even when the official updater also has a release available.
+- Stable updates now identify the current PK release separately from the official MonoCode version.
+
 ## [2026.09.19] - 2026-09-11
 
 ### Changed

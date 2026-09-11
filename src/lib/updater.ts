@@ -85,6 +85,33 @@ export async function runUpdateFlow(
 
   try {
     const update = await check();
+    const info = manual ? await pkUpstreamInfo() : null;
+    if (manual && info) {
+      const proceed = await requestPkUpdateDecision({
+        upToDate: info.behind === 0 && info.pkBehind === 0 && !update,
+        axes: [
+          {
+            label: "MonoCode officiel",
+            currentVersion,
+            availableVersion: update?.version || info.tag || null,
+            behind: info.behind,
+            ahead: 0,
+            commits: info.commits,
+          },
+          {
+            label: "MonoCodePK",
+            currentVersion: PK_VERSION,
+            availableVersion: null,
+            behind: info.pkBehind,
+            ahead: info.pkAhead,
+            commits: info.pkCommits,
+          },
+        ],
+      });
+      if (!proceed) return { phase: "idle", currentVersion };
+      await invoke("sync_pk_upstream");
+      return { phase: "idle", currentVersion };
+    }
     if (!update) {
       pendingUpdate = null;
       const current: UpdaterSnapshot = { phase: "current", currentVersion };
