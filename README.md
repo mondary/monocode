@@ -11,18 +11,43 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
 </p>
 
-## ✅ Fonctionnalités
+## 🎯 Pourquoi ce fork
 
-- **Thèmes** : presets Dracula et Catppuccin Frappé, fonds de sidebar personnalisés, icône app teintée mauve Catppuccin.
-- **Fournisseurs** : Z.ai (GLM), Xiaomi MiMo et Zen en fournisseurs directs, onglets OpenAI-compatibles, icônes et marques par fournisseur (CodexBar), filtrage des modèles NVIDIA retirés, espaces de noms OpenRouter préservés.
-- **Raccourcis clavier personnalisables** : page Settings dédiée, capture native des touches, détection de conflits, menu natif reconstruit à la volée.
-- **Terminal** : position du dock configurable, pac d'activité dans le header, vrais onglets terminal, sous-onglets masqués, mascot animée dans le rail pendant l'activité.
-- **Navigation** : cycle global des onglets chat/terminal (⌘⌥ flèches), commits non poussés affichés et ouverture du dépôt distant.
-- **Interface** : version PK (CalVer) affichée dans Settings, About en tête de General avec badge PK, nouveautés officielles et PK côte à côte, badges PK sur les réglages modifiés, choix des providers affichés dans le footer usage.
-- **Mises à jour** : vérification séparée de MonoCode officiel et MonoCodePK, commits PK disponibles sur GitHub et commits locaux non poussés signalés.
-- **Initialisation de projet** : bouton PK dans l'Explorer pour créer les liens `.agent`, `.inspi` et les templates configurés ; paramètres éditables dans Settings > Skills, avec protection des fichiers locaux existants.
-- **Explorer** : bouton Changes masquable (l'onglet Source Control le remplace) et mise en avant colorée des boutons Reveal / Initialize, réglés dans Settings > General.
-- **Fichiers** : ouverture des fichiers HTML dans le navigateur depuis l'arborescence, ouverture directe de la racine Git du workspace dans Finder.
+MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri.conf.json` identique → zéro conflit) et ajoute une couche personnelle : pilotage multi-providers réel, rail projets vivant, initialisation de projet en un clic, et une boucle de mise à jour à deux axes. Chaque réglage modifié porte un badge **PK** dans Settings.
+
+| Domaine | MonoCode officiel | MonoCode PK |
+|---|---|---|
+| Providers directs | Claude, Codex, Cursor, Grok, OpenCode, Pi, omp, fx | + **Z.ai (GLM)**, **Xiaomi MiMo**, Zen, onglets OpenAI-compatibles |
+| Quotas en footer | — | Vrais chiffres **CodexBar** : Codex, ZAI, OpenCode Go, MiMo… mode *Current chat* ou *Choose* |
+| Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
+| Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
+| Mises à jour | Updater binaire officiel | Deux axes : amont **+ branche PK GitHub**, liste des commits, un clic = merge + build + relance |
+| Environnement de dev | — | Variante **dev isolée** (`build:pk:dev`) : je code/tue/relance sans toucher à ta version quotidienne |
+
+## ✨ En détail
+
+### Rail projets & agents
+- Titre du projet en travail balayé d'une lumière dont la **couleur se choisit** (Theme, Amber, Emerald, Sky, Violet, Pink, Red).
+- Quand un agent **termine** pendant que tu es ailleurs : pastille ✓ émeraude « finished — needs review » sur le projet, effacée quand tu ouvres la session.
+- Commits non poussés `↑n` par projet, bouton dépôt avec le **logo officiel GitHub** (ou GitLab selon le remote).
+- Cycle global des onglets chat/terminal (⌘⌥ flèches), carte des agents en cours.
+
+### Explorer
+- **Initialize project** (baguette ✨) : crée les liens symboliques de tes templates/skills et expose `AGENT.md`, `CLAUDE.md`, etc. à la racine — sources et options éditables dans *Settings > Skills*.
+- Bouton **Changes masquable** (l'onglet Source Control fait déjà le travail) et **accent PK** sur les boutons Reveal / Initialize.
+- Fichiers HTML ouverts dans le navigateur, racine Git du workspace ouverte dans Finder.
+
+### Usage & providers
+- Footer usage : **Current chat** (suit la conversation) ou **Choose** (coche Codex, ZAI, OpenCode Go, Xiaomi MiMo… affichés en permanence, quel que soit le chat ouvert).
+- Données réelles via CodexBar ; noms propres (ZAI, OpenCode Go, Xiaomi MiMo), quota consommé ou restant au choix.
+
+### Apparence
+- Presets **Dracula** et **Catppuccin Frappé**, teinte/saturation du thème réglables, fonds de sidebar personnalisés, transparence.
+- Icône app custom (ton `iconique.png`), About en tête de General, nouveautés officielles et PK côte à côte, badges PK sur les réglages du fork.
+
+### Terminal & raccourcis
+- Position du dock terminal configurable (bottom/right/left/top/tab), vrais onglets, indicateur d'activité.
+- Page **Keybindings** dédiée : capture native des touches, détection de conflits, menu reconstruit à la volée.
 
 ## 🧠 Utilisation
 
@@ -30,7 +55,7 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
 - `npm run build:pk:dev` — build la variante **dev** (`/Applications/MonoCodePK-Dev.app`, identifiant `com.monocode.pk.dev`) : données et permissions isolées, cohabite avec la version quotidienne pour valider les nouveautés sans tuer MonoCode PK. Le « Check for Updates » de chaque variante reconstruit et relance sa propre variante.
 
 ## ⚙️ Réglages
-- Tout se règle dans Settings : thème, raccourcis, position du dock terminal, providers du footer usage et initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.
+- Tout se règle dans Settings : thème, raccourcis, position du dock terminal, footer usage (*Current chat* / *Choose*), glow des projets en travail, options Explorer, initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.
 
 ## 📦 Build & Package
 
