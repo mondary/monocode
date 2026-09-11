@@ -18,7 +18,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 | Domaine | MonoCode officiel | MonoCode PK |
 |---|---|---|
 | Providers directs | Claude, Codex, Cursor, Grok, OpenCode, Pi, omp, fx | + **Z.ai (GLM)**, **Xiaomi MiMo**, Zen, onglets OpenAI-compatibles |
-| Quotas en footer | — | Vrais chiffres **CodexBar** : Codex, ZAI, OpenCode Go, MiMo… mode *Current chat* ou *Choose* |
+| Quotas en footer | — | Vrais chiffres **CodexBar** : providers sélectionnables (Claude, Codex, ZAI, OpenCode Go, MiMo, Cursor, Grok, Devin, Kilo Code, CodeBuff…), fenêtres 5 h/hebdo/mensuelle et détails au clic |
 | **Providers custom** | — | Endpoints OpenAI-compatibles (base URL + API key + **bouton Test**), **onglet dédié** dans le picker, routés via OpenCode |
 | Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
 | Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
@@ -42,6 +42,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 - Footer usage : **Current chat** (suit la conversation) ou **Choose** (coche Codex, ZAI, OpenCode Go, Xiaomi MiMo… affichés en permanence, quel que soit le chat ouvert).
 - En mode **Full access**, Codex exécute les commandes et modifications sans demandes « Allow » intermédiaires ; les consentements MCP explicites restent soumis à validation.
 - Les réglages affichent toujours les providers de quota PK (Codex, Claude, ZAI, OpenCode Go, Xiaomi MiMo), même lorsqu'un provider n'est pas encore détecté par CodexBar.
+- Tous les providers CodexBar connus peuvent être cochés ou décochés individuellement dans *Choose* ; le footer reste compact et le détail s'ouvre au clic.
 ### Apparence
 - Presets **Dracula** et **Catppuccin** complets : Latte (bascule en light), Frappé, Macchiato, Mocha — palette officielle.
 - Teinte/saturation du thème réglables, fonds de sidebar personnalisés, transparence.

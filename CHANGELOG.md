@@ -11,12 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Project context menus can open the detected GitHub/GitLab repository directly.
 - Root `icon.png`, `icon.jpg`, or `icon.jpeg` is used automatically as the project logo when no custom logo is set.
+- The project logo picker now exposes the detected root icon as the default without replacing a manually chosen logo.
 
 ## [2026.09.22] - 2026-09-11
 
 ### Added
 
 - A persistent post-update notification with an explicit Redémarrer button.
+
+- The quota picker now includes Devin, Kilo Code, and CodeBuff, and provider details open in a readable click-based card.
 
 ## [2026.09.21] - 2026-09-11
 
