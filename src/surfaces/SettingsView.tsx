@@ -2577,6 +2577,9 @@ const USAGE_PROVIDER_LABELS: Record<string, string> = {
   cursor: "Cursor",
   grok: "Grok",
   openrouter: "OpenRouter",
+  devin: "Devin",
+  kilocode: "Kilo Code",
+  codebuff: "CodeBuff",
 };
 
 function usageProviderLabel(id: string): string {

@@ -21,6 +21,9 @@ export const USAGE_PROVIDER_IDS = [
   "pi",
   "omp",
   "fx",
+  "devin",
+  "kilocode",
+  "codebuff",
 ] as const;
 const DEFAULT_USAGE_PROVIDER_IDS = new Set([
   "claude",
