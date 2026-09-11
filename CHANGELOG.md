@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Custom providers get their own tab in the model picker and their own row in Settings > Providers (models, default, picker visibility), instead of nesting inside OpenCode. Brand-less marks render as an initial-letter chip.
 
+### Fixed
+
+- Full access no longer sends ordinary Codex command and file-change requests through an `on-request` approval flow, so the app does not repeatedly ask for « Allow » after Full access is selected. Explicit MCP consent remains interactive.
+- The project rail now receives the active agent paths, restoring the working glow and the finished « needs review » indicator.
+- Settings text and provider endpoints can be selected and copied with the mouse.
+- PK quota choices keep Claude, Codex, ZAI, OpenCode Go, and Xiaomi MiMo visible even when CodexBar has not detected one of them yet.
+
 ## [2026.09.18] - 2026-09-11
 
 ### Added
