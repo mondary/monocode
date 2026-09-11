@@ -22,6 +22,10 @@ import {
   type ReactNode,
 } from "react";
 import { basename } from "../lib/fs";
+import {
+  BUSY_GLOW_CHANGE_EVENT,
+  loadBusyGlowColor,
+} from "../lib/busyGlowSettings";
 import { looksLikeProject } from "../lib/recents";
 import type { HarnessId } from "../lib/session";
 import { usePkVariant } from "../lib/pkVariant";
@@ -242,6 +246,15 @@ function TitleTabItem({
 }) {
   const dragging = canDrag && sortable.draggingId === tab.id;
   const { headline, meta, tooltip } = tabCopy(tab);
+  // Busy tabs glow in the same color the user picked for busy project titles.
+  const [glowColor, setGlowColor] = useState(loadBusyGlowColor);
+  useEffect(() => {
+    const onGlow = () => setGlowColor(loadBusyGlowColor());
+    window.addEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+    return () => window.removeEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+  }, []);
+  const working = tab.busyHarnesses.length > 0;
+  const busyTint = working ? glowColor || "var(--color-accent)" : undefined;
   const fileIcon = tab.files[0];
   const showStart =
     canDrag &&
@@ -337,6 +350,7 @@ function TitleTabItem({
                   ? "text-[13px] @min-[11rem]:text-[10px] @min-[11rem]:font-medium"
                   : "text-[13px]"
               }`}
+              style={busyTint ? { color: busyTint } : undefined}
             >
               {headline}
             </span>
@@ -354,6 +368,12 @@ function TitleTabItem({
             </span>
           ) : null}
         </span>
+        {busyTint ? (
+          <span
+            className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full"
+            style={{ background: busyTint }}
+          />
+        ) : null}
       </button>
       {closable ? (
         <button
