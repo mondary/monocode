@@ -171,9 +171,13 @@ fn pk_upstream_info() -> Result<String, String> {
 branch=$(git rev-parse --abbrev-ref HEAD)
 source_branch=$branch
 if [ "$branch" = "stable/pk" ]; then source_branch=perso/pk; fi
+ahead=0
+if [ "$branch" != "stable/pk" ]; then
+  ahead=$(git rev-list --count "origin/$source_branch..HEAD" 2>/dev/null || echo 0)
+fi
 git fetch -q upstream
 git fetch -q origin "$source_branch" 2>/dev/null || true
-echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$(git rev-list --count "origin/$source_branch..HEAD" 2>/dev/null || echo 0)
+echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
 echo ---commits---
 git log --oneline -12 HEAD..upstream/main
 echo ---pk-commits---
