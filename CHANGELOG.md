@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.18] - 2026-09-11
+
+### Added
+
+- Dev variant marker: a DEV badge in the title bar and Settings > About distinguishes the cobaye build from the daily MonoCode PK at a glance (bundle-identifier driven).
+
 ## [2026.09.17] - 2026-09-11
 
 ### Added

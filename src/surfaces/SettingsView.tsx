@@ -246,6 +246,7 @@ import {
 
 import { SkillsPage } from "./SkillsPage";
 import { PK_VERSION } from "../lib/pkVersion";
+import { usePkVariant } from "../lib/pkVariant";
 
 type Props = {
   section: SettingsSectionId;
@@ -1115,6 +1116,7 @@ function LinearSettings() {
 }
 
 function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
+  const variant = usePkVariant();
   const [snapshot, setSnapshot] = useState<UpdaterSnapshot>({
     phase: "idle",
     currentVersion: "…",
@@ -1169,9 +1171,16 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
             </span>
           </span>
           <span>
-            MonoCodePK
-            <span className="ml-2 font-mono text-[12px] text-accent/75">
-              {PK_VERSION}
+            <span className="flex items-center gap-2">
+              MonoCodePK
+              <span className="ml-2 font-mono text-[12px] text-accent/75">
+                {PK_VERSION}
+              </span>
+              {variant === "dev" ? (
+                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent">
+                  DEV
+                </span>
+              ) : null}
             </span>
           </span>
         </span>
@@ -1235,18 +1244,21 @@ function useAppearanceSettings() {
     setThemePreference(next);
   }, []);
 
-  const onThemePreset = useCallback((next: ThemePreset) => {
-    // Catppuccin Latte is a light flavor: pair it with the light scheme so
-    // the palette reads correctly instead of washing over a dark canvas.
-    if (next === "catppuccin-latte") {
-      applyThemePreference("light");
-      saveThemePreference("light");
-      setThemePreference("light");
-    }
-    applyThemePreset(next);
-    saveThemePreset(next);
-    setThemePreset(next);
-  }, [setThemePreference]);
+  const onThemePreset = useCallback(
+    (next: ThemePreset) => {
+      // Catppuccin Latte is a light flavor: pair it with the light scheme so
+      // the palette reads correctly instead of washing over a dark canvas.
+      if (next === "catppuccin-latte") {
+        applyThemePreference("light");
+        saveThemePreference("light");
+        setThemePreference("light");
+      }
+      applyThemePreset(next);
+      saveThemePreset(next);
+      setThemePreset(next);
+    },
+    [setThemePreference],
+  );
 
   const onOpacity = useCallback((percent: number) => {
     const next = applySidebarOpacity(percent / 100);

@@ -24,6 +24,7 @@ import {
 import { basename } from "../lib/fs";
 import { looksLikeProject } from "../lib/recents";
 import type { HarnessId } from "../lib/session";
+import { usePkVariant } from "../lib/pkVariant";
 import { CwdPicker } from "./CwdPicker";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useSortable } from "../hooks/useSortable";
@@ -444,6 +445,17 @@ export function IconButton({
 }
 
 export function DevModeLabel() {
+  const variant = usePkVariant();
+  if (variant === "dev") {
+    return (
+      <span
+        title="MonoCode PK Dev — le build cobaye, reconstruit à chaque test"
+        className="mr-1 min-w-0 truncate rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent"
+      >
+        DEV
+      </span>
+    );
+  }
   if (!import.meta.env.DEV) return null;
   return (
     <span

@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.17**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.18**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -47,6 +47,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 - Icône app custom (ton `iconique.png`), About en tête de General, nouveautés officielles et PK côte à côte, badges PK sur les réglages du fork.
 
 ### Terminal & raccourcis
+- **Variante dev** marquée d'un badge **DEV** (title bar + About) : impossible de confondre le build cobaye avec la version quotidienne.
 - Position du dock terminal configurable (bottom/right/left/top/tab), vrais onglets, indicateur d'activité.
 - Page **Keybindings** dédiée : capture native des touches, détection de conflits, menu reconstruit à la volée.
 
