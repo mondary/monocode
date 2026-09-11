@@ -15,7 +15,7 @@
     "check:rust": "cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test",
     "set-version": "node scripts/bump-version.mjs",
     "tauri": "tauri",
-    "build:pk": "bash scripts/build-pk-app.sh",
+    "build:pk": "bash scripts/build-pk-stable.sh",
     "build:pk:dev": "bash scripts/build-pk-app.sh dev",
     "tauri:stable": "tauri dev --no-watch --config src-tauri/tauri.stable.conf.json",
     "setup:linux:deb": "bash scripts/install-linux-deps-debian.sh",

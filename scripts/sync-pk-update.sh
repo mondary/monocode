@@ -34,9 +34,10 @@ fi
 
 # Commits PK poussés depuis une autre machine: les intégrer avant l'amont.
 branch=$(git rev-parse --abbrev-ref HEAD)
-git fetch -q origin "$branch" 2>/dev/null || true
-if [ "$(git rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)" -gt 0 ]; then
-  if ! git merge --no-edit "origin/$branch"; then
+source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
+git fetch -q origin "$source_branch" 2>/dev/null || true
+if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
+  if ! git merge --no-edit "origin/$source_branch"; then
     git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
     git add Cargo.lock package-lock.json 2>/dev/null || true
     if test -n "$(git diff --name-only --diff-filter=U)"; then
