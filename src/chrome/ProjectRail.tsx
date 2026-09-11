@@ -1069,7 +1069,15 @@ function ProjectCard({
         className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6"
       >
         <div className="grid size-4 shrink-0 place-items-center transition-opacity group-hover:opacity-0">
-          {logoPath && !busy ? (
+          {done && !busy ? (
+            <span
+              title="Agent terminé — vérifier les modifications"
+              aria-label="Agent terminé, modifications à vérifier"
+              className="grid size-4 place-items-center rounded-full bg-emerald-400/15 text-emerald-400"
+            >
+              <Check className="size-3" strokeWidth={2.5} />
+            </span>
+          ) : logoPath && !busy ? (
             <ProjectLogoIcon
               path={logoPath}
               className="size-4 rounded-sm"

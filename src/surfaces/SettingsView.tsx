@@ -161,6 +161,7 @@ import {
   loadUsageProviderOrder,
   saveUsageProviderOrder,
   USAGE_PROVIDER_IDS,
+  normalizeUsageProviderId,
   type UsageDisplayMode,
   type UsageScope,
   type UsageWindowVisibility,
@@ -564,9 +565,10 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   };
 
   const toggleUsageProvider = (id: string) => {
-    const next = hiddenUsageProviders.includes(id)
-      ? hiddenUsageProviders.filter((entry) => entry !== id)
-      : [...hiddenUsageProviders, id];
+    const canonical = normalizeUsageProviderId(id);
+    const next = hiddenUsageProviders.includes(canonical)
+      ? hiddenUsageProviders.filter((entry) => entry !== canonical)
+      : [...hiddenUsageProviders, canonical];
     saveHiddenUsageProviders(next);
     setHiddenUsageProviders(next);
   };
@@ -673,7 +675,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
             ]}
             onChange={onUsageScope}
           />
-          {usageScope === "custom" ? (
+          {(
             usageProviderList == null ? (
               <span className="text-[12px] text-content/45">
                 Loading providers…
@@ -710,7 +712,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
                   })}
               </div>
             )
-          ) : null}
+          )}
         </div>
       </Row>
       <Row

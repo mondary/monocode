@@ -31,6 +31,7 @@ import {
   type UsageDisplayMode,
   type UsageScope,
   type UsageWindowVisibility,
+  normalizeUsageProviderId,
 } from "../lib/rateLimits";
 import {
   harnessLabel,
@@ -205,9 +206,9 @@ export function UsageFooter({
           usageProviderMatches(entry.provider, providers),
         )
       : mergedUsage.filter(
-        (entry) => !hiddenProviders.includes(normalizeUsageProvider(entry.provider)),
+        (entry) => !hiddenProviders.includes(normalizeUsageProviderId(entry.provider)),
         )
-      .sort((a, b) => providerOrder.indexOf(normalizeUsageProvider(a.provider)) - providerOrder.indexOf(normalizeUsageProvider(b.provider)));
+      .sort((a, b) => providerOrder.indexOf(normalizeUsageProviderId(a.provider)) - providerOrder.indexOf(normalizeUsageProviderId(b.provider)));
   const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
   const showRight = showUsage || showTerminals;
@@ -528,13 +529,10 @@ function usageProviderMatches(provider: string, providers: string[]): boolean {
 }
 
 function entryMatchesHarness(provider: string, harness: string): boolean {
-  if (normalizeUsageProvider(provider) === normalizeUsageProvider(harness)) return true;
+  if (normalizeUsageProviderId(provider) === normalizeUsageProviderId(harness)) return true;
   return (USAGE_PROVIDER_ALIASES[harness] ?? []).includes(provider);
 }
 
-function normalizeUsageProvider(provider: string): string {
-  return provider === "kilo" ? "kilocode" : provider === "code_buff" ? "codebuff" : provider;
-}
 function ProviderMark({ provider }: { provider: string }) {
   if (KNOWN_HARNESSES.has(provider as HarnessId)) {
     return (
