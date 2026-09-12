@@ -15,11 +15,9 @@ import {
 export function UpdateFlowDialog() {
   const [request, setRequest] = useState<PkUpdateDialogRequest | null>(null);
   const resolveRef = useRef<((proceed: boolean) => void) | null>(null);
-  const [launching, setLaunching] = useState(false);
 
   useEffect(() => {
     registerPkUpdateDialog(async (next) => {
-      setLaunching(false);
       setRequest(next);
       return new Promise<boolean>((resolve) => {
         resolveRef.current = resolve;
@@ -35,14 +33,11 @@ export function UpdateFlowDialog() {
   const finish = (proceed: boolean) => {
     const resolve = resolveRef.current;
     resolveRef.current = null;
-    if (proceed) setLaunching(true);
     setRequest(null);
     resolve?.(proceed);
   };
 
-  if (!request) {
-    return launching ? <UpdateLaunching /> : null;
-  }
+  if (!request) return null;
 
   return (
     <Modal
@@ -77,27 +72,6 @@ export function UpdateFlowDialog() {
           </button>
         )}
       </footer>
-    </Modal>
-  );
-}
-
-function UpdateLaunching() {
-  return (
-    <Modal
-      onClose={() => undefined}
-      title="Mise à jour lancée"
-      description="Fetch + merge + build + relance"
-      size="sm"
-    >
-      <div className="flex items-center gap-3 px-5 py-6">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
-          <ArrowDownCircle className="size-4 animate-pulse" strokeWidth={1.75} />
-        </span>
-        <p className="text-[13px] leading-relaxed text-content/60">
-          PKmod récupère les commits officiels et PK, reconstruit l'application
-          et la relance. Le détail suit dans <span className="font-mono">pk-update.log</span>.
-        </p>
-      </div>
     </Modal>
   );
 }

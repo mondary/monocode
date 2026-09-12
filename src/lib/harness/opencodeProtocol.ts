@@ -125,14 +125,23 @@ export function isOpenCodeNotFound(cause: unknown): boolean {
 
 export function buildOpenCodePermissionRules(
   runtimeMode: RuntimeMode,
+  options?: { allowTask?: boolean },
 ): OpenCodePermissionRule[] {
   if (runtimeMode === "full-access") {
-    return [{ permission: "*", pattern: "*", action: "allow" }];
+    return [
+      { permission: "*", pattern: "*", action: "allow" },
+      ...(options?.allowTask === false
+        ? [{ permission: "task", pattern: "*", action: "deny" as const }]
+        : []),
+    ];
   }
   const rules: OpenCodePermissionRule[] = [
     { permission: "*", pattern: "*", action: "ask" },
     { permission: "question", pattern: "*", action: "allow" },
   ];
+  if (options?.allowTask === false) {
+    rules.push({ permission: "task", pattern: "*", action: "deny" });
+  }
   if (runtimeMode === "auto-accept-edits" || runtimeMode === "auto") {
     rules.push({ permission: "edit", pattern: "*", action: "allow" });
   }
