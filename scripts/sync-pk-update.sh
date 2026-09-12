@@ -42,7 +42,9 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
 git fetch -q origin "$source_branch" 2>/dev/null || true
 if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
-  if ! git merge --no-edit "origin/$source_branch"; then
+  # Keep local PK hunks when both branches changed the same lines. Git still
+  # brings in every non-overlapping commit from the pushed PK branch.
+  if ! git merge --no-edit -X ours "origin/$source_branch"; then
     git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
     git add Cargo.lock package-lock.json 2>/dev/null || true
     if test -n "$(git diff --name-only --diff-filter=U)"; then
@@ -54,7 +56,10 @@ if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0
     git commit --no-edit || true
   fi
 fi
-if ! git merge --no-edit upstream/main; then
+ # The fork deliberately changes a few shared files (App, changelog and
+ # version metadata). Prefer the PK hunk only where lines overlap; all
+ # non-overlapping upstream changes are merged automatically.
+if ! git merge --no-edit -X ours upstream/main; then
   # Lockfiles: la version amont suffit, ils sont régénérés au build.
   git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
   git add Cargo.lock package-lock.json 2>/dev/null || true

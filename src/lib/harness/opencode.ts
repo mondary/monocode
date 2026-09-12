@@ -357,6 +357,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
       resume: canResume ? resume : undefined,
       runtimeMode: input.runtimeMode,
       cwd: input.cwd,
+      model: input.model,
     });
     if (canResume) {
       await repairUnsupportedFileTurn(client, openCodeSession.id).catch(
@@ -462,9 +463,12 @@ async function resolveSession(
     resume?: Resume;
     runtimeMode: RuntimeMode;
     cwd: string;
+    model: string;
   },
 ) {
-  const permission = buildOpenCodePermissionRules(input.runtimeMode);
+  const permission = buildOpenCodePermissionRules(input.runtimeMode, {
+    allowTask: !nativeModelId(input.model).startsWith("zai-coding-plan/"),
+  });
   if (input.resume) {
     try {
       const adopted = await client.getSession(input.resume.sessionId);
