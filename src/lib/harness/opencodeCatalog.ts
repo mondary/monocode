@@ -251,14 +251,21 @@ export function flattenOpenCodeModels(
     }
   }
   // Keep the providers MonoCode knows about even when the local OpenCode
-  // installation has not emitted them yet. Once configured, the live catalog
-  // entries above replace these fallback entries by their complete metadata.
-  const seen = new Set(models.map((model) => model.nativeId));
+  // installation has not emitted them yet. Once a provider shows up in the
+  // live catalog its fallback entries are dropped entirely: matching ids are
+  // replaced and non-matching ones (model renamed upstream) would linger as
+  // dead entries.
+  const liveProviders = new Set(
+    models.flatMap((model) => (model.nativeId ? [model.nativeId.split("/")[0]!] : [])),
+  );
   for (const model of MODELS) {
+    const fallbackProvider = model.nativeId?.split("/")[0];
     if (
-      !["opencode", "zai", "mimo", "openrouter", "nvidia"].includes(model.harness) ||
+      !["opencode", "zai", "mimo", "openrouter", "nvidia", "gemini", "antigravity"].includes(
+        model.harness,
+      ) ||
       !model.nativeId ||
-      seen.has(model.nativeId) ||
+      (fallbackProvider && liveProviders.has(fallbackProvider)) ||
       isRetiredModel(model.nativeId)
     ) {
       continue;
@@ -297,6 +304,8 @@ function providerHarness(providerID: string): AgentModel["harness"] {
   }
   if (providerID === "openrouter") return "openrouter";
   if (providerID === "nvidia") return "nvidia";
+  if (providerID === "google") return "gemini";
+  if (providerID === "antigravity") return "antigravity";
   return "opencode";
 }
 

@@ -511,6 +511,8 @@ const KNOWN_HARNESSES = new Set<HarnessId>([
   "mimo",
   "openrouter",
   "nvidia",
+  "gemini",
+  "antigravity",
   "pi",
   "omp",
   "fx",

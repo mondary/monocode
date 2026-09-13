@@ -160,6 +160,10 @@ describe("OpenCode CLI inventory parsers", () => {
     expect(models.map((model) => model.nativeId)).toEqual([
       "anthropic/claude-sonnet-4-6",
       "openrouter/deepseek/deepseek-chat-v3.1",
+      "google/gemini-2.5-pro",
+      "antigravity/gemini-3-flash",
+      "google/gemini-3-flash-preview",
+      "antigravity/gemini-3-pro",
       "opencode/glm-5",
       "zai-coding-plan/glm-5.1",
       "zai-coding-plan/glm-5.2",
@@ -169,7 +173,7 @@ describe("OpenCode CLI inventory parsers", () => {
       "xiaomi-token-plan-ams/mimo-v2.5-pro",
       "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
     ]);
-    expect(models[2].settings?.some((setting) => setting.id === "variant")).toBe(
+    expect(models[6].settings?.some((setting) => setting.id === "variant")).toBe(
       true,
     );
     expect(models[0].settings?.find((setting) => setting.id === "agent")?.value).toBe(
@@ -184,6 +188,10 @@ describe("OpenCode CLI inventory parsers", () => {
     );
     expect(models.map((model) => model.nativeId)).toEqual([
       "openrouter/deepseek/deepseek-chat-v3.1",
+      "google/gemini-2.5-pro",
+      "antigravity/gemini-3-flash",
+      "google/gemini-3-flash-preview",
+      "antigravity/gemini-3-pro",
       "zai-coding-plan/glm-5.1",
       "zai-coding-plan/glm-5.2",
       "zai-coding-plan/glm-5.3",

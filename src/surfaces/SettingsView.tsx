@@ -2446,6 +2446,8 @@ const PK_PROVIDERS = new Set<HarnessId>([
   "mimo",
   "openrouter",
   "nvidia",
+  "gemini",
+  "antigravity",
 ]);
 
 function ProviderRow({

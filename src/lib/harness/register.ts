@@ -23,6 +23,8 @@ export function registerBuiltinHarnesses(): void {
   ensureOpenCodeProviderRegistered("mimo");
   ensureOpenCodeProviderRegistered("openrouter");
   ensureOpenCodeProviderRegistered("nvidia");
+  ensureOpenCodeProviderRegistered("gemini");
+  ensureOpenCodeProviderRegistered("antigravity");
   ensurePiRegistered();
   ensureOmpRegistered();
   ensureFxRegistered();
