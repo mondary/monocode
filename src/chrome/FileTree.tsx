@@ -67,7 +67,6 @@ import {
 } from "../lib/explorerSettings";
 import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
-import type { OpenFileFn } from "../lib/search";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
@@ -82,13 +81,9 @@ const GIT_STATUS_COLOR: Record<string, string> = {
 
 type Props = {
   cwd: string;
-<<<<<<< HEAD
   /** Project path, independent from the active session's working directory. */
   projectCwd?: string;
   onOpenFile: (path: string) => void;
-=======
-  onOpenFile: OpenFileFn;
->>>>>>> refs/rewritten/onto
   onOpenTerminal?: (cwd: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
@@ -119,7 +114,7 @@ type TreeCtxValue = {
   gitStatuses?: GitStatusMap;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
-  onOpenFile: OpenFileFn;
+  onOpenFile: (path: string) => void;
   onCreateCommit: (id: number, raw: string) => Promise<void>;
   onCreateCancel: (id: number) => void;
   onRenameCommit: (path: string, raw: string) => Promise<void>;
@@ -361,7 +356,7 @@ export const FileTree = memo(function FileTree({
     expandDirs(touched);
     setSelectedPath(created);
     saveSelected(cwd, created);
-    if (!asFolder) onOpenFile(created, undefined, { exact: true });
+    if (!asFolder) onOpenFile(created);
   };
 
   const onRenameCancel = () => setRenaming(null);
@@ -1067,7 +1062,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     }
     onSelect(entry.path);
     if (entry.isDir) onToggle(entry.path);
-    else onOpenFile(entry.path, undefined, { exact: true });
+    else onOpenFile(entry.path);
   };
 
   const siblings = (peekDir(parentPath(entry.path)) ?? [])

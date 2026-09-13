@@ -100,7 +100,6 @@ function FilePaneComponent({
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       onMouseDown={() => onFocus(pane.id)}
     >
-<<<<<<< HEAD
       {!hideTerminalTabs ? (
         <SurfaceTabs
           files={pane.files}
@@ -109,23 +108,11 @@ function FilePaneComponent({
           fileErrorCounts={fileErrorCounts}
           onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
           onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
+          onCloseOtherFiles={(fileId) => onCloseOtherFiles(pane.id, fileId)}
           onReorder={(ids) => onReorderFiles(pane.id, ids)}
           onPaneDragStart={onPaneDragStart}
         />
       ) : null}
-=======
-      <SurfaceTabs
-        files={pane.files}
-        activeFileId={pane.activeFileId}
-        dirtyFileIds={dirtyFileIds}
-        fileErrorCounts={fileErrorCounts}
-        onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
-        onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
-        onCloseOtherFiles={(fileId) => onCloseOtherFiles(pane.id, fileId)}
-        onReorder={(ids) => onReorderFiles(pane.id, ids)}
-        onPaneDragStart={onPaneDragStart}
-      />
->>>>>>> refs/rewritten/onto
       <div className="relative min-h-0 flex-1">
         {sessionReview ? (
           <div className="absolute inset-0 h-full">
@@ -225,7 +212,6 @@ export const FilePane = memo(FilePaneComponent, (previous, next) => {
     previous.onFocus !== next.onFocus ||
     previous.onSelectFile !== next.onSelectFile ||
     previous.onCloseFile !== next.onCloseFile ||
-    previous.onCloseOtherFiles !== next.onCloseOtherFiles ||
     previous.onDirtyChange !== next.onDirtyChange ||
     previous.onErrorCountChange !== next.onErrorCountChange ||
     previous.onReorderFiles !== next.onReorderFiles ||
