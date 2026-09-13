@@ -391,6 +391,8 @@ pub fn run() {
             notes::notes_get,
             notes::notes_upsert,
             notes::notes_delete,
+            notes::notes_export,
+            notes::notes_export_all,
             notes::notes_save_image,
             notes::notes_image_path,
             checkpoint::session_checkpoint_ensure,
