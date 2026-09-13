@@ -35,6 +35,8 @@ const CLI: Record<HarnessId, { name: string; install?: string }> = {
   mimo: { name: "MiMo via OpenCode CLI" },
   openrouter: { name: "OpenRouter via OpenCode CLI" },
   nvidia: { name: "NVIDIA via OpenCode CLI" },
+  gemini: { name: "Gemini via OpenCode CLI" },
+  antigravity: { name: "Antigravity via OpenCode CLI" },
   pi: { name: "Pi CLI", install: "npm i -g @earendil-works/pi-coding-agent" },
   omp: { name: "omp CLI", install: "curl -fsSL https://omp.sh/install | sh" },
   fx: { name: "fx CLI", install: "curl -fsSL https://fx.sh/setup.sh | bash" },
@@ -50,6 +52,8 @@ let availability: HarnessAvailability = {
   mimo: false,
   openrouter: false,
   nvidia: false,
+  gemini: false,
+  antigravity: false,
   pi: false,
   omp: false,
   fx: false,
@@ -135,7 +139,9 @@ export function probeHarnessAvailability(
           return [id, false] as const;
         }
       }
-      if (["opencode", "zai", "mimo", "openrouter", "nvidia"].includes(id)) {
+      if (
+        ["opencode", "zai", "mimo", "openrouter", "nvidia", "gemini", "antigravity"].includes(id)
+      ) {
         try {
           await resolveOpenCodeBinary();
           return [id, true] as const;

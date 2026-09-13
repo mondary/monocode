@@ -10,6 +10,8 @@ import zai from "../assets/providers/zai.svg";
 import mimo from "../assets/providers/mimo.svg";
 import openrouter from "../assets/providers/openrouter.svg";
 import nvidia from "../assets/providers/nvidia.svg";
+import gemini from "../assets/providers/gemini.svg";
+import antigravity from "../assets/providers/antigravity.svg";
 import pi from "../assets/providers/pi.svg";
 import type { HarnessId } from "../lib/session";
 
@@ -23,6 +25,8 @@ export const HARNESS_ICONS: Record<HarnessId, string> = {
   mimo,
   openrouter,
   nvidia,
+  gemini,
+  antigravity,
   pi,
   omp,
   fx,

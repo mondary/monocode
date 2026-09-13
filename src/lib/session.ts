@@ -22,6 +22,8 @@ export type BuiltinHarnessId =
   | "mimo"
   | "openrouter"
   | "nvidia"
+  | "gemini"
+  | "antigravity"
   | "pi"
   | "omp"
   | "fx";
@@ -45,6 +47,8 @@ export const HARNESSES: BuiltinHarnessId[] = [
   "mimo",
   "openrouter",
   "nvidia",
+  "gemini",
+  "antigravity",
   "pi",
   "omp",
   "fx",
@@ -314,6 +318,8 @@ export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
   mimo: "mimo",
   openrouter: "openrouter",
   nvidia: "nvidia",
+  gemini: "gemini",
+  antigravity: "antigravity",
   pi: "pi",
   omp: "omp",
   fx: "fx",
@@ -329,6 +335,8 @@ export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
   mimo: "MiMo",
   openrouter: "OpenRouter",
   nvidia: "NVIDIA",
+  gemini: "Gemini",
+  antigravity: "Antigravity",
   pi: "Pi",
   omp: "omp",
   fx: "fx",
