@@ -326,6 +326,7 @@ pub fn harness_spawn(
     command: String,
     args: Vec<String>,
     cwd: String,
+    env: Option<HashMap<String, String>>,
 ) -> Result<u32, String> {
     let (epoch, kill_all, prev) = host.begin_spawn(&session_id);
     if let Some(prev) = prev {
@@ -347,6 +348,11 @@ pub fn harness_spawn(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     prepare_child(&mut cmd, &command);
+    if let Some(env) = &env {
+        for (key, value) in env {
+            cmd.env(key, value);
+        }
+    }
 
     let mut child =
         spawn_managed(&mut cmd).map_err(|e| format!("Failed to start {command}: {e}"))?;
