@@ -109,7 +109,9 @@ export async function runUpdateFlow(
         ],
       });
       if (!proceed) return { phase: "idle", currentVersion };
-      rememberInstalledUpdate(PK_VERSION);
+      // No "update installed" notice: sync_pk_upstream quits this instance and
+      // the script relaunches the new build itself, so the freshly relaunched
+      // app must not ask for yet another restart.
       await invoke("sync_pk_upstream");
       return { phase: "idle", currentVersion };
     }
@@ -173,7 +175,6 @@ export async function runUpdateFlow(
           ],
         });
         if (!proceed) return idle;
-        rememberInstalledUpdate(PK_VERSION);
         await invoke("sync_pk_upstream");
       }
       return idle;
