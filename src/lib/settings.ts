@@ -242,6 +242,25 @@ export function subscribeNotesEnabled(onStoreChange: () => void) {
     window.removeEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
 }
 
+const NOTES_AUTO_EXPORT_KEY = "monocode.notesAutoExport";
+
+/** Mirror notes into their source project's .monocode/notes folder. */
+export function loadNotesAutoExport(): boolean {
+  try {
+    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function saveNotesAutoExport(value: boolean) {
+  try {
+    localStorage.setItem(NOTES_AUTO_EXPORT_KEY, value ? "1" : "0");
+  } catch {
+    // private mode / quota
+  }
+}
+
 const LIVE_AGENTS_ENABLED_KEY = "monocode.liveAgentsEnabled";
 
 export const LIVE_AGENTS_ENABLED_DEFAULT = true;

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { fuzzyMatch } from "./fuzzy";
 import type { ProjectFile } from "./fs";
 import type { RankedFile } from "./fileIndex";
+import { loadNotesAutoExport } from "./settings";
 import { projectName } from "./paths";
 import { looksLikeProject } from "./recents";
 
@@ -117,14 +118,26 @@ export async function getNote(id: string): Promise<Note | null> {
 }
 
 export async function upsertNote(note: NoteUpsert): Promise<Note> {
-  const saved = await invoke<Note>("notes_upsert", { note });
+  const saved = await invoke<Note>("notes_upsert", {
+    note: { ...note, autoExport: loadNotesAutoExport() },
+  });
   cache = null;
   return saved;
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await invoke("notes_delete", { id });
+  await invoke("notes_delete", { id, autoExport: loadNotesAutoExport() });
   cache = null;
+}
+
+/** Write one note as markdown to an absolute .md path. */
+export function exportNote(id: string, target: string): Promise<void> {
+  return invoke("notes_export", { id, target });
+}
+
+/** Mirror every note with a source project into .monocode/notes; returns count. */
+export function exportAllNotesToProjects(): Promise<number> {
+  return invoke<number>("notes_export_all");
 }
 
 export async function createNote(input: {

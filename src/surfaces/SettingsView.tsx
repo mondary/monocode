@@ -11,6 +11,7 @@ import {
   Search,
 } from "../chrome/icons";
 import { invoke } from "@tauri-apps/api/core";
+import { exportAllNotesToProjects } from "../lib/notes";
 import {
   customProviderTestLabel,
   deleteCustomProvider,
@@ -222,6 +223,7 @@ import {
   loadGridArcadeEnabled,
   loadLiveAgentsEnabled,
   loadNotesEnabled,
+  loadNotesAutoExport,
   saveClaudeHooks,
   saveComposerRunner,
   saveDiffViewer,
@@ -229,6 +231,7 @@ import {
   saveGridArcadeEnabled,
   saveLiveAgentsEnabled,
   saveNotesEnabled,
+  saveNotesAutoExport,
   settingsSectionDescription,
   settingsSectionLabel,
   type DiffViewer,
@@ -445,6 +448,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     null,
   );
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
+  const [notesAutoExport, setNotesAutoExport] = useState(loadNotesAutoExport);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
   );
@@ -528,6 +532,16 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onNotesEnabled = (next: boolean) => {
     saveNotesEnabled(next);
     setNotesEnabled(next);
+  };
+
+  const onNotesAutoExport = (next: boolean) => {
+    saveNotesAutoExport(next);
+    setNotesAutoExport(next);
+    if (next) {
+      // Backfill: mirror existing notes immediately instead of waiting for
+      // each one to be edited.
+      void exportAllNotesToProjects().catch(() => undefined);
+    }
   };
 
   const onLiveAgentsEnabled = (next: boolean) => {
@@ -858,6 +872,17 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat. Turn this off to hide Notes from the UI."
       >
         <Toggle label="Notes" on={notesEnabled} onChange={onNotesEnabled} />
+      </Row>
+      <Row
+        label="Auto-export notes to project"
+        pk
+        description="Mirror every note created from a project into <project>/.monocode/notes/<slug>.md — markdown with frontmatter, rewritten on each edit, removed when the note is deleted. Turning this on exports existing notes right away; turning it off leaves the files in place."
+      >
+        <Toggle
+          label="Auto-export notes to project"
+          on={notesAutoExport}
+          onChange={onNotesAutoExport}
+        />
       </Row>
       <Row
         label="Working agents"

@@ -15,6 +15,7 @@ const TAGS_MAX: usize = 20;
 const IMAGE_MAX_BYTES: u64 = 20 * 1024 * 1024;
 const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
 const NOTE_ASSET_DIR: &str = "note-assets";
+const EXPORT_DIR: &str = ".monocode/notes";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +45,9 @@ pub struct NoteUpsert {
     pub source_session_id: Option<String>,
     #[serde(default)]
     pub source_cwd: Option<String>,
+    /// Mirror the note into `<source project>/.monocode/notes/<slug>.md`.
+    #[serde(default)]
+    pub auto_export: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -97,7 +101,10 @@ pub fn notes_get(store: State<'_, SessionStore>, id: String) -> Result<Option<No
 }
 
 #[tauri::command(async)]
-pub fn notes_upsert(store: State<'_, SessionStore>, note: NoteUpsert) -> Result<Note, String> {
+pub fn notes_upsert(
+    store: State<'_, SessionStore>,
+    note: NoteUpsert,
+) -> Result<Note, String> {
     validate_id(&note.id, "note")?;
     if let Some(session_id) = note.source_session_id.as_deref() {
         if !session_id.is_empty() {
@@ -107,8 +114,15 @@ pub fn notes_upsert(store: State<'_, SessionStore>, note: NoteUpsert) -> Result<
     if note.body.len() > BODY_MAX {
         return Err("Note is too large".into());
     }
+    let auto_export = note.auto_export;
     let conn = store.lock_conn()?;
-    upsert_note(&conn, &note).map_err(|e| e.to_string())
+    let saved = upsert_note(&conn, &note).map_err(|e| e.to_string())?;
+    if auto_export {
+        // Export failure must not fail the save: the database row stays
+        // authoritative and the user can still read the note in-app.
+        let _ = write_note_export(&saved);
+    }
+    Ok(saved)
 }
 
 #[tauri::command(async)]
@@ -116,15 +130,137 @@ pub fn notes_delete(
     app: AppHandle,
     store: State<'_, SessionStore>,
     id: String,
+    auto_export: Option<bool>,
 ) -> Result<(), String> {
     validate_id(&id, "note")?;
     let conn = store.lock_conn()?;
+    let existing = get_note(&conn, &id).map_err(|e| e.to_string())?;
     delete_note(&conn, &id).map_err(|e| e.to_string())?;
     drop(conn);
     // The note deletion is authoritative. A cleanup failure should not leave a
     // successfully deleted note visible in the UI.
     let _ = remove_note_assets(&app, &id);
+    if let (true, Some(note)) = (auto_export.unwrap_or(false), existing.as_ref()) {
+        let _ = remove_note_export(note);
+    }
     Ok(())
+}
+
+/// Manual export: write one note as markdown to a user-chosen path.
+#[tauri::command(async)]
+pub fn notes_export(store: State<'_, SessionStore>, id: String, target: String) -> Result<(), String> {
+    validate_id(&id, "note")?;
+    let target = expand_home(&target);
+    if !target.is_absolute() {
+        return Err("Export path must be absolute".into());
+    }
+    if target.extension().and_then(|value| value.to_str()) != Some("md") {
+        return Err("Export file must have the .md extension".into());
+    }
+    let note = {
+        let conn = store.lock_conn()?;
+        get_note(&conn, &id).map_err(|e| e.to_string())?
+    };
+    let Some(note) = note else {
+        return Err("Note was not found".into());
+    };
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&target, note_markdown(&note)).map_err(|e| e.to_string())
+}
+
+/// Mirror every note that has a source project into its project folder.
+/// Returns how many files were written.
+#[tauri::command(async)]
+pub fn notes_export_all(store: State<'_, SessionStore>) -> Result<u32, String> {
+    let conn = store.lock_conn()?;
+    let notes = list_notes(&conn).map_err(|e| e.to_string())?;
+    let mut written = 0;
+    for note in &notes {
+        if write_note_export(note).is_ok() {
+            written += 1;
+        }
+    }
+    Ok(written)
+}
+
+fn note_export_path(source_cwd: &str, slug: &str) -> Option<PathBuf> {
+    let cwd = expand_home(source_cwd);
+    if !cwd.is_absolute() {
+        return None;
+    }
+    Some(cwd.join(EXPORT_DIR).join(format!("{slug}.md")))
+}
+
+fn write_note_export(note: &Note) -> Result<(), String> {
+    let Some(source_cwd) = note.source_cwd.as_deref() else {
+        return Err("Note has no source project".into());
+    };
+    let Some(path) = note_export_path(source_cwd, &note.slug) else {
+        return Err("Note project path is not absolute".into());
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(path, note_markdown(note)).map_err(|e| e.to_string())
+}
+
+fn remove_note_export(note: &Note) -> Result<(), String> {
+    let Some(source_cwd) = note.source_cwd.as_deref() else {
+        return Ok(());
+    };
+    let Some(path) = note_export_path(source_cwd, &note.slug) else {
+        return Ok(());
+    };
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn note_markdown(note: &Note) -> String {
+    let mut out = String::with_capacity(note.body.len() + 128);
+    out.push_str("---\n");
+    out.push_str(&format!("title: {}\n", note.title));
+    if !note.tags.is_empty() {
+        out.push_str(&format!("tags: [{}]\n", note.tags.join(", ")));
+    }
+    out.push_str(&format!("created: {}\n", iso_utc(note.created_at)));
+    out.push_str(&format!("updated: {}\n", iso_utc(note.updated_at)));
+    out.push_str("---\n\n");
+    out.push_str(note.body.trim_end());
+    out.push('\n');
+    out
+}
+
+/// Millis since the epoch to `YYYY-MM-DD HH:MM:SS` UTC (no chrono dependency).
+fn iso_utc(millis: i64) -> String {
+    let secs = millis.div_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let time = secs.rem_euclid(86_400);
+    // Howard Hinnant's civil_from_days: valid for the full i64 day range we
+    // care about (years 0..9999 for any realistic timestamp).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        y,
+        m,
+        d,
+        time / 3600,
+        (time % 3600) / 60,
+        time % 60
+    )
 }
 
 #[tauri::command]
@@ -484,6 +620,7 @@ mod tests {
                 tags: Vec::new(),
                 source_session_id: None,
                 source_cwd: None,
+                auto_export: false,
             },
         )
         .unwrap()
@@ -569,6 +706,7 @@ mod tests {
                 tags: vec!["Ideas".into(), "project docs".into(), "ideas".into()],
                 source_session_id: Some("sess-1".into()),
                 source_cwd: Some("/tmp/a".into()),
+                auto_export: false,
             },
         )
         .unwrap();
@@ -637,5 +775,76 @@ mod tests {
         assert_eq!(slugify("Hello, World!"), "hello-world");
         assert_eq!(slugify("***"), "note");
         assert_eq!(slugify("Ä"), "note");
+    }
+
+    #[test]
+    fn markdown_has_frontmatter_and_body() {
+        let mut note = upsert(&SessionStore::open_in_memory().unwrap(), "n1", "Spec", "hello");
+        note.tags = vec!["specs".into()];
+        note.created_at = 0;
+        note.updated_at = 86_400_000;
+        let md = note_markdown(&note);
+        assert!(md.starts_with("---\ntitle: Spec\ntags: [specs]\ncreated: 1970-01-01 00:00:00\nupdated: 1970-01-02 00:00:00\n---\n\nhello\n"));
+    }
+
+    #[test]
+    fn iso_utc_matches_known_timestamps() {
+        assert_eq!(iso_utc(0), "1970-01-01 00:00:00");
+        assert_eq!(iso_utc(1_000_000_000_000), "2001-09-09 01:46:40");
+        // Leap-year day: 2024-02-29 12:00:00 UTC
+        assert_eq!(iso_utc(1_709_208_000_000), "2024-02-29 12:00:00");
+    }
+
+    #[test]
+    fn export_paths_live_inside_the_project_hidden_folder() {
+        let path = note_export_path("/repo", "my-note").unwrap();
+        assert_eq!(path, PathBuf::from("/repo/.monocode/notes/my-note.md"));
+        assert!(note_export_path("relative/path", "my-note").is_none());
+    }
+
+    #[test]
+    fn auto_export_writes_and_updates_the_project_file() {
+        let dir = std::env::temp_dir().join(format!("mono-notes-test-{}", std::process::id()));
+        let project = dir.join("proj");
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let saved = upsert_note(
+            &conn,
+            &NoteUpsert {
+                id: "n1".into(),
+                title: "Prompt doc".into(),
+                body: "content".into(),
+                tags: Vec::new(),
+                source_session_id: None,
+                source_cwd: Some(project.to_string_lossy().into_owned()),
+                auto_export: true,
+            },
+        )
+        .unwrap();
+        write_note_export(&saved).unwrap();
+        let file = project.join(".monocode/notes/prompt-doc.md");
+        assert!(file.is_file());
+        assert!(std::fs::read_to_string(&file).unwrap().contains("content"));
+        // Update rewrites the same file (slug is stable).
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let updated = upsert_note(
+            &conn,
+            &NoteUpsert {
+                id: "n1".into(),
+                title: "Prompt doc".into(),
+                body: "content 2".into(),
+                tags: Vec::new(),
+                source_session_id: None,
+                source_cwd: None,
+                auto_export: true,
+            },
+        )
+        .unwrap();
+        write_note_export(&updated).unwrap();
+        assert!(std::fs::read_to_string(&file).unwrap().contains("content 2"));
+        // Delete removes the mirror.
+        remove_note_export(&saved).unwrap();
+        assert!(!file.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

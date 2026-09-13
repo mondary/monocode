@@ -1,5 +1,6 @@
-import { LoaderCircle, Plus, Search, File, Trash2 } from "../chrome/icons";
+import { LoaderCircle, Plus, Search, File, Trash2, Download } from "../chrome/icons";
 import { consumePendingOpenNote, OPEN_NOTE_EVENT } from "../lib/notes";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
   Fragment,
@@ -23,6 +24,7 @@ import { formatRelativeTime } from "../lib/githubTasks";
 import {
   createNote,
   deleteNote,
+  exportNote,
   loadNotes,
   noteSourceProject,
   noteTitle,
@@ -646,6 +648,28 @@ function NoteEditor({
     title: title.trim() || noteTitle(body),
     body,
   };
+  const [exportState, setExportState] = useState<"idle" | "busy" | "done">(
+    "idle",
+  );
+
+  const onExport = async () => {
+    if (exportState === "busy") return;
+    const target = await saveDialog({
+      title: "Export note",
+      defaultPath: `${note.slug}.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!target) return;
+    setExportState("busy");
+    try {
+      await exportNote(note.id, target);
+      setExportState("done");
+      window.setTimeout(() => setExportState("idle"), 2000);
+    } catch (err: unknown) {
+      setExportState("idle");
+      setSaveError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   return (
     <div
@@ -697,6 +721,18 @@ function NoteEditor({
               className="inline-flex items-center gap-1 rounded-md bg-content px-3 h-6.5 text-[12px] text-background-base hover:bg-content/80 disabled:cursor-default disabled:opacity-40"
             >
               Add to chat
+            </button>
+            <button
+              type="button"
+              onClick={() => void onExport()}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-content"
+            >
+              {exportState === "busy" ? (
+                <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.75} />
+              ) : (
+                <Download className="size-3.5" strokeWidth={1.75} />
+              )}
+              {exportState === "done" ? "Exporté" : "Exporter .md"}
             </button>
             <button
               type="button"
