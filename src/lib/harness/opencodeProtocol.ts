@@ -1,5 +1,9 @@
 import type { Attachment, RuntimeMode, ToolPreview } from "../session";
-import { attachmentPath } from "../attachments";
+import {
+  attachmentPath,
+  attachmentPathText,
+  isVisionImage,
+} from "../attachments";
 import { isTaskListToolName } from "../taskList";
 import { extractToolPreview } from "./preview";
 import type { HarnessEvent } from "./types";
@@ -164,9 +168,20 @@ export function toFileUrl(path: string): string {
   return `file://${abs.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-export function toOpenCodeFileParts(
+export type OpenCodePromptPart =
+  | { type: "text"; text: string }
+  | { type: "file"; mime: string; filename: string; url: string };
+
+/**
+ * OpenCode forwards native file parts to the selected model provider. Keep
+ * those parts to formats its provider adapters consistently support; local
+ * files of every other type remain available to the agent through their path.
+ */
+export function toOpenCodePromptParts(
+  text: string,
   attachments: Attachment[] | undefined,
-): Array<{ type: "file"; mime: string; filename: string; url: string }> {
+): OpenCodePromptPart[] {
+  const textParts = text.trim() ? [text.trim()] : [];
   const parts: Array<{
     type: "file";
     mime: string;
@@ -174,6 +189,11 @@ export function toOpenCodeFileParts(
     url: string;
   }> = [];
   for (const attachment of attachments ?? []) {
+    const mime = attachment.mimeType.trim().toLowerCase();
+    if (!mime.startsWith("text/") && !isVisionImage(mime)) {
+      textParts.push(attachmentPathText(attachment));
+      continue;
+    }
     const url =
       !attachment.path && attachment.data
         ? `data:${attachment.mimeType};base64,${attachment.data}`
@@ -185,7 +205,12 @@ export function toOpenCodeFileParts(
       url,
     });
   }
-  return parts;
+  return [
+    ...(textParts.length > 0
+      ? [{ type: "text" as const, text: textParts.join("\n\n") }]
+      : []),
+    ...parts,
+  ];
 }
 
 export function mergeOpenCodeAssistantText(

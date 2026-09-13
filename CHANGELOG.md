@@ -233,6 +233,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Right-clicking an HTML file in the file tree and choosing Open in Browser now works: the opener capability allows local `file://` URLs, filenames containing `#`, `%`, or spaces are encoded correctly, and failures surface in the sidebar instead of being silently ignored.
 
+### Fixed
+
+- OpenCode falls back to readable local paths for unsupported attachment formats instead of sending provider-rejected file parts, and repairs sessions already stuck on an unsupported file turn. Fixes #211.
+
 ## [0.1.45] - 2026-09-13
 
 ### Added
