@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   downloadAndInstall: vi.fn(),
   getVersion: vi.fn(),
   message: vi.fn(),
-  relaunch: vi.fn(),
+  invoke: vi.fn(),
   remember: vi.fn(),
 }));
 
@@ -15,7 +15,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   ask: vi.fn(),
   message: mocks.message,
 }));
-vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: mocks.relaunch }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: mocks.check }));
 vi.mock("./sounds", () => ({ announceUpdateAvailable: mocks.announce }));
 vi.mock("./updateNotice", () => ({ rememberInstalledUpdate: mocks.remember }));
@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
   mocks.getVersion.mockResolvedValue("0.1.22");
-  mocks.relaunch.mockResolvedValue(undefined);
+  mocks.invoke.mockResolvedValue(undefined);
   mocks.message.mockResolvedValue(undefined);
 });
 
@@ -47,9 +47,9 @@ describe("installPendingUpdate", () => {
     await updater.installPendingUpdate();
 
     expect(mocks.remember).toHaveBeenCalledWith("0.1.23");
-    expect(mocks.relaunch).toHaveBeenCalledOnce();
+    expect(mocks.invoke).toHaveBeenCalledWith("relaunch_app");
     expect(mocks.remember.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.relaunch.mock.invocationCallOrder[0]!,
+      mocks.invoke.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -61,7 +61,7 @@ describe("installPendingUpdate", () => {
 
     expect(result.phase).toBe("error");
     expect(mocks.remember).not.toHaveBeenCalled();
-    expect(mocks.relaunch).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
   it("does not record when no update is pending", async () => {
@@ -69,6 +69,6 @@ describe("installPendingUpdate", () => {
 
     expect((await updater.installPendingUpdate()).phase).toBe("idle");
     expect(mocks.remember).not.toHaveBeenCalled();
-    expect(mocks.relaunch).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { PK_VERSION } from "./pkVersion";
 import { announceUpdateAvailable } from "./sounds";
@@ -31,6 +30,20 @@ function isUpdaterNotConfiguredError(error: unknown): boolean {
   return /updater does not have any endpoints set/i.test(text);
 }
 
+function isNewerVersion(candidate: string, current: string): boolean {
+  const left = candidate.replace(/^v/, "").split(/[+-]/, 1)[0].split(".").map(Number);
+  const right = current.replace(/^v/, "").split(/[+-]/, 1)[0].split(".").map(Number);
+  if (left.length < 2 || right.length < 2 || left.some(Number.isNaN) || right.some(Number.isNaN)) {
+    return false;
+  }
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index] ?? 0;
+    const b = right[index] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
 export async function readAppVersion(): Promise<string> {
   try {
     return await getVersion();
@@ -40,6 +53,7 @@ export async function readAppVersion(): Promise<string> {
 }
 async function pkUpstreamInfo(): Promise<{
   tag: string;
+  version: string;
   behind: number;
   commits: string[];
   pkBehind: number;
@@ -51,12 +65,14 @@ async function pkUpstreamInfo(): Promise<{
     const [header = "", rest = ""] = raw.split("---commits---");
     const [upstreamLog = "", pkLog = ""] = rest.split("---pk-commits---");
     const tag = /tag=(\S*)/.exec(header)?.[1] ?? "";
+    const version = /version=(\S*)/.exec(header)?.[1] ?? "";
     const behind = Number(/behind=(\d+)/.exec(header)?.[1] ?? "0");
     const pkBehind = Number(/pkbehind=(\d+)/.exec(header)?.[1] ?? "0");
     const pkAhead = Number(/pkahead=(\d+)/.exec(header)?.[1] ?? "0");
     if (!tag || !Number.isFinite(behind)) return null;
     return {
       tag,
+      version,
       behind,
       commits: upstreamLog.split("\n").map((l) => l.trim()).filter(Boolean),
       pkBehind: Number.isFinite(pkBehind) ? pkBehind : 0,
@@ -87,14 +103,18 @@ export async function runUpdateFlow(
     const update = await check();
     const info = manual ? await pkUpstreamInfo() : null;
     if (manual && info) {
+      const officialBehind = Math.max(
+        info.behind,
+        isNewerVersion(info.version, currentVersion) ? 1 : 0,
+      );
       const proceed = await requestPkUpdateDecision({
-        upToDate: info.behind === 0 && info.pkBehind === 0 && !update,
+        upToDate: officialBehind === 0 && info.pkBehind === 0 && !update,
         axes: [
           {
             label: "MonoCode officiel",
             currentVersion,
-            availableVersion: update?.version || info.tag || null,
-            behind: info.behind,
+            availableVersion: update?.version || info.version || info.tag || null,
+            behind: officialBehind,
             ahead: 0,
             commits: info.commits,
           },
@@ -152,15 +172,18 @@ export async function runUpdateFlow(
       onProgress?.(idle);
       if (manual) {
         const info = await pkUpstreamInfo();
-        const upToDate = !info || (info.behind === 0 && info.pkBehind === 0);
+        const officialBehind = info
+          ? Math.max(info.behind, isNewerVersion(info.version, currentVersion) ? 1 : 0)
+          : 0;
+        const upToDate = !info || (officialBehind === 0 && info.pkBehind === 0);
         const proceed = await requestPkUpdateDecision({
           upToDate,
           axes: [
             {
               label: "MonoCode officiel",
               currentVersion,
-              availableVersion: info?.tag || null,
-              behind: info?.behind ?? 0,
+              availableVersion: info?.version || info?.tag || null,
+              behind: officialBehind,
               ahead: 0,
               commits: info?.commits ?? [],
             },
@@ -238,7 +261,7 @@ export async function installPendingUpdate(
 
     rememberInstalledUpdate(update.version);
     pendingUpdate = null;
-    await relaunch();
+    await invoke("relaunch_app");
     return {
       phase: "current",
       currentVersion: update.version,
