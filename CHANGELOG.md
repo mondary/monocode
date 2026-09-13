@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.39] - 2026-09-13
+
+### Added
+
+- Fournisseurs Gemini (API) et Antigravity en onglets de première classe via l'OpenCode CLI, avec icônes de marque et badge PK.
+- Export d'une note en markdown (frontmatter titre/tags/dates) depuis la vue Notes.
+- Option d'auto-export des notes rattachées à un projet vers `<projet>/.monocode/notes/<slug>.md`, réécrite à chaque édition et supprimée avec la note ; activation = export immédiat des notes existantes.
+
+### Fixed
+
+- La fenêtre « Mise à jour installée » ne demande plus un redémarrage redondant juste après que la mise à jour PK a déjà relancé l'application.
+- Z.AI/GLM-5.3 ne plante plus sur `SchemaError ... at ["subtask"]` : l'outil `task` est retiré du toolset des modèles zai-coding-plan au démarrage du serveur OpenCode.
+
 ## [2026.09.38] - 2026-09-12
 
 - Version PK incrémentée après les huit commits PK en attente.
