@@ -37,10 +37,20 @@ import {
 
 describe("runtimeModeToPermission", () => {
   it("maps runtime modes onto Claude permission flags", () => {
-    expect(runtimeModeToPermission("supervised")).toBeUndefined();
+    expect(runtimeModeToPermission("supervised")).toBe("default");
     expect(runtimeModeToPermission("auto-accept-edits")).toBe("acceptEdits");
     expect(runtimeModeToPermission("auto")).toBe("auto");
     expect(runtimeModeToPermission("full-access")).toBe("bypassPermissions");
+  });
+
+  it("sends supervised as a flag so settings cannot lower it", () => {
+    const args = buildClaudeSpawnArgs({
+      permissionMode: runtimeModeToPermission("supervised"),
+      sessionId: "sess-supervised",
+    });
+    expect(args).toEqual(
+      expect.arrayContaining(["--permission-mode", "default"]),
+    );
   });
 });
 
@@ -262,6 +272,17 @@ describe("modelsForClaudeVersion", () => {
     expect(next).toContain("claude-opus-5");
     expect(next).toContain("claude-fable-5");
     expect(next).toContain("claude-sonnet-5");
+  });
+
+  it("hides Sonnet 5 until 2.1.197, and rejects a missing version", () => {
+    const beforeMinimum = modelsForClaudeVersion("2.1.196").map((model) => model.nativeId);
+    expect(beforeMinimum).not.toContain("claude-sonnet-5");
+
+    const atMinimum = modelsForClaudeVersion("2.1.197").map((model) => model.nativeId);
+    expect(atMinimum).toContain("claude-sonnet-5");
+
+    const missing = modelsForClaudeVersion(null).map((model) => model.nativeId);
+    expect(missing).not.toContain("claude-sonnet-5");
   });
 });
 

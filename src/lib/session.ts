@@ -5,6 +5,7 @@ import { loadCustomProviders } from "./customProviders";
 import type { InboxComposerCard } from "./githubTasks";
 import type { InboxAskContext } from "./inboxAsk";
 import type { NoteCardMeta, NoteComposerCard } from "./notes";
+import type { LinkedWorkItemUpdateCard } from "./linkedWorkItemActivity";
 import {
   defaultSessionChoice,
   preferredModelId,
@@ -28,10 +29,13 @@ export type BuiltinHarnessId =
   | "omp"
   | "fx";
 
-/** Custom providers managed from Settings; ids are `pk-custom-<slug>`. */
 export type CustomHarnessId = `pk-custom-${string}`;
 
 export type HarnessId = BuiltinHarnessId | CustomHarnessId;
+
+type HarnessNameMap = Record<BuiltinHarnessId, string> & {
+  [id: CustomHarnessId]: string;
+};
 
 export function isCustomHarness(id: string): id is CustomHarnessId {
   return id.startsWith("pk-custom-");
@@ -148,6 +152,35 @@ export type ToolPreview = {
   output?: string;
 };
 
+/** One thing a subagent did, mirrored into the parent transcript. */
+export type AgentStepKind = "tool" | "message" | "reasoning";
+
+export type AgentStep = {
+  /** Provider step identity, so repeats merge instead of stacking up. */
+  id: string;
+  kind: AgentStepKind;
+  /** Tool label, or the prose the subagent wrote. */
+  text: string;
+  toolKind?: string;
+  status?: string;
+  preview?: ToolPreview;
+};
+
+/**
+ * The inside of a delegated run: what the subagent is called, and the trail it
+ * left. Held on the parent Agent tool block so the transcript can open it
+ * without a second session.
+ */
+export type AgentRunMeta = {
+  /** What the subagent is called, e.g. "Correctness review". */
+  name: string;
+  /** Provider agent type, e.g. "code-reviewer". */
+  agentType?: string;
+  /** Model reported for the child, which may differ from its parent. */
+  model?: string;
+  steps: AgentStep[];
+};
+
 export type AttachmentKind = "image" | "audio" | "file";
 
 export type Attachment = {
@@ -206,6 +239,8 @@ export type Block = {
     requestId: number;
     decided?: "allow" | "deny" | "cancelled";
   };
+  /** Inner activity of a delegated run. Present on Agent/Task tool blocks. */
+  agentRun?: AgentRunMeta;
   taskList?: TaskListMeta;
   plan?: PlanBlockMeta;
   handoff?: HandoffMeta;
@@ -290,6 +325,8 @@ export type Session = {
   inboxCard?: InboxComposerCard;
   /** GitHub issue or pull request shown on the persisted session card. */
   linkedWorkItem?: LinkedWorkItem;
+  /** New linked-item activity shown above the composer. In-memory, one-shot. */
+  linkedWorkItemUpdateCard?: LinkedWorkItemUpdateCard;
   /** Note chip shown above the composer. In-memory, one-shot. */
   noteCard?: NoteComposerCard;
   /** Handoff chip shown above the composer. In-memory, one-shot. */
@@ -308,7 +345,7 @@ export type PendingHarnessSwitch = {
   fromProviderSessionId?: string;
 };
 
-export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
+export const HARNESS_LABEL: HarnessNameMap = {
   claude: "claude",
   codex: "codex",
   cursor: "cursor",
@@ -325,7 +362,7 @@ export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
   fx: "fx",
 };
 
-export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
+export const HARNESS_TITLE: HarnessNameMap = {
   claude: "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
@@ -342,10 +379,6 @@ export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
   fx: "fx",
 };
 
-/**
- * Runtime titles: custom providers come from Settings and have no entry in
- * the builtin record, so fall back to their configured name.
- */
 export function harnessTitle(id: HarnessId): string {
   if (isCustomHarness(id)) return customProviderName(id) ?? id;
   return HARNESS_TITLE[id];

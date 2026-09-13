@@ -3,24 +3,12 @@ import {
   ArrowDownCircle,
   Check,
   ChevronDown,
-  ChevronUp,
   ImagePlus,
   Loader,
   RefreshCw,
   RotateCcw,
   Search,
 } from "../chrome/icons";
-import { invoke } from "@tauri-apps/api/core";
-import { exportAllNotesToProjects } from "../lib/notes";
-import {
-  customProviderTestLabel,
-  deleteCustomProvider,
-  loadCustomProviders,
-  slugCustomProviderId,
-  upsertCustomProvider,
-  type CustomProvider,
-  type CustomProviderProbe,
-} from "../lib/customProviders";
 import {
   useCallback,
   useEffect,
@@ -41,30 +29,28 @@ import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useColorScheme } from "../hooks/useColorScheme";
 import {
   applyChatBackground,
-  applyChatBackgroundOpacity,
+  applyChatBackgroundEmptyOpacity,
+  applyChatBackgroundSessionOpacity,
   applyChatBackgroundScope,
-  applyBackgroundPanels,
   applyBodyGlass,
   applyThemePreference,
-  applyThemePreset,
   applySidebarBlur,
   applySidebarOpacity,
   applyThemeTint,
   BODY_GLASS_DEFAULT,
-  CHAT_BACKGROUND_OPACITY_DEFAULT,
+  CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT,
   CHAT_BACKGROUND_OPACITY_MAX,
   CHAT_BACKGROUND_OPACITY_MIN,
+  CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT,
   CHAT_BACKGROUND_SCOPE_DEFAULT,
   THEME_PREFERENCE_DEFAULT,
   chatBackgroundSrc,
   loadBodyGlass,
-  loadChatBackgroundOpacity,
+  loadChatBackgroundEmptyOpacity,
   loadChatBackgroundPath,
+  loadChatBackgroundSessionOpacity,
   loadChatBackgroundScope,
-  loadBackgroundPanels,
-  type BackgroundPanel,
   loadThemePreference,
-  loadThemePreset,
   loadSidebarBlur,
   loadSidebarOpacity,
   loadThemeHue,
@@ -72,12 +58,11 @@ import {
   loadTranscriptLayout,
   loadTranscriptAnchor,
   saveBodyGlass,
-  saveChatBackgroundOpacity,
+  saveChatBackgroundEmptyOpacity,
   saveChatBackgroundPath,
+  saveChatBackgroundSessionOpacity,
   saveChatBackgroundScope,
-  saveBackgroundPanels,
   saveThemePreference,
-  saveThemePreset,
   saveSidebarBlur,
   saveSidebarOpacity,
   saveThemeHue,
@@ -98,7 +83,6 @@ import {
   THEME_SATURATION_MAX,
   THEME_SATURATION_MIN,
   type ThemePreference,
-  type ThemePreset,
   type ChatBackgroundScope,
   type TranscriptLayout,
 } from "../lib/appearance";
@@ -123,7 +107,6 @@ import {
   subscribeHarnessAvailability,
 } from "../lib/harness/availability";
 import { refreshHarnessCatalogs } from "../lib/harness/registry";
-import { ensureOpenCodeProviderRegistered } from "../lib/harness/opencodeAdapter";
 import {
   defaultModelId,
   getModelSnapshot,
@@ -140,35 +123,6 @@ import {
 import { prettyCwd, projectKey, projectName } from "../lib/paths";
 import { IS_MAC } from "../lib/platform";
 import {
-  captureAccelerator,
-  findBindingOwner,
-  isOverridden,
-  setKeybindingOverride,
-  subscribeKeybindings,
-} from "../lib/keybindings";
-import {
-  loadDefaultTerminalPlacement,
-  saveDefaultTerminalPlacement,
-  type TerminalPlacement,
-} from "../lib/projectTerminal";
-import {
-  loadHiddenUsageProviders,
-  loadUsageDisplayMode,
-  loadUsageScope,
-  loadUsageWindowVisibility,
-  saveHiddenUsageProviders,
-  saveUsageDisplayMode,
-  saveUsageScope,
-  saveUsageWindowVisibility,
-  loadUsageProviderOrder,
-  saveUsageProviderOrder,
-  USAGE_PROVIDER_IDS,
-  normalizeUsageProviderId,
-  type UsageDisplayMode,
-  type UsageScope,
-  type UsageWindowVisibility,
-} from "../lib/rateLimits";
-import {
   loadArchivedProjects,
   looksLikeProject,
   subscribeArchivedProjects,
@@ -176,9 +130,9 @@ import {
 } from "../lib/recents";
 import {
   HARNESSES,
+  HARNESS_TITLE,
   sessionDisplayTitle,
   type HarnessId,
-  harnessTitle,
 } from "../lib/session";
 import {
   loadSessionSidebarFilters,
@@ -208,30 +162,24 @@ import {
 } from "../lib/linear";
 import { loadTabGroupLabels, resolveTabGroupLabel } from "../lib/tabGroups";
 import {
-  buildKeybindingRows,
   filterKeybindings,
+  KEYBINDINGS,
   loadClaudeHooks,
+  loadComposerEffortVisible,
   loadComposerRunner,
   loadDiffViewer,
   loadFollowUpBehavior,
-  loadDoneCheckSide,
-  saveDoneCheckSide,
-  loadProjectSort,
-  saveProjectSort,
-  type DoneCheckSide,
-  type ProjectSortMode,
   loadGridArcadeEnabled,
   loadLiveAgentsEnabled,
   loadNotesEnabled,
-  loadNotesAutoExport,
   saveClaudeHooks,
+  saveComposerEffortVisible,
   saveComposerRunner,
   saveDiffViewer,
   saveFollowUpBehavior,
   saveGridArcadeEnabled,
   saveLiveAgentsEnabled,
   saveNotesEnabled,
-  saveNotesAutoExport,
   settingsSectionDescription,
   settingsSectionLabel,
   type DiffViewer,
@@ -239,17 +187,6 @@ import {
   type SettingsSectionId,
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
-import {
-  BUSY_GLOW_PRESETS,
-  loadBusyGlowColor,
-  saveBusyGlowColor,
-} from "../lib/busyGlowSettings";
-import {
-  loadExplorerHighlightActions,
-  loadExplorerShowChanges,
-  saveExplorerHighlightActions,
-  saveExplorerShowChanges,
-} from "../lib/explorerSettings";
 import {
   cachedNotificationPermission,
   loadNotificationsEnabled,
@@ -267,8 +204,6 @@ import {
 } from "../lib/updater";
 
 import { SkillsPage } from "./SkillsPage";
-import { PK_VERSION } from "../lib/pkVersion";
-import { usePkVariant } from "../lib/pkVariant";
 
 export type SettingsAnchor = "github" | "gitlab" | "linear";
 
@@ -283,7 +218,6 @@ type Props = {
   /** Card to scroll to; the General page is too long to land at the top. */
   anchor?: SettingsAnchor | null;
   cwd: string;
-  projectCwd?: string;
   sessions: SessionSummary[];
   besideRail?: boolean;
   onClose: () => void;
@@ -292,14 +226,13 @@ type Props = {
   onDeleteSession: (sessionId: string) => void;
   onRestoreProject?: (path: string) => void;
   onDeleteProject?: (path: string) => void;
-  onOpenWhatsNew: () => void;
+  onOpenWhatsNew: (version: string) => void;
 };
 
 export function SettingsView({
   section,
   anchor = null,
   cwd,
-  projectCwd,
   sessions,
   besideRail = false,
   onClose,
@@ -323,13 +256,14 @@ export function SettingsView({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       event.stopPropagation();
       onCloseRef.current();
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    // Let dialogs and other Settings controls handle Escape first.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (
@@ -367,54 +301,59 @@ export function SettingsView({
         {IS_MAC ? null : <WindowControls />}
       </div>
 
-      <div
-        ref={lockOverscroll}
-        className="settings-body min-h-0 flex-1 overflow-y-auto overscroll-none"
-      >
-        <div className="mx-auto w-full max-w-5xl px-8 py-8">
-          <PageHeader
-            title={
-              section === "keybindings" ? (
-                <span className="flex items-center gap-2">
-                  {settingsSectionLabel(section)}
-                  <PkBadge />
-                </span>
-              ) : (
-                settingsSectionLabel(section)
-              )
-            }
-            description={settingsSectionDescription(section)}
-          />
-          {section === "general" ? (
-            <GeneralPage onOpenWhatsNew={onOpenWhatsNew} />
-          ) : null}
-          {section === "appearance" ? (
-            <AppearancePage appearance={appearance} />
-          ) : null}
-          {section === "keybindings" ? <KeybindingsPage /> : null}
-          {section === "providers" ? <ProvidersPage /> : null}
-          {section === "inbox" ? <InboxPage /> : null}
-          {section === "skills" ? (
-            <SkillsPage key={projectCwd ?? cwd} cwd={projectCwd ?? cwd} />
-          ) : null}
-          {section === "archive" ? (
-            <ArchivePage
-              cwd={cwd}
-              sessions={sessions}
-              onOpenSession={onOpenSession}
-              onArchiveSession={onArchiveSession}
-              onDeleteSession={onDeleteSession}
-              onRestoreProject={onRestoreProject}
-              onDeleteProject={onDeleteProject}
+      {section === "skills" ? (
+        <SkillsPage
+          key={cwd}
+          cwd={cwd}
+          header={
+            <PageHeader
+              title={settingsSectionLabel(section)}
+              description={settingsSectionDescription(section)}
             />
-          ) : null}
+          }
+        />
+      ) : (
+        <div
+          ref={lockOverscroll}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-none"
+        >
+          <div className="mx-auto w-full max-w-5xl px-8 py-8">
+            <PageHeader
+              title={settingsSectionLabel(section)}
+              description={settingsSectionDescription(section)}
+            />
+            {section === "general" ? (
+              <GeneralPage onOpenWhatsNew={onOpenWhatsNew} />
+            ) : null}
+            {section === "appearance" ? (
+              <AppearancePage appearance={appearance} />
+            ) : null}
+            {section === "keybindings" ? <KeybindingsPage /> : null}
+            {section === "providers" ? <ProvidersPage /> : null}
+            {section === "inbox" ? <InboxPage /> : null}
+            {section === "archive" ? (
+              <ArchivePage
+                cwd={cwd}
+                sessions={sessions}
+                onOpenSession={onOpenSession}
+                onArchiveSession={onArchiveSession}
+                onDeleteSession={onDeleteSession}
+                onRestoreProject={onRestoreProject}
+                onDeleteProject={onDeleteProject}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
+function GeneralPage({
+  onOpenWhatsNew,
+}: {
+  onOpenWhatsNew: (version: string) => void;
+}) {
   const [transcriptLayout, setTranscriptLayout] =
     useState<TranscriptLayout>(loadTranscriptLayout);
   const [transcriptAnchor, setTranscriptAnchor] =
@@ -422,33 +361,14 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
   const [followUpBehavior, setFollowUpBehavior] =
     useState<FollowUpBehavior>(loadFollowUpBehavior);
-  const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
-    loadDoneCheckSide,
-  );
-  const [projectSort, setProjectSort] = useState<ProjectSortMode>(
-    loadProjectSort,
+  const [composerEffortVisible, setComposerEffortVisible] = useState(
+    loadComposerEffortVisible,
   );
   const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
   );
-  const [dockSide, setDockSide] = useState<TerminalPlacement>(
-    loadDefaultTerminalPlacement,
-  );
-  const [usageDisplayMode, setUsageDisplayMode] =
-    useState<UsageDisplayMode>(loadUsageDisplayMode);
-  const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
-  const [usageWindowVisibility, setUsageWindowVisibility] =
-    useState<UsageWindowVisibility>(loadUsageWindowVisibility);
-  const [usageProviderOrder, setUsageProviderOrder] = useState(loadUsageProviderOrder);
-  const [hiddenUsageProviders, setHiddenUsageProviders] = useState<string[]>(
-    loadHiddenUsageProviders,
-  );
-  const [usageProviderList, setUsageProviderList] = useState<string[] | null>(
-    null,
-  );
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
-  const [notesAutoExport, setNotesAutoExport] = useState(loadNotesAutoExport);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
   );
@@ -460,13 +380,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     useState<NotificationPermission>(cachedNotificationPermission);
   const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
 
-  const [explorerShowChanges, setExplorerShowChanges] = useState(
-    loadExplorerShowChanges,
-  );
-  const [explorerHighlightActions, setExplorerHighlightActions] = useState(
-    loadExplorerHighlightActions,
-  );
-  const [busyGlowColor, setBusyGlowColor] = useState(loadBusyGlowColor);
   // The user may flip the switch in System Settings and come back: re-read
   // the OS state whenever the window regains focus while the toggle is on.
   useEffect(() => {
@@ -509,14 +422,9 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setFollowUpBehavior(next);
   };
 
-  const onDoneCheckSide = (next: DoneCheckSide) => {
-    saveDoneCheckSide(next);
-    setDoneCheckSide(next);
-  };
-
-  const onProjectSort = (next: ProjectSortMode) => {
-    saveProjectSort(next);
-    setProjectSort(next);
+  const onComposerEffortVisible = (next: boolean) => {
+    saveComposerEffortVisible(next);
+    setComposerEffortVisible(next);
   };
 
   const onComposerRunner = (next: boolean) => {
@@ -532,16 +440,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onNotesEnabled = (next: boolean) => {
     saveNotesEnabled(next);
     setNotesEnabled(next);
-  };
-
-  const onNotesAutoExport = (next: boolean) => {
-    saveNotesAutoExport(next);
-    setNotesAutoExport(next);
-    if (next) {
-      // Backfill: mirror existing notes immediately instead of waiting for
-      // each one to be edited.
-      void exportAllNotesToProjects().catch(() => undefined);
-    }
   };
 
   const onLiveAgentsEnabled = (next: boolean) => {
@@ -566,76 +464,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setClaudeHooks(next);
   };
 
-  const onExplorerShowChanges = (next: boolean) => {
-    saveExplorerShowChanges(next);
-    setExplorerShowChanges(next);
-  };
-
-  const onExplorerHighlightActions = (next: boolean) => {
-    saveExplorerHighlightActions(next);
-    setExplorerHighlightActions(next);
-  };
-
-  const onBusyGlowColor = (next: string) => {
-    saveBusyGlowColor(next);
-    setBusyGlowColor(next);
-  };
-
-  const onDefaultDockSide = (next: TerminalPlacement) => {
-    saveDefaultTerminalPlacement(next);
-    setDockSide(next);
-  };
-
-  const onUsageDisplayMode = (next: UsageDisplayMode) => {
-    saveUsageDisplayMode(next);
-    setUsageDisplayMode(next);
-  };
-
-  const onUsageScope = (next: UsageScope) => {
-    saveUsageScope(next);
-    setUsageScope(next);
-  };
-
-  const onUsageWindowVisibility = (next: UsageWindowVisibility) => {
-    saveUsageWindowVisibility(next);
-    setUsageWindowVisibility(next);
-  };
-
-  const toggleUsageProvider = (id: string) => {
-    const canonical = normalizeUsageProviderId(id);
-    const next = hiddenUsageProviders.includes(canonical)
-      ? hiddenUsageProviders.filter((entry) => entry !== canonical)
-      : [...hiddenUsageProviders, canonical];
-    saveHiddenUsageProviders(next);
-    setHiddenUsageProviders(next);
-  };
-
-  const moveUsageProvider = (id: string, delta: -1 | 1) => {
-    const index = usageProviderOrder.indexOf(id);
-    const target = index + delta;
-    if (index < 0 || target < 0 || target >= usageProviderOrder.length) return;
-    const next = [...usageProviderOrder];
-    [next[index], next[target]] = [next[target], next[index]];
-    saveUsageProviderOrder(next);
-    setUsageProviderOrder(next);
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.resolve().then(() => {
-      if (cancelled) return;
-      setUsageProviderList([...USAGE_PROVIDER_IDS]);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <>
-      <Heading title="About" />
-      <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
-
       <Row
         label="Transcript layout"
         description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
@@ -665,134 +495,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Terminal dock position"
-        pk
-        description="Where new project terminal docks open by default. Each dock can still be moved individually from its own header."
-      >
-        <Segmented
-          label="Terminal dock position"
-          value={dockSide}
-          options={[
-            { value: "bottom", label: "Bottom" },
-            { value: "right", label: "Right" },
-            { value: "left", label: "Left" },
-            { value: "top", label: "Top" },
-            { value: "tab", label: "Terminal tab" },
-          ]}
-          onChange={onDefaultDockSide}
-        />
-      </Row>
-      <Row
-        label="Usage display"
-        pk
-        description="Show provider quota as consumed or remaining capacity in the footer."
-      >
-        <Segmented
-          label="Usage display"
-          value={usageDisplayMode}
-          options={[
-            { value: "used", label: "Used" },
-            { value: "remaining", label: "Remaining" },
-          ]}
-          onChange={onUsageDisplayMode}
-        />
-      </Row>
-      <Row
-        label="Usage providers"
-        pk
-        description="Footer chips: follow the current conversation's provider (Claude, Codex, ZAI, OpenCode Go…), or hand-pick the providers that always appear."
-      >
-        <div className="flex flex-col items-end gap-2">
-          <Segmented
-            label="Usage providers"
-            value={usageScope}
-            options={[
-              { value: "active", label: "Current chat" },
-              { value: "custom", label: "Choose" },
-            ]}
-            onChange={onUsageScope}
-          />
-          {(
-            usageProviderList == null ? (
-              <span className="text-[12px] text-content/45">
-                Loading providers…
-              </span>
-            ) : (
-              <div className="w-[min(360px,100%)] overflow-hidden rounded-xl border border-content/10 bg-content/[0.025]">
-                <div className="flex items-center justify-between border-b border-content/10 px-3 py-2">
-                  <span className="text-[11px] font-medium text-content/65">Providers affichés</span>
-                  <span className="text-[10px] text-content/35">ordre de la barre quota</span>
-                </div>
-                {usageProviderList
-                  .slice()
-                  .sort((a, b) => usageProviderOrder.indexOf(a) - usageProviderOrder.indexOf(b))
-                  .map((id) => {
-                  const canonicalId = normalizeUsageProviderId(id);
-                  const visible = !hiddenUsageProviders.includes(canonicalId);
-                  const position = usageProviderOrder.indexOf(canonicalId);
-                  return (
-                    <div
-                      key={id}
-                      className="flex items-center gap-2 border-b border-content/7 px-2 py-1.5 last:border-b-0"
-                    >
-                      <button
-                        type="button"
-                        aria-pressed={visible}
-                        onClick={() => toggleUsageProvider(canonicalId)}
-                        className={`grid size-6 shrink-0 place-items-center rounded-md border transition-colors ${
-                          visible
-                            ? "border-accent/40 bg-accent/15 text-accent"
-                            : "border-content/15 text-transparent hover:border-content/30"
-                        }`}
-                        title={visible ? "Masquer ce provider" : "Afficher ce provider"}
-                      >
-                        <Check className="size-3.5" strokeWidth={2.5} />
-                      </button>
-                      <span className={`min-w-0 flex-1 truncate text-left text-[12px] ${visible ? "text-content" : "text-content/40"}`}>
-                        {usageProviderLabel(canonicalId)}
-                      </span>
-                      <span className="shrink-0 text-[10px] tabular-nums text-content/25">{position + 1}</span>
-                      <div className="flex shrink-0 gap-0.5">
-                        <button
-                          type="button"
-                          aria-label={`Monter ${usageProviderLabel(canonicalId)}`}
-                          disabled={position <= 0}
-                          onClick={() => moveUsageProvider(canonicalId, -1)}
-                          className="grid size-6 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-20"
-                        ><ChevronUp className="size-3.5" /></button>
-                        <button
-                          type="button"
-                          aria-label={`Descendre ${usageProviderLabel(canonicalId)}`}
-                          disabled={position < 0 || position >= usageProviderOrder.length - 1}
-                          onClick={() => moveUsageProvider(canonicalId, 1)}
-                          className="grid size-6 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-20"
-                        ><ChevronDown className="size-3.5" /></button>
-                      </div>
-                    </div>
-                  );
-                  })}
-              </div>
-            )
-          )}
-        </div>
-      </Row>
-      <Row
-        label="Usage windows"
-        pk
-        description="Choose which quota window is shown in the footer. Hover a provider to see every available window, including monthly data."
-      >
-        <Segmented
-          label="Usage windows"
-          value={usageWindowVisibility}
-          options={[
-            { value: "session", label: "5 hours" },
-            { value: "weekly", label: "Weekly" },
-            { value: "all", label: "All" },
-          ]}
-          onChange={onUsageWindowVisibility}
-        />
-      </Row>
-      <Row
         label="Follow-up behavior"
         description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
       >
@@ -802,39 +504,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           options={[
             { value: "queue", label: "Queue" },
             { value: "steer", label: "Steer" },
-            { value: "choice", label: "Let me choose" },
           ]}
           onChange={onFollowUpBehavior}
-        />
-      </Row>
-      <Row
-        label="Finished check position"
-        description="Where the green check sits on a project row when its agent finishes: over the project icon, or over the changes counter on the right."
-      >
-        <Segmented
-          label="Finished check position"
-          value={doneCheckSide}
-          options={[
-            { value: "left", label: "Left" },
-            { value: "right", label: "Right" },
-          ]}
-          onChange={onDoneCheckSide}
-        />
-      </Row>
-      <Row
-        label="Project list order"
-        description="How the project rail sorts your projects. Manual keeps the order you drag them into; the others re-sort automatically. Pinned projects stay on top either way."
-      >
-        <Segmented
-          label="Project list order"
-          value={projectSort}
-          options={[
-            { value: "manual", label: "Manual" },
-            { value: "recent", label: "Recent" },
-            { value: "alphabetical", label: "A–Z" },
-            { value: "unpushed", label: "Unpushed" },
-          ]}
-          onChange={onProjectSort}
         />
       </Row>
       <Row
@@ -845,6 +516,16 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           label="Anchor prompts to top"
           on={transcriptAnchor}
           onChange={onTranscriptAnchor}
+        />
+      </Row>
+      <Row
+        label="Effort control"
+        description="Show the current effort as a separate control beside the model picker for quicker changes. When off, effort stays inside the model menu."
+      >
+        <Toggle
+          label="Show effort beside model picker"
+          on={composerEffortVisible}
+          onChange={onComposerEffortVisible}
         />
       </Row>
       <Row
@@ -874,17 +555,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         <Toggle label="Notes" on={notesEnabled} onChange={onNotesEnabled} />
       </Row>
       <Row
-        label="Auto-export notes to project"
-        pk
-        description="Mirror every note created from a project into <project>/.monocode/notes/<slug>.md — markdown with frontmatter, rewritten on each edit, removed when the note is deleted. Turning this on exports existing notes right away; turning it off leaves the files in place."
-      >
-        <Toggle
-          label="Auto-export notes to project"
-          on={notesAutoExport}
-          onChange={onNotesAutoExport}
-        />
-      </Row>
-      <Row
         label="Working agents"
         description="When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session. Turn this off to hide the card."
       >
@@ -895,45 +565,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Working glow color"
-        pk
-        description="Highlight color of the light sweep on project titles while an agent works on them. Theme follows the accent of the current theme."
-      >
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {BUSY_GLOW_PRESETS.map((preset) => {
-            const selected = busyGlowColor === preset.value;
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                aria-pressed={selected}
-                title={preset.label}
-                aria-label={`${preset.label} glow`}
-                onClick={() => onBusyGlowColor(preset.value)}
-                className={`grid size-6 place-items-center rounded-md border transition-colors ${
-                  selected
-                    ? "border-accent/60"
-                    : "border-content/15 hover:border-content/35"
-                }`}
-              >
-                {preset.value ? (
-                  <span
-                    className="size-3 rounded-full"
-                    style={{ backgroundColor: preset.value }}
-                  />
-                ) : (
-                  <span className="text-[9px] font-medium text-content/45">
-                    auto
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Row>
-      <Row
         label="Sounds"
-        description="Short cues when a turn finishes, the agent asks a question or approval, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
+        description="Short cues when a turn finishes, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
       >
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>
@@ -966,29 +599,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
 
-      <Heading title="Explorer" />
-      <Row
-        label="Changes button"
-        pk
-        description="The Source Control tab already lists file changes. Turn this off to hide the duplicate Changes button from the Explorer header."
-      >
-        <Toggle
-          label="Changes button"
-          on={explorerShowChanges}
-          onChange={onExplorerShowChanges}
-        />
-      </Row>
-      <Row
-        label="Highlight custom actions"
-        pk
-        description="Tint the Reveal and Initialize project buttons with the PK accent color so they stand out in the Explorer header."
-      >
-        <Toggle
-          label="Highlight custom actions"
-          on={explorerHighlightActions}
-          onChange={onExplorerHighlightActions}
-        />
-      </Row>
+      <Heading title="About" />
+      <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
     </>
   );
 }
@@ -1371,8 +983,11 @@ function LinearSettings() {
   );
 }
 
-function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
-  const variant = usePkVariant();
+function UpdateRow({
+  onOpenWhatsNew,
+}: {
+  onOpenWhatsNew: (version: string) => void;
+}) {
   const [snapshot, setSnapshot] = useState<UpdaterSnapshot>({
     phase: "idle",
     currentVersion: "…",
@@ -1404,40 +1019,24 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 
   const status =
     snapshot.phase === "available"
-      ? `Official MonoCode ${snapshot.availableVersion} is available.`
+      ? `Version ${snapshot.availableVersion} is available.`
       : snapshot.phase === "downloading"
         ? `Downloading${snapshot.progress != null ? ` ${snapshot.progress}%` : "…"}`
         : snapshot.phase === "checking"
-          ? "Checking official MonoCode and MonoCodePK updates…"
+          ? "Checking for updates…"
           : snapshot.phase === "current"
-            ? "Official MonoCode and MonoCodePK are up to date."
+            ? "You're on the latest version."
             : snapshot.phase === "error"
               ? (snapshot.error ?? "Update check failed.")
-              : "Checks official MonoCode releases and MonoCodePK updates.";
+              : "MonoCode updates itself from the release feed.";
 
   return (
     <Row
-      pk
       label={
-        <span className="flex flex-col gap-0.5">
-          <span>
-            MonoCode
-            <span className="ml-2 font-mono text-[12px] text-content/45">
-              {snapshot.currentVersion}
-            </span>
-          </span>
-          <span>
-            <span className="flex items-center gap-2">
-              MonoCodePK
-              <span className="ml-2 font-mono text-[12px] text-accent/75">
-                {PK_VERSION}
-              </span>
-              {variant === "dev" ? (
-                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent">
-                  DEV
-                </span>
-              ) : null}
-            </span>
+        <span className="flex items-baseline gap-2">
+          Version
+          <span className="font-mono text-[12px] text-content/45">
+            {snapshot.currentVersion}
           </span>
         </span>
       }
@@ -1445,7 +1044,7 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     >
       <div className="flex items-center gap-2">
         <SecondaryButton
-          onClick={() => onOpenWhatsNew()}
+          onClick={() => onOpenWhatsNew(snapshot.currentVersion)}
           disabled={snapshot.currentVersion === "…"}
         >
           What's new
@@ -1468,7 +1067,6 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 type AppearanceSettings = ReturnType<typeof useAppearanceSettings>;
 
 function useAppearanceSettings() {
-  const [themePreset, setThemePreset] = useState<ThemePreset>(loadThemePreset);
   const [themePreference, setThemePreference] =
     useState<ThemePreference>(loadThemePreference);
   const [opacity, setOpacity] = useState(loadSidebarOpacity);
@@ -1479,13 +1077,13 @@ function useAppearanceSettings() {
   const [chatBackgroundPath, setChatBackgroundPath] = useState(
     loadChatBackgroundPath,
   );
-  const [chatBackgroundOpacity, setChatBackgroundOpacity] = useState(
-    loadChatBackgroundOpacity,
+  const [chatBackgroundEmptyOpacity, setChatBackgroundEmptyOpacity] = useState(
+    loadChatBackgroundEmptyOpacity,
   );
+  const [chatBackgroundSessionOpacity, setChatBackgroundSessionOpacity] =
+    useState(loadChatBackgroundSessionOpacity);
   const [chatBackgroundScope, setChatBackgroundScope] =
     useState<ChatBackgroundScope>(loadChatBackgroundScope);
-  const [backgroundPanels, setBackgroundPanels] =
-    useState<Record<BackgroundPanel, boolean>>(loadBackgroundPanels);
   const [chatBackgroundBusy, setChatBackgroundBusy] = useState(false);
   const [chatBackgroundError, setChatBackgroundError] = useState<string | null>(
     null,
@@ -1499,22 +1097,6 @@ function useAppearanceSettings() {
     saveThemePreference(next);
     setThemePreference(next);
   }, []);
-
-  const onThemePreset = useCallback(
-    (next: ThemePreset) => {
-      // Catppuccin Latte is a light flavor: pair it with the light scheme so
-      // the palette reads correctly instead of washing over a dark canvas.
-      if (next === "catppuccin-latte") {
-        applyThemePreference("light");
-        saveThemePreference("light");
-        setThemePreference("light");
-      }
-      applyThemePreset(next);
-      saveThemePreset(next);
-      setThemePreset(next);
-    },
-    [setThemePreference],
-  );
 
   const onOpacity = useCallback((percent: number) => {
     const next = applySidebarOpacity(percent / 100);
@@ -1577,10 +1159,16 @@ function useAppearanceSettings() {
     }
   }, []);
 
-  const onChatBackgroundOpacity = useCallback((percent: number) => {
-    const next = applyChatBackgroundOpacity(percent / 100);
-    saveChatBackgroundOpacity(next);
-    setChatBackgroundOpacity(next);
+  const onChatBackgroundEmptyOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundEmptyOpacity(percent / 100);
+    saveChatBackgroundEmptyOpacity(next);
+    setChatBackgroundEmptyOpacity(next);
+  }, []);
+
+  const onChatBackgroundSessionOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundSessionOpacity(percent / 100);
+    saveChatBackgroundSessionOpacity(next);
+    setChatBackgroundSessionOpacity(next);
   }, []);
 
   const onChatBackgroundScope = useCallback((next: ChatBackgroundScope) => {
@@ -1588,16 +1176,6 @@ function useAppearanceSettings() {
     saveChatBackgroundScope(next);
     setChatBackgroundScope(next);
   }, []);
-
-  const onBackgroundPanel = useCallback(
-    (panel: BackgroundPanel, value: boolean) => {
-      const next = { ...loadBackgroundPanels(), [panel]: value };
-      applyBackgroundPanels(next);
-      saveBackgroundPanels(next);
-      setBackgroundPanels(next);
-    },
-    [],
-  );
 
   const onUiScale = useCallback((percent: number) => {
     const next = saveUiScale(percent / 100);
@@ -1607,27 +1185,28 @@ function useAppearanceSettings() {
 
   const restoreDefaults = useCallback(() => {
     onThemePreference(THEME_PREFERENCE_DEFAULT);
-    onThemePreset("default");
     onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
     onBlur(SIDEBAR_BLUR_DEFAULT);
     onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
     onBodyGlass(BODY_GLASS_DEFAULT);
-    onChatBackgroundOpacity(Math.round(CHAT_BACKGROUND_OPACITY_DEFAULT * 100));
+    onChatBackgroundEmptyOpacity(
+      Math.round(CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT * 100),
+    );
+    onChatBackgroundSessionOpacity(
+      Math.round(CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT * 100),
+    );
     onChatBackgroundScope(CHAT_BACKGROUND_SCOPE_DEFAULT);
-    onBackgroundPanel("chat", true);
-    onBackgroundPanel("workspace", false);
-    onBackgroundPanel("terminal", false);
     if (chatBackgroundPath) void onClearChatBackground();
     onUiScale(Math.round(UI_SCALE_DEFAULT * 100));
   }, [
     chatBackgroundPath,
     onBlur,
     onBodyGlass,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onClearChatBackground,
     onThemePreference,
-    onThemePreset,
     onOpacity,
     onTint,
     onUiScale,
@@ -1635,30 +1214,28 @@ function useAppearanceSettings() {
 
   return {
     themePreference,
-    themePreset,
     opacity,
     blur,
     themeHue,
     themeSaturation,
     bodyGlass,
     chatBackgroundPath,
-    chatBackgroundOpacity,
+    chatBackgroundEmptyOpacity,
+    chatBackgroundSessionOpacity,
     chatBackgroundScope,
-    backgroundPanels,
     chatBackgroundBusy,
     chatBackgroundError,
     uiScale,
     onThemePreference,
-    onThemePreset,
     onOpacity,
     onBlur,
     onTint,
     onBodyGlass,
     onChooseChatBackground,
     onClearChatBackground,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
-    onBackgroundPanel,
     onUiScale,
     restoreDefaults,
   };
@@ -1683,25 +1260,6 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
             { value: "light", label: "Light" },
           ]}
           onChange={appearance.onThemePreference}
-        />
-      </Row>
-      <Row
-        label="Theme preset"
-        pk
-        description="Personal color palettes for MonoCode."
-      >
-        <Segmented
-          label="Theme preset"
-          value={appearance.themePreset}
-          options={[
-            { value: "default", label: "Default" },
-            { value: "dracula", label: "Dracula" },
-            { value: "catppuccin-frappe", label: "Frappé" },
-            { value: "catppuccin-latte", label: "Latte" },
-            { value: "catppuccin-macchiato", label: "Macchiato" },
-            { value: "catppuccin-mocha", label: "Mocha" },
-          ]}
-          onChange={appearance.onThemePreset}
         />
       </Row>
       <Row
@@ -1806,7 +1364,12 @@ function ChatBackgroundCard({
 }) {
   const src = chatBackgroundSrc(appearance.chatBackgroundPath);
   const hasImage = Boolean(appearance.chatBackgroundPath && src);
-  const visibility = Math.round(appearance.chatBackgroundOpacity * 100);
+  const emptyVisibility = Math.round(
+    appearance.chatBackgroundEmptyOpacity * 100,
+  );
+  const sessionVisibility = Math.round(
+    appearance.chatBackgroundSessionOpacity * 100,
+  );
   const busy = appearance.chatBackgroundBusy;
 
   return (
@@ -1850,10 +1413,10 @@ function ChatBackgroundCard({
               alt=""
               draggable={false}
               className="size-full object-cover"
-              style={{ opacity: appearance.chatBackgroundOpacity }}
+              style={{ opacity: appearance.chatBackgroundEmptyOpacity }}
             />
             <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
-              Preview at {visibility}%
+              Empty chat preview at {emptyVisibility}%
             </span>
           </div>
         ) : (
@@ -1892,55 +1455,38 @@ function ChatBackgroundCard({
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
               <div className="min-w-0">
-                <div className="text-[12px] text-content">Panels</div>
+                <div className="text-[12px] text-content">
+                  Empty chat visibility
+                </div>
                 <p className="text-[11px] text-content/40">
-                  Extend the image to the workspace panes and terminals.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end gap-1.5">
-                {(["chat", "workspace", "terminal"] as BackgroundPanel[]).map(
-                  (panel) => {
-                    const on = appearance.backgroundPanels[panel];
-                    return (
-                      <button
-                        key={panel}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => appearance.onBackgroundPanel(panel, !on)}
-                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] leading-none transition-colors ${
-                          on
-                            ? "border-accent/40 bg-accent/10 text-accent"
-                            : "border-content/15 text-content/45 hover:text-content"
-                        }`}
-                      >
-                        {on ? (
-                          <Check className="size-3" strokeWidth={2.25} />
-                        ) : null}
-                        {panel === "workspace"
-                          ? "Workspace"
-                          : panel === "terminal"
-                            ? "Terminal"
-                            : "Chat"}
-                      </button>
-                    );
-                  },
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="text-[12px] text-content">Visibility</div>
-                <p className="text-[11px] text-content/40">
-                  Keep it subtle so long conversations stay readable.
+                  Background strength before a chat has messages.
                 </p>
               </div>
               <Slider
-                label="Background visibility"
-                value={visibility}
-                display={`${visibility}%`}
+                label="Empty chat background visibility"
+                value={emptyVisibility}
+                display={`${emptyVisibility}%`}
                 min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
                 max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
-                onChange={appearance.onChatBackgroundOpacity}
+                onChange={appearance.onChatBackgroundEmptyOpacity}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-content/5 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12px] text-content">
+                  Session visibility
+                </div>
+                <p className="text-[11px] text-content/40">
+                  Background strength once the conversation has messages.
+                </p>
+              </div>
+              <Slider
+                label="Session background visibility"
+                value={sessionVisibility}
+                display={`${sessionVisibility}%`}
+                min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
+                max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
+                onChange={appearance.onChatBackgroundSessionOpacity}
               />
             </div>
           </div>
@@ -1955,257 +1501,9 @@ function ChatBackgroundCard({
   );
 }
 
-function CustomProvidersSection() {
-  const [providers, setProviders] = useState(loadCustomProviders);
-  const [draft, setDraft] = useState({
-    name: "",
-    baseUrl: "",
-    apiKey: "",
-  });
-  const [draftError, setDraftError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [probes, setProbes] = useState<Record<string, CustomProviderProbe>>({});
-
-  useEffect(() => {
-    setProviders(loadCustomProviders());
-  }, []);
-
-  const testProbe = async (
-    id: string,
-    baseUrl: string,
-    apiKey: string,
-  ): Promise<CustomProviderProbe | null> => {
-    setBusyId(id);
-    try {
-      const probe = await invoke<CustomProviderProbe>("custom_provider_test", {
-        baseUrl,
-        apiKey,
-      });
-      setProbes((current) => ({ ...current, [id]: probe }));
-      return probe;
-    } catch (error) {
-      setProbes((current) => ({
-        ...current,
-        [id]: {
-          ok: false,
-          status: 0,
-          models: [],
-          error: error instanceof Error ? error.message : String(error),
-        },
-      }));
-      return null;
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const saveDraft = async () => {
-    const name = draft.name.trim();
-    const baseUrl = draft.baseUrl.trim().replace(/\/+$/, "");
-    if (!name || !baseUrl) {
-      setDraftError("Name and endpoint are required.");
-      return;
-    }
-    setBusyId("draft");
-    const probe =
-      (await testProbe(slugCustomProviderId(name), baseUrl, draft.apiKey)) ??
-      null;
-    if (!probe || !probe.ok) {
-      setBusyId(null);
-      return;
-    }
-    const entry: CustomProvider = {
-      id: slugCustomProviderId(name),
-      name,
-      baseUrl,
-      apiKey: draft.apiKey,
-      models: probe.models,
-    };
-    ensureOpenCodeProviderRegistered(entry.id as HarnessId);
-    void refreshHarnessCatalogs([entry.id as HarnessId]);
-    setProviders(upsertCustomProvider(entry));
-    setDraft({ name: "", baseUrl: "", apiKey: "" });
-    setBusyId(null);
-  };
-
-  const retestSaved = async (entry: CustomProvider) => {
-    const probe = await testProbe(entry.id, entry.baseUrl, entry.apiKey);
-    if (probe?.ok) {
-      setProviders(upsertCustomProvider({ ...entry, models: probe.models }));
-    }
-  };
-
-  const remove = (id: string) => {
-    setProviders(deleteCustomProvider(id));
-  };
-
-  return (
-    <section className="border-b border-content/5 py-4 last:border-b-0">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-content">
-        Custom providers
-        <PkBadge />
-      </div>
-      <p className="mt-1 text-[12px] leading-relaxed text-content/45">
-        OpenAI-compatible endpoints run through the OpenCode runtime: save a
-        provider, and its models appear in the OpenCode tab of the model picker.
-        Keys stay on this device and are written to OpenCode's config.
-      </p>
-
-      <div className="mt-3 space-y-2">
-        {providers.length === 0 ? (
-          <p className="rounded-md border border-dashed border-content/10 px-3 py-2 text-[11px] text-content/40">
-            No custom provider yet.
-          </p>
-        ) : (
-          providers.map((entry) => (
-            <div
-              key={entry.id}
-              className="rounded-lg border border-content/10 px-3 py-2.5"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-content">
-                  {entry.name}
-                </span>
-                <span
-                  className="shrink-0 font-mono text-[10px] text-content/35"
-                  title={entry.baseUrl}
-                >
-                  {customProviderTestLabel(probes[entry.id] ?? null) ??
-                    `${entry.models.length} model${entry.models.length === 1 ? "" : "s"}`}
-                </span>
-                <SecondaryButton
-                  onClick={() => void retestSaved(entry)}
-                  disabled={busyId === entry.id}
-                >
-                  {busyId === entry.id ? (
-                    <Loader className="size-3 animate-spin" aria-hidden />
-                  ) : null}
-                  Test
-                </SecondaryButton>
-                <SecondaryButton danger onClick={() => remove(entry.id)}>
-                  Remove
-                </SecondaryButton>
-              </div>
-              <p className="mt-1 truncate font-mono text-[10px] text-content/35">
-                {entry.baseUrl} · {entry.models.join(", ") || "no models yet"}
-              </p>
-            </div>
-          ))
-        )}
-
-        <div className="rounded-lg border border-content/10 px-3 py-2.5">
-          <div className="grid gap-2">
-            <input
-              value={draft.name}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, name: event.target.value }))
-              }
-              placeholder="Name — e.g. Acme AI"
-              aria-label="Custom provider name"
-              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 text-[12px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
-            />
-            <input
-              value={draft.baseUrl}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, baseUrl: event.target.value }))
-              }
-              placeholder="Endpoint — https://api.example.com/v1"
-              aria-label="Custom provider endpoint"
-              spellCheck={false}
-              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 font-mono text-[11px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
-            />
-            <input
-              value={draft.apiKey}
-              type="password"
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, apiKey: event.target.value }))
-              }
-              placeholder="API key"
-              aria-label="Custom provider API key"
-              spellCheck={false}
-              autoComplete="off"
-              className="rounded-md border border-content/10 bg-content/5 px-2 py-1.5 font-mono text-[11px] text-content outline-none placeholder:text-content/30 focus:border-accent/45"
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            {draftError ? (
-              <span className="text-[12px] text-red-400">{draftError}</span>
-            ) : null}
-            <div className="flex items-center gap-2">
-              <SecondaryButton
-                onClick={() => void saveDraft()}
-                disabled={
-                  busyId === "draft" ||
-                  !draft.name.trim() ||
-                  !draft.baseUrl.trim()
-                }
-              >
-                {busyId === "draft" ? (
-                  <Loader className="size-3 animate-spin" aria-hidden />
-                ) : null}
-                Test & save
-              </SecondaryButton>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 function KeybindingsPage() {
   const [query, setQuery] = useState("");
-  const [version, setVersion] = useState(0);
-  const [capturingId, setCapturingId] = useState<string | null>(null);
-  const [conflict, setConflict] = useState<string | null>(null);
-
-  useEffect(
-    () => subscribeKeybindings(() => setVersion((value) => value + 1)),
-    [],
-  );
-
-  useEffect(() => {
-    if (!capturingId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.key === "Escape") {
-        setCapturingId(null);
-        return;
-      }
-      if (
-        event.key === "Backspace" &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey
-      ) {
-        setKeybindingOverride(capturingId, null);
-        setConflict(null);
-        setCapturingId(null);
-        return;
-      }
-      const accel = captureAccelerator(event);
-      if (!accel) return;
-      const clash = findBindingOwner(capturingId, accel);
-      if (clash) {
-        setConflict(
-          `${accel} is already used by “${clash}” — rebind that one first, then retry.`,
-        );
-        setCapturingId(null);
-        return;
-      }
-      setConflict(null);
-      setKeybindingOverride(capturingId, accel);
-      setCapturingId(null);
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [capturingId]);
-
-  const rows = useMemo(
-    () => filterKeybindings(buildKeybindingRows(), query),
-    // version: rebuild when overrides change
-    [query, version],
-  );
+  const rows = useMemo(() => filterKeybindings(KEYBINDINGS, query), [query]);
 
   return (
     <>
@@ -2240,34 +1538,12 @@ function KeybindingsPage() {
         ) : (
           rows.map((row) => (
             <div
-              key={row.command}
+              key={`${row.command}-${row.keys}`}
               className="flex items-center border-b border-content/5 px-3 py-2 text-[12px] last:border-b-0"
             >
               <span className="min-w-0 flex-1 truncate">{row.command}</span>
-              <span className="w-40 shrink-0">
-                {row.id ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConflict(null);
-                      setCapturingId(row.id ?? null);
-                    }}
-                    title="Click, then press the new combo · Backspace resets · Esc cancels"
-                    className={`w-full rounded-md border px-2 py-1 text-left font-mono text-[12px] transition-colors ${
-                      capturingId === row.id
-                        ? "border-content/40 bg-content/10 text-content"
-                        : isOverridden(row.id)
-                          ? "border-content/25 text-content hover:bg-content/5"
-                          : "border-transparent text-content/80 hover:border-content/15 hover:bg-content/5"
-                    }`}
-                  >
-                    {capturingId === row.id ? "Press keys…" : row.keys}
-                  </button>
-                ) : (
-                  <span className="block font-mono text-[12px] text-content/80">
-                    {row.keys}
-                  </span>
-                )}
+              <span className="w-40 shrink-0 font-mono text-[12px] text-content/80">
+                {row.keys}
               </span>
               <span className="w-28 shrink-0 font-mono text-[11px] text-content/40">
                 {row.when}
@@ -2278,12 +1554,9 @@ function KeybindingsPage() {
       </div>
 
       <p className="pt-3 text-[12px] text-content/40">
-        Click a keybinding, press the new combo, and the app menu updates
-        instantly. Backspace on a selected row resets it to the default.
+        Bindings come from the app menu and the workspace key handler; they
+        aren’t customizable yet.
       </p>
-      {conflict ? (
-        <p className="pt-1 text-[12px] text-amber-400/90">{conflict}</p>
-      ) : null}
     </>
   );
 }
@@ -2326,10 +1599,7 @@ function ProvidersPage() {
         The model beside each provider is what new conversations use when that
         provider is selected; Use by default picks the provider itself.
       </p>
-      {[
-        ...HARNESSES,
-        ...loadCustomProviders().map((provider) => provider.id as HarnessId),
-      ].map((harness) => (
+      {HARNESSES.map((harness) => (
         <ProviderRow
           key={harness}
           harness={harness}
@@ -2344,20 +1614,9 @@ function ProvidersPage() {
           onModelChange={onModelChange}
         />
       ))}
-      <CustomProvidersSection />
     </>
   );
 }
-
-/** Providers added by MonoCodePK (absent from upstream MonoCode). */
-const PK_PROVIDERS = new Set<HarnessId>([
-  "zai",
-  "mimo",
-  "openrouter",
-  "nvidia",
-  "gemini",
-  "antigravity",
-]);
 
 function ProviderRow({
   harness,
@@ -2395,8 +1654,7 @@ function ProviderRow({
       label={
         <span className="flex items-center gap-2">
           <HarnessIcon harness={harness} className="size-4 shrink-0" />
-          {harnessTitle(harness)}
-          {PK_PROVIDERS.has(harness) ? <PkBadge /> : null}
+          {HARNESS_TITLE[harness]}
           {isDefault ? (
             <span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
               Default
@@ -2412,7 +1670,7 @@ function ProviderRow({
     >
       {current ? (
         <Select
-          label={`${harnessTitle(harness)} model`}
+          label={`${HARNESS_TITLE[harness]} model`}
           value={current.id}
           onChange={(next) => onModelChange(harness, next)}
           options={models.map((item) => ({
@@ -2427,14 +1685,16 @@ function ProviderRow({
       >
         {isDefault ? "Default" : "Use by default"}
       </SecondaryButton>
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] text-content/50">Show in picker</span>
-        <Toggle
-          label={`Show ${harnessTitle(harness)} in the model picker`}
-          on={inPicker}
-          onChange={onPickerVisible}
-        />
-      </div>
+      {available ? (
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-content/50">Show in picker</span>
+          <Toggle
+            label={`Show ${HARNESS_TITLE[harness]} in the model picker`}
+            on={inPicker}
+            onChange={onPickerVisible}
+          />
+        </div>
+      ) : null}
     </Row>
   );
 }
@@ -2623,12 +1883,12 @@ function PageHeader({
   title,
   description,
 }: {
-  title: ReactNode;
+  title: string;
   description: string;
 }) {
   return (
     <header className="pb-4">
-      <h1 className="flex items-center gap-2 text-[20px] font-semibold leading-tight text-content">
+      <h1 className="text-[20px] font-semibold leading-tight text-content">
         {title}
       </h1>
       {description ? (
@@ -2665,20 +1925,15 @@ function Row({
   label,
   description,
   children,
-  pk = false,
 }: {
   label: ReactNode;
   description?: string;
   children?: ReactNode;
-  pk?: boolean;
 }) {
   return (
     <div className="flex items-start gap-6 border-b border-content/5 py-4 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-[13px] font-medium text-content">
-          {label}
-          {pk ? <PkBadge /> : null}
-        </div>
+        <div className="text-[13px] font-medium text-content">{label}</div>
         {description ? (
           <p className="mt-1 text-[12px] leading-relaxed text-content/45">
             {description}
@@ -2689,39 +1944,6 @@ function Row({
         {children}
       </div>
     </div>
-  );
-}
-
-const USAGE_PROVIDER_LABELS: Record<string, string> = {
-  claude: "Claude",
-  codex: "Codex",
-  zai: "ZAI",
-  opencode: "OpenCode",
-  opencodego: "OpenCode Go",
-  mimo: "Xiaomi MiMo",
-  antigravity: "Antigravity",
-  gemini: "Gemini",
-  cursor: "Cursor",
-  grok: "Grok",
-  openrouter: "OpenRouter",
-  devin: "Devin",
-  kilocode: "Kilo Code",
-  codebuff: "CodeBuff",
-};
-
-function usageProviderLabel(id: string): string {
-  return USAGE_PROVIDER_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
-}
-
-function PkBadge() {
-  return (
-    <span
-      title="MonoCodePK custom setting"
-      aria-label="MonoCodePK custom setting"
-      className="rounded border border-accent/35 bg-accent/10 px-1 py-px text-[9px] font-semibold uppercase tracking-[0.08em] text-accent"
-    >
-      PK
-    </span>
   );
 }
 

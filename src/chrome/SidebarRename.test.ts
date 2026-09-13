@@ -3,10 +3,10 @@ import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatSessionTitle } from "../lib/session";
+import { formatReminderTime } from "../lib/sessionReminders";
 import { Sidebar } from "./Sidebar";
 
 // Keep native services out of these menu/input interaction tests.
-vi.mock("../hooks/useInboxUnseen", () => ({ useInboxUnseen: () => false }));
 vi.mock("../hooks/useProjectDiffStats", () => ({
   useProjectDiffStats: () => null,
 }));
@@ -261,6 +261,71 @@ describe("sidebar pinned sessions", () => {
   });
 });
 
+describe("sidebar linked work item updates", () => {
+  it("uses the footer for the linked issue or PR instead of a second harness icon", () => {
+    props.busySessionIds = new Set();
+    props.onArchiveSession = vi.fn();
+    props.sessions = [
+      {
+        ...props.sessions[0],
+        branch: "feature/session-card",
+        repo: "acme/app",
+        linkedWorkItem: {
+          kind: "pr",
+          repo: "acme/app",
+          number: 42,
+          url: "https://github.com/acme/app/pull/42",
+        },
+      },
+    ];
+    act(() => render());
+
+    const rows = card().children;
+    const archive = card().querySelector('[aria-label^="Archive "]');
+    const pullRequest = card().querySelector('[aria-label="Open PR #42"]');
+    expect(card().querySelectorAll('img[alt=""]')).toHaveLength(1);
+    expect(rows.item(rows.length - 1)?.contains(pullRequest)).toBe(true);
+    expect(archive?.parentElement).toBe(pullRequest?.parentElement);
+    expect(archive?.nextElementSibling).toBe(pullRequest);
+  });
+
+  it("renders an unread dot without changing session order", () => {
+    props.busySessionIds = new Set();
+    props.activeSessionId = undefined;
+    props.sessions = [
+      {
+        ...props.sessions[0],
+        id: "session-2",
+        title: formatSessionTitle("codex", "Newer conversation"),
+        updatedAt: 200,
+      },
+      {
+        ...props.sessions[0],
+        id: "session-1",
+        title: formatSessionTitle("codex", "Updated PR conversation"),
+        updatedAt: 100,
+        linkedWorkItem: {
+          kind: "pr",
+          repo: "acme/app",
+          number: 42,
+          url: "https://github.com/acme/app/pull/42",
+        },
+      },
+    ];
+    props.linkedSessionUpdateIds = new Set(["session-1"]);
+    act(() => render());
+
+    expect(
+      Array.from(
+        container.querySelectorAll<HTMLElement>("[data-session-card]"),
+      ).map((row) => row.dataset.sessionCard),
+    ).toEqual(["session-2", "session-1"]);
+    expect(
+      card().querySelector('[aria-label="Linked work item updated"]'),
+    ).not.toBeNull();
+  });
+});
+
 describe("sidebar session reminders", () => {
   function openReminderMenu() {
     act(() =>
@@ -334,7 +399,9 @@ describe("sidebar session reminders", () => {
     const cancel = document.querySelector<HTMLButtonElement>(
       '[aria-label="Session actions"] [role="menuitem"]',
     )!;
-    expect(cancel.textContent).toBe("Cancel reminder");
+    expect(cancel.textContent).toBe(
+      `Cancel reminder${formatReminderTime(props.reminders[0].dueAt)}`,
+    );
     act(() => cancel.click());
     expect(props.onCancelReminders).toHaveBeenCalledExactlyOnceWith([
       "session-1",

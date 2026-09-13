@@ -1,24 +1,22 @@
 import {
   formatReleaseDate,
   presentReleaseNotes,
+  releaseNotesTitle,
 } from "../lib/releaseNotes";
 import { AgentMarkdown } from "../surfaces/AgentMarkdown";
 import { Modal } from "./Modal";
 
 type Props = {
-  officialVersion: string;
-  pkVersion: string;
+  version: string;
   onClose: () => void;
 };
 
 export function WhatsNewBody({ version }: { version: string }) {
   const notes = presentReleaseNotes(version);
+  const title = releaseNotesTitle(version);
 
   return (
-    <article
-      aria-label={`What's new in ${version}`}
-      className="px-5 py-4"
-    >
+    <article aria-label={title} className="px-5 py-4">
       {notes?.markdown ? (
         <AgentMarkdown
           className="whats-new-md"
@@ -34,58 +32,19 @@ export function WhatsNewBody({ version }: { version: string }) {
   );
 }
 
-function WhatsNewPane({
-  title,
-  version,
-  date,
-}: {
-  title: string;
-  version: string;
-  date: string | null;
-}) {
-  return (
-    <section className="flex min-h-0 flex-col">
-      <header className="flex items-baseline gap-2 border-b border-content/10 px-5 py-3">
-        <h2 className="text-[13px] font-semibold text-content">{title}</h2>
-        {date ? (
-          <span className="text-[11px] text-content/45">{date}</span>
-        ) : null}
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <WhatsNewBody version={version} />
-      </div>
-    </section>
-  );
-}
-
-export function WhatsNewDialog({
-  officialVersion,
-  pkVersion,
-  onClose,
-}: Props) {
-  const official = presentReleaseNotes(officialVersion);
-  const pk = presentReleaseNotes(pkVersion);
+export function WhatsNewDialog({ version, onClose }: Props) {
+  const notes = presentReleaseNotes(version);
+  const date = notes?.date ? formatReleaseDate(notes.date) : null;
 
   return (
     <Modal
       onClose={onClose}
       title="What's new"
-      description="MonoCode officiel · MonoCodePK"
-      size="lg"
-      className="flex h-[min(72vh,680px)] flex-col overflow-hidden"
+      description={`MonoCode ${version}${date ? ` · ${date}` : ""}`}
+      size="md"
+      className="h-[min(72vh,640px)]"
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2 md:divide-x md:divide-content/10">
-        <WhatsNewPane
-          title="MonoCode officiel"
-          version={officialVersion}
-          date={official?.date ? formatReleaseDate(official.date) : null}
-        />
-        <WhatsNewPane
-          title="MonoCodePK"
-          version={pkVersion}
-          date={pk?.date ? formatReleaseDate(pk.date) : null}
-        />
-      </div>
+      <WhatsNewBody version={version} />
     </Modal>
   );
 }

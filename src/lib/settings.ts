@@ -1,4 +1,4 @@
-import { ALT, MOD } from "./platform";
+import { ALT, IS_MAC, MOD, SHIFT } from "./platform";
 
 const SECTION_KEY = "monocode.settingsSection";
 
@@ -47,7 +47,7 @@ export const SETTINGS_SECTIONS: {
     id: "skills",
     label: "Skills",
     description:
-      "Discover skills and configure one-click project initialization links.",
+      "Discover and manage file skills from project, personal, and harness folders.",
   },
   {
     id: "archive",
@@ -95,74 +95,18 @@ export function saveSettingsSection(id: SettingsSectionId) {
 
 const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 
-/** Where the "agent finished" check replaces the project row's visuals. */
-export type DoneCheckSide = "left" | "right";
-
-export const DONE_CHECK_SIDE_DEFAULT: DoneCheckSide = "left";
-
-/** Fired on `window` when the done-check side setting changes. */
-export const DONE_CHECK_SIDE_CHANGE_EVENT = "monocode:done-check-side-change";
-
-export function loadDoneCheckSide(): DoneCheckSide {
-  try {
-    const raw = localStorage.getItem("monocode.doneCheckSide");
-    return raw === "right" ? raw : DONE_CHECK_SIDE_DEFAULT;
-  } catch {
-    return DONE_CHECK_SIDE_DEFAULT;
-  }
-}
-
-export function saveDoneCheckSide(value: DoneCheckSide): void {
-  try {
-    localStorage.setItem("monocode.doneCheckSide", value);
-  } catch {
-    // private mode / quota
-  }
-  window.dispatchEvent(new Event(DONE_CHECK_SIDE_CHANGE_EVENT));
-}
-
-/** How the project rail orders the (unpinned) project list. */
-export type ProjectSortMode = "manual" | "recent" | "alphabetical" | "unpushed";
-
-export const PROJECT_SORT_DEFAULT: ProjectSortMode = "manual";
-
-/** Fired on `window` when the project sort mode changes. */
-export const PROJECT_SORT_CHANGE_EVENT = "monocode:project-sort-change";
-
-export function loadProjectSort(): ProjectSortMode {
-  try {
-    const raw = localStorage.getItem("monocode.projectSort");
-    return raw === "recent" || raw === "alphabetical" || raw === "unpushed"
-      ? raw
-      : PROJECT_SORT_DEFAULT;
-  } catch {
-    return PROJECT_SORT_DEFAULT;
-  }
-}
-
-export function saveProjectSort(value: ProjectSortMode): void {
-  try {
-    localStorage.setItem("monocode.projectSort", value);
-  } catch {
-    // private mode / quota
-  }
-  window.dispatchEvent(new Event(PROJECT_SORT_CHANGE_EVENT));
-}
-
 const FOLLOW_UP_BEHAVIOR_KEY = "monocode.followUpBehavior";
 
-export type FollowUpBehavior = "steer" | "queue" | "choice";
+const COMPOSER_EFFORT_VISIBLE_KEY = "monocode.composerEffortVisible";
+
+export type FollowUpBehavior = "steer" | "queue";
 
 export const FOLLOW_UP_BEHAVIOR_DEFAULT: FollowUpBehavior = "steer";
-
-/** Fired on `window` when the follow-up behavior setting changes. */
-export const FOLLOW_UP_BEHAVIOR_CHANGE_EVENT =
-  "monocode:follow-up-behavior-change";
 
 export function loadFollowUpBehavior(): FollowUpBehavior {
   try {
     const raw = localStorage.getItem(FOLLOW_UP_BEHAVIOR_KEY);
-    return raw === "queue" || raw === "steer" || raw === "choice"
+    return raw === "queue" || raw === "steer"
       ? raw
       : FOLLOW_UP_BEHAVIOR_DEFAULT;
   } catch {
@@ -173,10 +117,49 @@ export function loadFollowUpBehavior(): FollowUpBehavior {
 export function saveFollowUpBehavior(value: FollowUpBehavior) {
   try {
     localStorage.setItem(FOLLOW_UP_BEHAVIOR_KEY, value);
-    window.dispatchEvent(new Event(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT));
   } catch {
     // private mode / quota
   }
+}
+
+export const COMPOSER_EFFORT_VISIBLE_DEFAULT = false;
+
+/** Fired on `window` when the standalone composer effort control setting flips. */
+export const COMPOSER_EFFORT_VISIBLE_CHANGE_EVENT =
+  "monocode:composer-effort-visible-change";
+
+export function loadComposerEffortVisible(): boolean {
+  try {
+    const raw = localStorage.getItem(COMPOSER_EFFORT_VISIBLE_KEY);
+    if (raw == null) return COMPOSER_EFFORT_VISIBLE_DEFAULT;
+    return raw === "1" || raw === "true";
+  } catch {
+    return COMPOSER_EFFORT_VISIBLE_DEFAULT;
+  }
+}
+
+export function saveComposerEffortVisible(value: boolean) {
+  try {
+    localStorage.setItem(COMPOSER_EFFORT_VISIBLE_KEY, value ? "1" : "0");
+  } catch {
+    // private mode / quota
+  }
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<boolean>(COMPOSER_EFFORT_VISIBLE_CHANGE_EVENT, {
+      detail: value,
+    }),
+  );
+}
+
+export function subscribeComposerEffortVisible(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(COMPOSER_EFFORT_VISIBLE_CHANGE_EVENT, onStoreChange);
+  return () =>
+    window.removeEventListener(
+      COMPOSER_EFFORT_VISIBLE_CHANGE_EVENT,
+      onStoreChange,
+    );
 }
 
 export const COMPOSER_RUNNER_DEFAULT = true;
@@ -240,25 +223,6 @@ export function subscribeNotesEnabled(onStoreChange: () => void) {
   window.addEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
   return () =>
     window.removeEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
-}
-
-const NOTES_AUTO_EXPORT_KEY = "monocode.notesAutoExport";
-
-/** Mirror notes into their source project's .monocode/notes folder. */
-export function loadNotesAutoExport(): boolean {
-  try {
-    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function saveNotesAutoExport(value: boolean) {
-  try {
-    localStorage.setItem(NOTES_AUTO_EXPORT_KEY, value ? "1" : "0");
-  } catch {
-    // private mode / quota
-  }
 }
 
 const LIVE_AGENTS_ENABLED_KEY = "monocode.liveAgentsEnabled";
@@ -403,43 +367,85 @@ export function saveClaudeHooks(value: boolean) {
   }
 }
 
-import {
-  bindingFor,
-  formatAccelerator,
-  KEYBINDING_DEFAULTS,
-} from "./keybindings";
+const CTRL = IS_MAC ? "⌃" : "Ctrl+";
 
 export type KeybindingRow = {
   command: string;
   keys: string;
   when: string;
-  /** Present when the binding is user-editable (PKmod). */
-  id?: string;
 };
 
-/** Fixed bindings the editor does not manage (kept for documentation). */
-const FIXED_BINDING_ROWS: KeybindingRow[] = [
+/**
+ * Mirrors the bindings we actually handle: the native menu accelerators in
+ * `src-tauri/src/menu.rs`, `tabCommand`, and the window key handler in App.
+ */
+export const KEYBINDINGS: KeybindingRow[] = [
+  { command: "App: Search", keys: `${MOD}K`, when: "Always" },
+  { command: "App: Go to File", keys: `${MOD}P`, when: "Always" },
+  { command: "App: Find in Files", keys: `${MOD}${SHIFT}F`, when: "Always" },
+  { command: "App: Open Project", keys: `${MOD}O`, when: "Always" },
+  { command: "App: New Window", keys: `${MOD}${SHIFT}N`, when: "Always" },
+  { command: "App: Toggle Sidebar", keys: `${MOD}B`, when: "Always" },
+  { command: "App: Switch Model", keys: `${MOD}.`, when: "Always" },
+  { command: "View: Zoom In", keys: `${MOD}+`, when: "Always" },
+  { command: "View: Zoom Out", keys: `${MOD}-`, when: "Always" },
+  { command: "View: Reset Zoom", keys: `${MOD}0`, when: "Always" },
+  { command: "Tab: New", keys: `${MOD}T`, when: "Always" },
+  { command: "Tab: Close Others", keys: `${MOD}${ALT}T`, when: "Always" },
+  { command: "Tab: Next", keys: `${MOD}${SHIFT}]`, when: "Always" },
+  { command: "Tab: Previous", keys: `${MOD}${SHIFT}[`, when: "Always" },
+  { command: "Tab: Cycle Next", keys: `${CTRL}Tab`, when: "Always" },
+  {
+    command: "Tab: Cycle Previous",
+    keys: `${CTRL}${SHIFT}Tab`,
+    when: "Always",
+  },
+  { command: "Tab: Back", keys: `${MOD}[`, when: "Always" },
+  { command: "Tab: Forward", keys: `${MOD}]`, when: "Always" },
   { command: "Tab: Activate 1–8", keys: `${MOD}1 … ${MOD}8`, when: "Always" },
   { command: "Tab: Activate Last", keys: `${MOD}9`, when: "Always" },
+  {
+    command: "Session: Archive",
+    keys: `${MOD}${SHIFT}A`,
+    when: "sessionFocus && !overlay",
+  },
+  {
+    command: "Session: Previous",
+    keys: `${MOD}${SHIFT}↑`,
+    when: "!overlay && (!textFocus || emptyComposer)",
+  },
+  {
+    command: "Session: Next",
+    keys: `${MOD}${SHIFT}↓`,
+    when: "!overlay && (!textFocus || emptyComposer)",
+  },
+  {
+    command: "Project: Previous",
+    keys: `${MOD}${SHIFT}←`,
+    when: "!overlay && (!textFocus || emptyComposer)",
+  },
+  {
+    command: "Project: Next",
+    keys: `${MOD}${SHIFT}→`,
+    when: "!overlay && (!textFocus || emptyComposer)",
+  },
+  { command: "Pane: Close", keys: `${MOD}W`, when: "Always" },
+  { command: "Pane: Split Right", keys: `${MOD}D`, when: "!editorFocus" },
+  {
+    command: "Pane: Split Down",
+    keys: `${MOD}${SHIFT}D`,
+    when: "!editorFocus",
+  },
+  { command: "Pane: Focus Left", keys: `${MOD}${ALT}←`, when: "Always" },
+  { command: "Pane: Focus Right", keys: `${MOD}${ALT}→`, when: "Always" },
+  { command: "Pane: Focus Up", keys: `${MOD}${ALT}↑`, when: "Always" },
+  { command: "Pane: Focus Down", keys: `${MOD}${ALT}↓`, when: "Always" },
+  { command: "Terminal: New", keys: `${MOD}\``, when: "Always" },
+  { command: "Terminal: New Tab", keys: `${MOD}${SHIFT}\``, when: "Always" },
+  { command: "Terminal: Toggle Dock", keys: `${MOD}J`, when: "Always" },
+  { command: "Editor: Find", keys: `${MOD}F`, when: "editorFocus" },
   { command: "Editor: Replace", keys: `${MOD}${ALT}F`, when: "editorFocus" },
 ];
-
-/**
- * Rows derived from the shared binding catalog (`keybindings.defaults.json`)
- * plus the user's overrides; see `src/lib/keybindings.ts`.
- */
-export function buildKeybindingRows(): KeybindingRow[] {
-  const rows = Object.entries(KEYBINDING_DEFAULTS).map(([id, def]) => ({
-    command: def.label,
-    keys: formatAccelerator(bindingFor(id) ?? def.binding),
-    when: def.when,
-    id,
-  }));
-  return [...rows, ...FIXED_BINDING_ROWS];
-}
-
-/** Static snapshot (defaults only); the settings page uses the live rows. */
-export const KEYBINDINGS: KeybindingRow[] = buildKeybindingRows();
 
 export function filterKeybindings(
   rows: KeybindingRow[],

@@ -35,6 +35,7 @@ import {
   pickAttachments,
   revokeAttachment,
 } from "../lib/attachments";
+import { resizeComposer } from "../lib/composerResize";
 import type { ContextUsage } from "../lib/contextUsage";
 import {
   loadProjectFiles,
@@ -67,10 +68,7 @@ import type {
   RuntimeMode,
   TurnIntent,
 } from "../lib/session";
-import {
-  harnessSupportsAttachments,
-  harnessTitle,
-} from "../lib/session";
+import { HARNESS_TITLE, harnessSupportsAttachments } from "../lib/session";
 import type {
   UserQuestionPrompt,
   UserQuestionReply,
@@ -98,8 +96,7 @@ import { FileTypeIcon } from "./FileTypeIcon";
 import { InboxMiniCard } from "./InboxMiniCard";
 import { NoteMiniCard } from "./NoteMiniCard";
 import { HandoffMiniCard } from "./HandoffMiniCard";
-import { ModelPicker } from "./ModelPicker";
-import { ModelSettings } from "./ModelSettings";
+import { EffortPicker, ModelPicker } from "./ModelPicker";
 import { QuestionForm } from "./QuestionForm";
 import { SkillPicker } from "./SkillPicker";
 import { projectKey } from "../lib/paths";
@@ -107,12 +104,11 @@ import { consumeQuoteRequest, type QuoteRequest } from "../lib/quoteDraft";
 import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   COMPOSER_RUNNER_CHANGE_EVENT,
-  FOLLOW_UP_BEHAVIOR_CHANGE_EVENT,
+  loadComposerEffortVisible,
   loadComposerRunner,
-  loadFollowUpBehavior,
   loadNotesEnabled,
+  subscribeComposerEffortVisible,
   subscribeNotesEnabled,
-  type FollowUpBehavior,
 } from "../lib/settings";
 import {
   isNoteMentionPath,
@@ -185,7 +181,7 @@ type Props = {
   onSubmit: (
     text: string,
     attachments: Attachment[],
-    options?: { intent?: TurnIntent; followUpBehavior?: FollowUpBehavior },
+    options?: { intent?: TurnIntent },
   ) => void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
@@ -487,12 +483,15 @@ export function Composer({
     loadNotesEnabled,
     () => true,
   );
+  const composerEffortVisible = useSyncExternalStore(
+    subscribeComposerEffortVisible,
+    loadComposerEffortVisible,
+    () => false,
+  );
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [runnerEnabled, setRunnerEnabled] = useState(loadComposerRunner);
-  const [followUpChoice, setFollowUpChoice] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [runnerLive, setRunnerLive] = useState(
     () => busy && loadComposerRunner(),
   );
@@ -635,13 +634,6 @@ export function Composer({
   }, []);
 
   useEffect(() => {
-    const refresh = () => setFollowUpChoice(loadFollowUpBehavior());
-    window.addEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
-    return () =>
-      window.removeEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
-  }, []);
-
-  useEffect(() => {
     if (!runnerEnabled) {
       setRunnerLive(false);
       return;
@@ -705,17 +697,26 @@ export function Composer({
     );
   }, [rankedFiles.length]);
 
-  const resizeTextarea = (el: HTMLTextAreaElement) => {
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
-
   useEffect(() => {
     const el = ref.current;
     if (!el || !initialDraft) return;
     if (el.value !== initialDraft) el.value = initialDraft;
-    resizeTextarea(el);
+    resizeComposer(el);
   }, [initialDraft]);
+
+  // Drafts changed while hidden could not be measured. Inbox panes are portaled
+  // into place by a parent effect that runs after this one, so the first pass
+  // can still find no layout box; retry once the move has landed.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    resizeComposer(el);
+    if (el.scrollHeight !== 0) return;
+    const frame = requestAnimationFrame(() => {
+      if (ref.current === el) resizeComposer(el);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled]);
 
   useEffect(() => {
     onDraftChange?.(draft);
@@ -767,7 +768,7 @@ export function Composer({
     consumedQuoteId.current = result.consumedId;
     if (result.changed) {
       el.value = result.draft;
-      resizeTextarea(el);
+      resizeComposer(el);
       setDraft(result.draft);
       syncHasValue(result.draft, attachmentsRef.current);
       setSlash(null);
@@ -802,7 +803,7 @@ export function Composer({
           SESSION_FOLDER_COMMAND.invocation,
         );
         el.value = next;
-        resizeTextarea(el);
+        resizeComposer(el);
         let cursor = token.start + SESSION_FOLDER_COMMAND.invocation.length + 1;
         if (next[cursor] === " ") cursor += 1;
         el.setSelectionRange(cursor, cursor);
@@ -819,7 +820,7 @@ export function Composer({
             .replace(/^\s/, "")}`
         : replaceSlashToken(el.value, token, skill.invocation);
       el.value = next;
-      resizeTextarea(el);
+      resizeComposer(el);
       let cursor = planCommand
         ? token.start
         : token.start + skill.invocation.length + 1;
@@ -848,7 +849,7 @@ export function Composer({
         : mentionLabel(file, mentionIndexRef.current);
       const next = replaceMentionToken(el.value, token, label);
       el.value = next;
-      resizeTextarea(el);
+      resizeComposer(el);
       let cursor = token.start + label.length + 1;
       if (next[cursor] === " ") cursor += 1;
       el.setSelectionRange(cursor, cursor);
@@ -970,7 +971,7 @@ export function Composer({
     };
   }, [addAttachments, attachmentsSupported, enabled]);
 
-  const submit = (value: string, behavior?: FollowUpBehavior) => {
+  const submit = (value: string) => {
     const folderCommand = consumeSessionFolderCommand(value);
     if (folderCommand.matched && onPlaceInFolder && !sessionFolderSelected) {
       openSessionFolderPicker();
@@ -1005,7 +1006,6 @@ export function Composer({
     if (!text && files.length === 0 && !noteCard && !handoffCard) return;
     onSubmit(text, files, {
       intent: planSelected || command.planning ? "plan" : "default",
-      followUpBehavior: behavior,
     });
     if (!ref.current) return;
     ref.current.value = "";
@@ -1192,7 +1192,7 @@ export function Composer({
                 const cursor = el.selectionStart ?? el.value.length;
                 if (/^\s*\/add-to-folder$/i.test(el.value)) {
                   el.value = `${el.value} `;
-                  resizeTextarea(el);
+                  resizeComposer(el);
                   setDraft(el.value);
                   syncHasValue(el.value, attachmentsRef.current);
                   el.setSelectionRange(el.value.length, el.value.length);
@@ -1241,7 +1241,7 @@ export function Composer({
                       const rest = el.value.slice(token.end).replace(/^\s/, "");
                       const next = `${el.value.slice(0, token.start)}${rest}`;
                       el.value = next;
-                      resizeTextarea(el);
+                      resizeComposer(el);
                       el.setSelectionRange(token.start, token.start);
                       setDraft(next);
                       syncHasValue(next, attachments);
@@ -1394,7 +1394,7 @@ export function Composer({
               onSelect={(e) => syncTokensFromTextarea(e.currentTarget)}
               onInput={(e) => {
                 const el = e.currentTarget;
-                resizeTextarea(el);
+                resizeComposer(el);
                 setDraft(el.value);
                 if (
                   sessionFolderSelected &&
@@ -1446,7 +1446,7 @@ export function Composer({
                       <span className="block text-[11px] leading-4 text-content/45">
                         {attachmentsSupported
                           ? "Attach files or images to this message"
-                          : `${harnessTitle(harness)} does not support attachments`}
+                          : `${HARNESS_TITLE[harness]} does not support attachments`}
                       </span>
                     </span>
                   </button>
@@ -1497,7 +1497,7 @@ export function Composer({
                 if (
                   e.target instanceof Element &&
                   e.target.closest(
-                    "[data-model-picker], [data-access-picker], [data-model-settings]",
+                    "[data-model-picker], [data-effort-picker], [data-access-picker], [data-model-settings]",
                   )
                 ) {
                   return;
@@ -1511,17 +1511,26 @@ export function Composer({
                 <ModelPicker
                   harness={harness}
                   model={model}
+                  values={modelSettings}
+                  hideEffort={composerEffortVisible}
                   hotkeys={hotkeys && enabled}
                   onChange={onModelChange}
+                  onSettingsChange={(settings) =>
+                    onModelSettingsChange?.(settings)
+                  }
                   onClose={() => ref.current?.focus()}
                 />
-                <ModelSettings
-                  harness={harness}
-                  model={model}
-                  values={modelSettings}
-                  onChange={(settings) => onModelSettingsChange?.(settings)}
-                  onClose={() => ref.current?.focus()}
-                />
+                {composerEffortVisible ? (
+                  <EffortPicker
+                    harness={harness}
+                    model={model}
+                    values={modelSettings}
+                    onSettingsChange={(settings) =>
+                      onModelSettingsChange?.(settings)
+                    }
+                    onClose={() => ref.current?.focus()}
+                  />
+                ) : null}
                 {harness !== "fx" ? (
                   <AccessPicker
                     value={runtimeMode}
@@ -1537,10 +1546,7 @@ export function Composer({
               <ComposerAction
                 busy={busy}
                 hasValue={hasValue}
-                choice={followUpChoice === "choice"}
-                onSend={(behavior) =>
-                  submit(ref.current?.value ?? "", behavior)
-                }
+                onSend={() => submit(ref.current?.value ?? "")}
                 onStop={() => onStop?.()}
               />
             </div>
@@ -1627,67 +1633,38 @@ function MentionRuns({
   );
 }
 
-function ComposerAction({
+export function ComposerAction({
   busy,
   hasValue,
-  choice,
   onSend,
   onStop,
 }: {
   busy: boolean;
   hasValue: boolean;
-  choice: boolean;
-  onSend: (behavior?: FollowUpBehavior) => void;
+  onSend: () => void;
   onStop: () => void;
 }) {
   if (busy) {
-    if (hasValue && choice) {
-      return (
-        <>
-          <button
-            type="button"
-            title="Steer — send now, into the active turn"
-            aria-label="Steer"
-            onClick={() => onSend("steer")}
-            className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
-          >
-            <ArrowUp className="size-3.5" strokeWidth={2.25} />
-          </button>
-          <button
-            type="button"
-            title="Queue — send when the active turn finishes"
-            aria-label="Queue"
-            onClick={() => onSend("queue")}
-            className="grid size-6.5 place-items-center rounded-md bg-white/20 text-white hover:bg-white/30"
-          >
-            <ListEnd className="size-3.5" strokeWidth={2.25} />
-          </button>
-        </>
-      );
-    }
-    return (
-      <>
-        {hasValue ? (
-          <button
-            type="button"
-            title="Send"
-            aria-label="Send"
-            onClick={() => onSend()}
-            className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
-          >
-            <ArrowUp className="size-3.5" strokeWidth={2.25} />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          title="Stop"
-          aria-label="Stop"
-          onClick={onStop}
-          className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
-        >
-          <Square className="size-2.5 fill-current" strokeWidth={0} />
-        </button>
-      </>
+    return hasValue ? (
+      <button
+        type="button"
+        title="Send"
+        aria-label="Send"
+        onClick={onSend}
+        className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+      >
+        <ArrowUp className="size-3.5" strokeWidth={2.25} />
+      </button>
+    ) : (
+      <button
+        type="button"
+        title="Stop"
+        aria-label="Stop"
+        onClick={onStop}
+        className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+      >
+        <Square className="size-2.5 fill-current" strokeWidth={0} />
+      </button>
     );
   }
 
@@ -1697,7 +1674,7 @@ function ComposerAction({
       title="Send"
       aria-label="Send"
       disabled={!hasValue}
-      onClick={() => onSend()}
+      onClick={onSend}
       className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90 disabled:cursor-default disabled:bg-white/30 disabled:text-black/40 disabled:hover:bg-white/30"
     >
       <ArrowUp className="size-3.5" strokeWidth={2.25} />

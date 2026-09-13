@@ -16,16 +16,12 @@ import {
   Settings,
   Trash2,
 } from "./icons";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
-import {
-  useProjectDiffStats,
-  useProjectDiffStatsMap,
-} from "../hooks/useProjectDiffStats";
+import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
-import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
+import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   loadProjectRailWidth,
   PROJECT_RAIL_WIDTH_DEFAULT,
@@ -33,7 +29,7 @@ import {
   PROJECT_RAIL_WIDTH_MIN,
   saveProjectRailWidth,
 } from "../lib/appearance";
-import { basename, gitDiffIndex, listProjectFiles, revealPath, type GitDiffStats } from "../lib/fs";
+import { basename, revealPath, type GitDiffStats } from "../lib/fs";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
 import { projectKey, projectName } from "../lib/paths";
 import {
@@ -78,17 +74,6 @@ import { Shimmer } from "../surfaces/Shimmer";
 import { TabGroupMenu, type TabGroupMenuExtraItem } from "./TabGroupMenu";
 import { TerminalSpinner } from "./TerminalSpinner";
 import type { SettingsSectionId } from "../lib/settings";
-import {
-  DONE_CHECK_SIDE_CHANGE_EVENT,
-  loadDoneCheckSide,
-  loadProjectSort,
-  PROJECT_SORT_CHANGE_EVENT,
-} from "../lib/settings";
-import {
-  BUSY_GLOW_CHANGE_EVENT,
-  loadBusyGlowColor,
-} from "../lib/busyGlowSettings";
-import { GithubMark, GitlabMark } from "./InboxProviderMark";
 
 const REVEAL_LABEL = IS_MAC
   ? "Reveal in Finder"
@@ -96,24 +81,9 @@ const REVEAL_LABEL = IS_MAC
     ? "Reveal in File Explorer"
     : "Open Containing Folder";
 
-function remoteWebUrl(remote: string): string | null {
-  const value = remote.trim();
-  if (value.startsWith("git@")) {
-    const match = value.match(/^git@([^:]+):(.+)$/);
-    return match ? `https://${match[1]}/${match[2].replace(/\.git$/, "")}` : null;
-  }
-  if (value.startsWith("ssh://git@")) return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
-  return value.replace(/\.git$/, "");
-}
-
-function remoteHost(remote: string): string {
-  try { return new URL(remoteWebUrl(remote) ?? remote).hostname.toLowerCase(); } catch { return ""; }
-}
-
 function projectMenuExtraItems(
   pinned: boolean,
   canRemove: boolean,
-  remoteUrl: string | null,
 ): TabGroupMenuExtraItem[] {
   const items: TabGroupMenuExtraItem[] = [
     {
@@ -126,15 +96,6 @@ function projectMenuExtraItems(
       : { id: "pin", label: "Pin project", icon: Pin },
     { id: "reveal", label: REVEAL_LABEL, icon: FolderOpen },
   ];
-  if (remoteUrl) {
-    const github = remoteHost(remoteUrl) === "github.com";
-    items.push({
-      id: "remote",
-      label: github ? "Open on GitHub" : "Open repository",
-      icon: (github ? GithubMark : GitlabMark) as unknown as TabGroupMenuExtraItem["icon"],
-      sepBefore: true,
-    });
-  }
   if (canRemove) {
     items.push(
       { id: "archive", label: "Archive", icon: Archive, sepBefore: true },
@@ -149,8 +110,6 @@ type Props = {
   recents: RecentProject[];
   inboxUnseen?: boolean;
   busyPaths?: Iterable<string>;
-  /** Projects whose agent finished while unfocused — waiting for review. */
-  donePaths?: Iterable<string>;
   canGoBack?: boolean;
   canGoForward?: boolean;
   onGoBack?: () => void;
@@ -184,7 +143,6 @@ export function ProjectRail({
   recents,
   inboxUnseen = false,
   busyPaths,
-  donePaths,
   canGoBack = false,
   canGoForward = false,
   onGoBack,
@@ -228,13 +186,11 @@ export function ProjectRail({
   const [groupCustomColors, setGroupCustomColors] = useState(
     loadTabGroupCustomColors,
   );
-  const [autoLogos, setAutoLogos] = useState<Record<string, string>>({});
   const [projectMenu, setProjectMenu] = useState<{
     x: number;
     y: number;
     path: string;
     projectKey: string;
-    remoteUrl: string | null;
   } | null>(null);
   const [removing, setRemoving] = useState<{
     path: string;
@@ -251,77 +207,10 @@ export function ProjectRail({
     () => collectRailProjects(recents, cwd),
     [cwd, recents],
   );
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all(
-      [...allProjects.keys()].map(async (path) => {
-        const files = await listProjectFiles(path).catch(() => []);
-        const icon = files.find((file) =>
-          /^(icon|icone)\.(png|jpe?g)$/i.test(file.name) && !file.relative.includes("/"),
-        );
-        return icon ? [projectKey(path), icon.path] as const : null;
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      setAutoLogos(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry != null)));
-    });
-    return () => { cancelled = true; };
-  }, [allProjects]);
   const sections = useMemo(
     () => projectRailSections(recents, cwd, railOrder, pinnedPaths),
     [cwd, pinnedPaths, railOrder, recents],
   );
-
-  // Sorting (Settings > General): manual keeps the drag order; the other
-  // modes re-sort the unpinned list on every render pass below.
-  const [projectSort, setProjectSort] = useState(loadProjectSort);
-  useEffect(() => {
-    const onSort = () => setProjectSort(loadProjectSort());
-    window.addEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
-    return () => window.removeEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
-  }, []);
-  const statsMap = useProjectDiffStatsMap(
-    sections.projects.map((item) => item.path),
-    projectSort === "unpushed",
-  );
-  const sortedProjects = useMemo(() => {
-    if (projectSort === "manual") return sections.projects;
-    const byOpenedAt = new Map(
-      recents.map((item) => [item.path, item.openedAt]),
-    );
-    const list = [...sections.projects];
-    if (projectSort === "recent") {
-      list.sort(
-        (a, b) => (byOpenedAt.get(b.path) ?? 0) - (byOpenedAt.get(a.path) ?? 0),
-      );
-    } else if (projectSort === "alphabetical") {
-      list.sort((a, b) =>
-        projectName(a.path).localeCompare(projectName(b.path)),
-      );
-    } else {
-      list.sort(
-        (a, b) =>
-          (statsMap.get(b.path)?.ahead ?? 0) - (statsMap.get(a.path)?.ahead ?? 0),
-      );
-    }
-    return list;
-  }, [projectSort, recents, sections.projects, statsMap]);
-
-  const done = useMemo(() => {
-    const set = new Set<string>();
-    for (const path of donePaths ?? []) set.add(path);
-    return set;
-  }, [donePaths]);
-
-  const [glowColor, setGlowColor] = useState(loadBusyGlowColor);
-
-  // Settings > General can re-pick the busy glow while the rail is mounted.
-  useEffect(() => {
-    const onGlow = () => setGlowColor(loadBusyGlowColor());
-    window.addEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
-    return () => window.removeEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
-  }, []);
-
   const busy = useMemo(() => {
     const set = new Set<string>();
     for (const path of busyPaths ?? []) set.add(path);
@@ -360,15 +249,7 @@ export function ProjectRail({
       y,
       path,
       projectKey: projectKey(path),
-      remoteUrl: null,
     });
-    void gitDiffIndex(path).then((index) => {
-      setProjectMenu((current) =>
-        current?.path === path
-          ? { ...current, remoteUrl: index.remoteUrl }
-          : current,
-      );
-    }).catch(() => undefined);
   };
 
   const onProjectContextMenu = (
@@ -459,10 +340,6 @@ export function ProjectRail({
         name: resolveTabGroupLabel(projectKey, groupLabels, basename(path)),
       });
     } else if (action === "reveal") void revealPath(path);
-    else if (action === "remote" && projectMenu.remoteUrl) {
-      const url = remoteWebUrl(projectMenu.remoteUrl);
-      if (url) void openUrl(url).catch(() => undefined);
-    }
     else if (action === "archive") {
       onRemoveProject?.(path, { purgeData: false });
     } else if (action === "delete") {
@@ -481,15 +358,6 @@ export function ProjectRail({
 
   const pinnedIds = sections.pinned.map((item) => item.path);
   const projectIds = sections.projects.map((item) => item.path);
-  // Reordering a sorted list fights the sort — neutralize drag there.
-  const NO_DRAG = {
-    draggingId: null,
-    toIndex: null,
-    fromIndex: null,
-    consumeClick: () => false,
-    setItemRef: () => undefined,
-    onItemPointerDown: () => undefined,
-  } as unknown as typeof projectSortable;
   const pinnedSortable = useSortable(pinnedIds, onReorderPinned, {
     axis: "y",
     onActivate: onSelectProject,
@@ -570,8 +438,6 @@ export function ProjectRail({
                 items={sections.pinned}
                 cwd={cwd}
                 busy={busy}
-                done={done}
-                glowColor={glowColor}
                 sortable={pinnedSortable}
                 pinned
                 searchActive={searchActive || inboxActive || notesActive}
@@ -583,21 +449,18 @@ export function ProjectRail({
                 groupColors={groupColors}
                 groupCustomColors={groupCustomColors}
                 groupLogos={groupLogos}
-                autoLogos={autoLogos}
                 groupMascots={groupMascots}
               />
             ) : null}
 
             <ProjectSection
               label="Projects"
-              items={sortedProjects}
+              items={sections.projects}
               emptyLabel="No projects yet"
               onAdd={onOpenProject}
               cwd={cwd}
               busy={busy}
-              done={done}
-              glowColor={glowColor}
-              sortable={projectSort === "manual" ? projectSortable : NO_DRAG}
+              sortable={projectSortable}
               pinned={false}
               searchActive={searchActive || inboxActive || notesActive}
               onSelect={onSelectProject}
@@ -608,7 +471,6 @@ export function ProjectRail({
               groupColors={groupColors}
               groupCustomColors={groupCustomColors}
               groupLogos={groupLogos}
-              autoLogos={autoLogos}
               groupMascots={groupMascots}
             />
           </div>
@@ -662,7 +524,7 @@ export function ProjectRail({
             groupCustomColors,
             projectName(projectMenu.path),
           )}
-          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos) ?? autoLogos[projectMenu.projectKey] ?? null}
+          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos)}
           logoProject={projectMenu.path}
           mascotName={resolveTabGroupMascot(
             projectMenu.projectKey,
@@ -682,7 +544,6 @@ export function ProjectRail({
               sameProjectPath(pinned, projectMenu.path),
             ),
             Boolean(onRemoveProject),
-            projectMenu.remoteUrl,
           )}
           onExtraPick={onProjectMenuPick}
         />
@@ -926,8 +787,6 @@ function ProjectSection({
   onAdd,
   cwd,
   busy,
-  done,
-  glowColor,
   sortable,
   pinned,
   searchActive,
@@ -939,7 +798,6 @@ function ProjectSection({
   groupColors,
   groupCustomColors,
   groupLogos,
-  autoLogos,
   groupMascots,
 }: {
   label: string;
@@ -948,8 +806,6 @@ function ProjectSection({
   onAdd?: () => void;
   cwd: string;
   busy: Set<string>;
-  done: Set<string>;
-  glowColor: string;
   sortable: SortableHandle;
   pinned: boolean;
   searchActive: boolean;
@@ -960,8 +816,7 @@ function ProjectSection({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: TabGroupLogos;
-  autoLogos: Record<string, string>;
+  groupLogos: ReturnType<typeof useTabGroupLogos>;
   groupMascots: Record<string, string>;
 }) {
   return (
@@ -994,8 +849,6 @@ function ProjectSection({
             item={item}
             selected={!searchActive && sameProjectPath(item.path, cwd)}
             busy={isBusyPath(item.path, busy)}
-            done={isDonePath(item.path, done)}
-            glowColor={glowColor}
             pinned={pinned}
             sortable={sortable}
             index={index}
@@ -1007,7 +860,6 @@ function ProjectSection({
             groupColors={groupColors}
             groupCustomColors={groupCustomColors}
             groupLogos={groupLogos}
-            autoLogos={autoLogos}
             groupMascots={groupMascots}
           />
         ))}
@@ -1023,8 +875,6 @@ function ProjectCard({
   item,
   selected,
   busy,
-  done,
-  glowColor,
   pinned,
   sortable,
   index,
@@ -1036,14 +886,11 @@ function ProjectCard({
   groupColors,
   groupCustomColors,
   groupLogos,
-  autoLogos,
   groupMascots,
 }: {
   item: RecentProject;
   selected: boolean;
   busy: boolean;
-  done: boolean;
-  glowColor: string;
   pinned: boolean;
   sortable: SortableHandle;
   index: number;
@@ -1054,26 +901,14 @@ function ProjectCard({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: TabGroupLogos;
-  autoLogos: Record<string, string>;
+  groupLogos: ReturnType<typeof useTabGroupLogos>;
   groupMascots: Record<string, string>;
 }) {
   const fallbackName = basename(item.path);
   const key = projectKey(item.path);
   const seed = projectName(item.path);
   const name = resolveTabGroupLabel(key, groupLabels, fallbackName);
-  const logoPath = resolveTabGroupLogo(key, groupLogos) ?? autoLogos[key] ?? null;
-  const [logoFailed, setLogoFailed] = useState(false);
-  useEffect(() => setLogoFailed(false), [logoPath]);
-  const [doneCheckSide, setDoneCheckSide] = useState(loadDoneCheckSide);
-  useEffect(() => {
-    const onSide = () => setDoneCheckSide(loadDoneCheckSide());
-    window.addEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
-    return () =>
-      window.removeEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
-  }, []);
-  const showDoneLeft = done && !busy && doneCheckSide === "left";
-  const showDoneRight = done && !busy && doneCheckSide === "right";
+  const logoPath = resolveTabGroupLogo(key, groupLogos);
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
   const dragging = sortable.draggingId === item.path;
   const showStart =
@@ -1092,8 +927,8 @@ function ProjectCard({
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
   const hasChanges = files > 0 || additions > 0 || deletions > 0;
-  const cardTitle = projectCardTitle(item.path, name, stats, busy, done);
-  const cardAriaLabel = projectCardAriaLabel(name, stats, busy, done);
+  const cardTitle = projectCardTitle(item.path, name, stats, busy);
+  const cardAriaLabel = projectCardAriaLabel(name, stats, busy);
 
   return (
     <div
@@ -1133,20 +968,11 @@ function ProjectCard({
         className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6"
       >
         <div className="grid size-4 shrink-0 place-items-center transition-opacity group-hover:opacity-0">
-          {showDoneLeft ? (
-            <span
-              title="Agent terminé — vérifier les modifications"
-              aria-label="Agent terminé, modifications à vérifier"
-              className="grid size-4 place-items-center rounded-full bg-emerald-400/15 text-emerald-400"
-            >
-              <Check className="size-3" strokeWidth={2.5} />
-            </span>
-          ) : logoPath && !logoFailed && !busy ? (
+          {logoPath && !busy ? (
             <ProjectLogoIcon
               path={logoPath}
               className="size-4 rounded-sm"
               imageClassName="size-4"
-              onLoadError={() => setLogoFailed(true)}
             />
           ) : (
             <ProjectMascot
@@ -1159,37 +985,15 @@ function ProjectCard({
           )}
         </div>
         {busy ? (
-          <Shimmer
-            as="span"
-            duration={1.4}
-            className={nameClassName}
-            highlight={glowColor || undefined}
-          >
+          <Shimmer as="span" duration={1.4} className={nameClassName}>
             {name}
           </Shimmer>
         ) : (
           <span className={nameClassName}>{name}</span>
         )}
-        {showDoneRight ? (
-          <span
-            title="Agent finished — review the work"
-            aria-label="Finished, needs review"
-            className="grid size-4 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-400 group-hover:hidden"
-          >
-            <Check className="size-2.5" strokeWidth={2.5} />
-          </span>
-        ) : null}
-        {hasChanges && !showDoneRight ? (
+        {hasChanges ? (
           <span className="shrink-0 group-hover:hidden">
             <ProjectDiffStat additions={additions} deletions={deletions} />
-          </span>
-        ) : null}
-        {stats && stats.ahead > 0 ? (
-          <span
-            className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-sky-400 group-hover:hidden"
-            title={`${stats.ahead} commit${stats.ahead === 1 ? "" : "s"} not pushed`}
-          >
-            ↑{stats.ahead}
           </span>
         ) : null}
       </button>
@@ -1237,13 +1041,6 @@ function isBusyPath(path: string, busy: Set<string>): boolean {
   return false;
 }
 
-function isDonePath(path: string, done: Set<string>): boolean {
-  for (const other of done) {
-    if (sameProjectPath(path, other)) return true;
-  }
-  return false;
-}
-
 function ProjectDiffStat({
   additions,
   deletions,
@@ -1280,16 +1077,12 @@ function projectCardTitle(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
-  done: boolean,
 ): string {
   const parts = [name, path];
   if (busy) parts.push("Working");
-  else if (done) parts.push("Finished — needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
-  const ahead = stats?.ahead ?? 0;
-  const behind = stats?.behind ?? 0;
   if (files > 0 || additions > 0 || deletions > 0) {
     parts.push(
       [
@@ -1301,11 +1094,6 @@ function projectCardTitle(
         .join(" "),
     );
   }
-  if (ahead > 0 || behind > 0) {
-    parts.push(
-      `${ahead} ahead, ${behind} behind remote`,
-    );
-  }
   return parts.join("\n");
 }
 
@@ -1313,11 +1101,9 @@ function projectCardAriaLabel(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
-  done: boolean,
 ): string {
   const parts = [name];
   if (busy) parts.push("working");
-  else if (done) parts.push("finished, needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;

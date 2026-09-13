@@ -51,6 +51,7 @@ type Shared = {
   onClose: (sessionId: string) => void;
   onSelectFile: (paneId: string, fileId: string) => void;
   onCloseFile: (paneId: string, fileId: string) => void;
+  onCloseOtherFiles: (paneId: string, fileId: string) => void;
   onReorderFiles: (paneId: string, ids: string[]) => void;
   onFileDirtyChange: (fileId: string, dirty: boolean) => void;
   onFileErrorCountChange: (fileId: string, count: number) => void;
@@ -126,7 +127,6 @@ type Shared = {
   onMovePane: (fromId: string, toId: string, edge: PaneEdge) => void;
   onNewTerminal: (sessionId: string) => void;
   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
-  hideTerminalTabs?: boolean;
 };
 
 type Props = Shared & { layout: LayoutNode };
@@ -155,6 +155,7 @@ function PaneTreeComponent({
   onClose,
   onSelectFile,
   onCloseFile,
+  onCloseOtherFiles,
   onReorderFiles,
   onFileDirtyChange,
   onFileErrorCountChange,
@@ -190,7 +191,6 @@ function PaneTreeComponent({
   onMovePane,
   onNewTerminal,
   onTerminalMetaChange,
-  hideTerminalTabs = false,
 }: Props) {
   const treeRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef(layout);
@@ -343,6 +343,7 @@ function PaneTreeComponent({
                 onFocus={onFocus}
                 onSelectFile={onSelectFile}
                 onCloseFile={onCloseFile}
+                onCloseOtherFiles={onCloseOtherFiles}
                 onReorderFiles={onReorderFiles}
                 onDirtyChange={onFileDirtyChange}
                 onErrorCountChange={onFileErrorCountChange}
@@ -352,9 +353,6 @@ function PaneTreeComponent({
                 editorNavigation={editorNavigation}
                 onPaneDragStart={onPaneDragStart}
                 onTerminalMetaChange={onTerminalMetaChange}
-                hideTerminalTabs={
-                  hideTerminalTabs && editorPane.files.every((file) => file.terminal)
-                }
               />
             ) : session ? (
               <SessionPane

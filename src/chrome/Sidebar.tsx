@@ -41,6 +41,7 @@ import {
 import { IS_MAC, MOD } from "../lib/platform";
 import { resolveModel } from "../lib/models";
 import { prettyParent, projectKey, projectName } from "../lib/paths";
+import type { OpenFileFn } from "../lib/search";
 import { sessionDisplayTitle } from "../lib/session";
 import { nextUnseenFinishedSessions } from "../lib/sessionDone";
 import {
@@ -114,7 +115,6 @@ import {
 } from "../lib/tabGroups";
 import { useDragResize } from "../hooks/useDragResize";
 import { useGitFileStatuses } from "../hooks/useGitFileStatuses";
-import { useInboxUnseen } from "../hooks/useInboxUnseen";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
@@ -130,7 +130,6 @@ import { ColorPickerPopover, ColorSwatchRow } from "./ColorPickerPopover";
 import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
 import { FileTree } from "./FileTree";
 import { HarnessIcon } from "./HarnessIcon";
-import { ProjectNotes } from "./ProjectNotes";
 import { ProjectRail } from "./ProjectRail";
 import { RailAction } from "./RailAction";
 import { TerminalSpinner } from "./TerminalSpinner";
@@ -141,7 +140,11 @@ import { ProjectMascot } from "./ProjectMascot";
 import { Popover } from "./Popover";
 import { SessionFiltersMenu } from "./SessionFiltersMenu";
 import { sessionReminderPresets } from "./sessionReminderPresets";
-import { reminderTime, type SessionReminder } from "../lib/sessionReminders";
+import {
+  formatReminderTime,
+  reminderTime,
+  type SessionReminder,
+} from "../lib/sessionReminders";
 import { SessionsEmpty } from "./SessionsEmpty";
 import { SidebarUpdateFooter } from "./SidebarUpdate";
 import { SourceControl } from "./SourceControl";
@@ -160,7 +163,6 @@ const TAB_LABELS: Record<SidebarTab, string> = {
   inbox: "Inbox",
   files: "Explorer",
   changes: "Changes",
-  notes: "Notes",
 };
 
 function projectPathBusy(
@@ -176,8 +178,6 @@ function projectPathBusy(
 
 type Props = {
   cwd: string;
-  /** Project path used by workspace-level actions such as Finder reveal. */
-  projectCwd?: string;
   /** Working copy for Changes / explorer git. Falls back to `cwd`. */
   gitCwd?: string;
   open: boolean;
@@ -211,7 +211,7 @@ type Props = {
   onCancelReminders?: (sessionIds: readonly string[]) => void;
   onDeleteSession?: (sessionId: string) => void;
   onDeleteSessions?: (sessionIds: readonly string[]) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenFileFn;
   onOpenTerminal?: (cwd: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
@@ -235,7 +235,6 @@ type Props = {
   onShowSourceControl?: () => void;
   recents?: RecentProject[];
   busyProjectPaths?: Iterable<string>;
-  doneProjectPaths?: Iterable<string>;
   liveAgents?: LiveAgent[];
   onSelectAgent?: (sessionId: string) => void;
   onSelectProject?: (path: string) => void;
@@ -255,6 +254,9 @@ type Props = {
   onToggleProjectRail?: () => void;
   projectRailOpen?: boolean;
   unseenFinishedIds?: Set<string>;
+  inboxUnseen?: boolean;
+  /** Linked GitHub work changed after the session last advanced. */
+  linkedSessionUpdateIds?: ReadonlySet<string>;
   settingsOpen?: boolean;
   settingsSection?: SettingsSectionId;
   onOpenSettings?: () => void;
@@ -267,7 +269,6 @@ type Props = {
 
 function SidebarComponent({
   cwd,
-  projectCwd,
   gitCwd,
   open,
   sessions,
@@ -315,7 +316,6 @@ function SidebarComponent({
   onShowSourceControl,
   recents = [],
   busyProjectPaths,
-  doneProjectPaths,
   liveAgents = [],
   onSelectAgent,
   onSelectProject,
@@ -334,6 +334,8 @@ function SidebarComponent({
   onToggleProjectRail,
   projectRailOpen = true,
   unseenFinishedIds: unseenFinishedIdsProp,
+  inboxUnseen = false,
+  linkedSessionUpdateIds = new Set(),
   settingsOpen = false,
   settingsSection = "general",
   onOpenSettings,
@@ -344,7 +346,6 @@ function SidebarComponent({
   onDismissUpdate,
 }: Props) {
   const gitRoot = gitCwd || cwd;
-  const inboxUnseen = useInboxUnseen(recents, cwd);
   const resize = useDragResize({
     min: MIN_WIDTH,
     max: () => Math.min(MAX_WIDTH, Math.floor(window.innerWidth * 0.5)),
@@ -529,9 +530,7 @@ function SidebarComponent({
     },
     { axis: "y" },
   );
-  const visibleTabs = tabOrder.filter(
-    (itemId) => itemId !== "inbox" && (itemId !== "notes" || notesEnabled),
-  );
+  const visibleTabs = tabOrder.filter((itemId) => itemId !== "inbox");
   const canDragTabs = visibleTabs.length > 1;
   const showProjectRail = Boolean(onSelectProject && onOpenProject);
   // Settings live in the rail slot, so they keep it visible even when the
@@ -698,6 +697,13 @@ function SidebarComponent({
     return session ? [session] : [];
   });
   const multipleMenuSessions = menuSessionIds.length > 1;
+  const menuReminderTimes = [
+    ...new Set(
+      reminders
+        .filter((reminder) => menuSessionIds.includes(reminder.sessionId))
+        .map((reminder) => reminder.dueAt),
+    ),
+  ];
   const allMenuSessionsPinned =
     menuSessions.length > 0 && menuSessions.every((session) => session.pinned);
   const allMenuSessionsArchived =
@@ -722,12 +728,16 @@ function SidebarComponent({
     { kind: "item", id: "ungroup", label: "Ungroup" },
   ];
   const sessionMenuItems: ExplorerMenuItem[] = [
-    ...(onCancelReminders && menuSessionIds.some((id) => reminderIds.has(id))
+    ...(onCancelReminders && menuReminderTimes.length > 0
       ? [
           {
             kind: "item" as const,
             id: "reminder:cancel",
             label: "Cancel reminder",
+            description:
+              menuReminderTimes.length === 1
+                ? formatReminderTime(menuReminderTimes[0])
+                : "Multiple reminder times",
           },
           { kind: "sep" as const },
         ]
@@ -1001,6 +1011,7 @@ function SidebarComponent({
         isSelected={selectedSessionIds.has(session.id)}
         busy={busySessionIds.has(session.id)}
         done={unseenFinishedIds.has(session.id)}
+        linkedUpdate={linkedSessionUpdateIds.has(session.id)}
         needsApproval={approvalSessionIds.has(session.id)}
         dropTarget={isSessionDrop("session", session.id)}
         compact={compact}
@@ -1235,7 +1246,6 @@ function SidebarComponent({
               <FileTree
                 key={gitRoot}
                 cwd={gitRoot}
-                projectCwd={projectCwd}
                 onOpenFile={onOpenFile}
                 onOpenTerminal={onOpenTerminal}
                 onFileMoved={onFileMoved}
@@ -1564,14 +1574,14 @@ function SidebarComponent({
               selectedPath={selectedDiffPath}
               selectedKind={selectedDiffKind}
               selectedSha={selectedCommitSha}
-              onOpenFile={onOpenDiff ?? onOpenFile}
+              onOpenFile={
+                onOpenDiff ??
+                ((path) => onOpenFile(path, undefined, { exact: true }))
+              }
               onOpenAllChanges={onOpenAllChanges ?? (() => {})}
               onOpenCommit={onOpenCommit ?? (() => {})}
             />
           </div>
-        ) : null}
-        {tab === "notes" && notesEnabled && cwd && cwd !== "~" ? (
-          <ProjectNotes cwd={cwd} active onOpenNote={onOpenNotes} />
         ) : null}
         {showSidebarFooter ? (
           <>
@@ -1661,9 +1671,8 @@ function SidebarComponent({
         <ProjectRail
           cwd={cwd}
           recents={recents}
-          busyPaths={busyProjectPaths}
           inboxUnseen={inboxUnseen}
-          donePaths={doneProjectPaths}
+          busyPaths={busyProjectPaths}
           liveAgents={liveAgents}
           activeSessionId={activeSessionId}
           onSelectAgent={onSelectAgent}
@@ -2310,6 +2319,7 @@ function SessionCard({
   isSelected,
   busy,
   done,
+  linkedUpdate,
   needsApproval,
   dropTarget,
   compact = false,
@@ -2330,6 +2340,7 @@ function SessionCard({
   isSelected: boolean;
   busy: boolean;
   done: boolean;
+  linkedUpdate: boolean;
   needsApproval: boolean;
   dropTarget?: boolean;
   compact?: boolean;
@@ -2386,6 +2397,13 @@ function SessionCard({
   );
 
   const linkedWorkItem = session.linkedWorkItem;
+  const linkedUpdateDot = linkedUpdate ? (
+    <span
+      title={`Linked ${linkedWorkItem?.kind === "pr" ? "PR" : "issue"} updated since this session`}
+      aria-label="Linked work item updated"
+      className="size-1.5 shrink-0 rounded-full bg-accent"
+    />
+  ) : null;
   const workItemBadge = linkedWorkItem ? (
     <button
       type="button"
@@ -2563,7 +2581,7 @@ function SessionCard({
         }}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
-        className={`relative border flex w-full touch-none flex-col rounded-md px-2.5 text-left ${
+        className={`relative border flex w-full cursor-default select-none touch-none flex-col rounded-md px-2.5 text-left ${
           compact ? "py-1.5" : "py-2"
         } ${dragging ? "opacity-40" : ""} ${
           dropTarget
@@ -2592,7 +2610,7 @@ function SessionCard({
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
-              {workItemBadge}
+              {linkedUpdateDot}
               {status}
             </span>
           </span>
@@ -2613,7 +2631,7 @@ function SessionCard({
           </span>
           {compact ? (
             <span className="flex shrink-0 items-center gap-1.5">
-              {workItemBadge}
+              {linkedUpdateDot}
               {status}
             </span>
           ) : null}
@@ -2627,39 +2645,28 @@ function SessionCard({
           ) : (
             <span className="min-w-0 flex-1" />
           )}
-          <span
-            className={`flex shrink-0 items-center gap-1.5 ${
-              onArchive
-                ? "transition-[padding] group-focus-within:pl-5 group-hover:pl-5"
-                : ""
-            }`}
-          >
-            <HarnessIcon
-              harness={session.harness}
-              className="size-3.5 shrink-0"
-            />
+          <span className="flex shrink-0 items-center gap-1">
+            {onArchive ? (
+              <button
+                type="button"
+                data-no-drag
+                data-tauri-drag-region="false"
+                title={archiveLabel}
+                aria-label={`${archiveLabel} ${title}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onArchive();
+                }}
+                className="pointer-events-none grid size-5 place-items-center rounded-md text-content/50 opacity-0 hover:bg-content/10 hover:text-content group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              >
+                <Archive className="size-3 shrink-0" strokeWidth={1.75} />
+              </button>
+            ) : null}
+            {workItemBadge}
           </span>
         </span>
       </div>
-      {onArchive ? (
-        <button
-          type="button"
-          data-no-drag
-          data-tauri-drag-region="false"
-          title={archiveLabel}
-          aria-label={`${archiveLabel} ${title}`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onArchive();
-          }}
-          className={`pointer-events-none absolute right-7 grid size-5 place-items-center rounded text-content/50 opacity-0 transition-opacity hover:bg-content/10 hover:text-content group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
-            compact ? "bottom-[5px]" : "bottom-[7px]"
-          }`}
-        >
-          <Archive className="size-3.5" strokeWidth={1.75} />
-        </button>
-      ) : null}
     </div>
   );
 }
