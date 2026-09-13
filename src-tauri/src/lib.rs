@@ -161,6 +161,35 @@ fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
     window::open_new_window(&app)
 }
 
+/// Relaunch the bundle through LaunchServices on macOS. Starting the nested
+/// Contents/MacOS executable directly can terminate the old process without
+/// opening a new application instance after an in-place updater install.
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let bundle = executable
+            .parent()
+            .and_then(|path| path.parent())
+            .and_then(|path| path.parent())
+            .ok_or_else(|| "could not determine application bundle".to_string())?;
+        std::process::Command::new("open")
+            .arg("-n")
+            .arg(bundle)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+        app.exit(0);
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        app.request_restart();
+        Ok(())
+    }
+}
+
 #[tauri::command]
 fn pk_upstream_info() -> Result<String, String> {
     let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
@@ -178,7 +207,8 @@ if [ "$branch" != "stable/pk" ]; then
 fi
 git fetch -q upstream
 git fetch -q origin "$source_branch" 2>/dev/null || true
-echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
+version=$(git show upstream/main:package.json 2>/dev/null | sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) version=$version behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
 echo ---commits---
 git log --oneline -12 HEAD..upstream/main
 echo ---pk-commits---
@@ -406,6 +436,7 @@ pub fn run() {
             set_window_background_blur,
             set_dock_badge,
             open_new_window,
+            relaunch_app,
             window::hide_window,
             window::destroy_window,
             window::confirm_quit,

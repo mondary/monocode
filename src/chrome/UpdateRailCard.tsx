@@ -1,5 +1,5 @@
 import { X } from "./icons";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 import type { InstalledUpdate } from "../lib/updateNotice";
 
 type Props = {
@@ -40,7 +40,7 @@ export function UpdateRailCard({ update, onOpen, onDismiss }: Props) {
       </button>
       <button
         type="button"
-        onClick={() => void relaunch()}
+        onClick={() => void invoke("relaunch_app")}
         className="mx-2 mb-2 rounded-md bg-accent/15 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/25"
       >
         Redémarrer
