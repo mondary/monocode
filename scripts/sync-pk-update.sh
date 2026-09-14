@@ -56,49 +56,19 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Commits PK poussés depuis une autre machine: les intégrer avant l'amont.
-branch=$(git rev-parse --abbrev-ref HEAD)
+# Commits PK poussés depuis une autre machine: les intégrer avant le build.
+# L'amont officiel n'est pas fusionné automatiquement : le fork diverge sur
+# des fichiers structurants, et un merge non compilé ne doit jamais remplacer
+# l'application quotidienne. L'intégration upstream se fait dans perso/pk,
+# puis le build stable ne consomme que cette branche validée.
 source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
 git fetch -q origin "$source_branch" 2>/dev/null || true
 if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
-  # Keep local PK hunks when both branches changed the same lines. Git still
-  # brings in every non-overlapping commit from the pushed PK branch.
-  if ! git merge --no-edit -X ours "origin/$source_branch"; then
-    git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
-    git add Cargo.lock package-lock.json 2>/dev/null || true
-    if test -n "$(git diff --name-only --diff-filter=U)"; then
-      echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
-      git merge --abort
-      notify "Conflits de merge PK: mise à jour PKmod annulée, voir pk-update.log"
-      exit 1
-    fi
-    git commit --no-edit || true
-  fi
-fi
- # The fork deliberately changes a few shared files (App, changelog and
- # version metadata). Prefer the PK hunk only where lines overlap; all
- # non-overlapping upstream changes are merged automatically.
-if ! git merge --no-edit -X ours upstream/main; then
-  # Lockfiles: la version amont suffit, ils sont régénérés au build.
-  git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
-  git add Cargo.lock package-lock.json 2>/dev/null || true
-  # Upstream tests can evolve in parallel with PK-only test coverage. Prefer
-  # the upstream test file; production source conflicts still stop the sync.
-  while IFS= read -r conflict; do
-    case "$conflict" in
-      *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx)
-        git checkout --theirs -- "$conflict"
-        git add -- "$conflict"
-        ;;
-    esac
-  done < <(git diff --name-only --diff-filter=U)
-  if test -n "$(git diff --name-only --diff-filter=U)"; then
-    echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
-    git merge --abort
-    notify "Conflits de merge: mise à jour PKmod annulée, voir pk-update.log"
+  if ! git merge --ff-only "origin/$source_branch"; then
+    echo "La branche stable n'est pas un descendant de origin/$source_branch: synchronisation refusée." >&2
+    notify "Branche stable divergente: mise à jour PKmod annulée, voir pk-update.log"
     exit 1
   fi
-  git commit --no-edit || true
 fi
 
 "$npm_bin" run "$build_cmd"

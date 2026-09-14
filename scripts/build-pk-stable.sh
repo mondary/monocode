@@ -8,6 +8,12 @@ dev_dir="$(cd "$(dirname "$0")/.." && pwd)"
 stable_dir="${PK_STABLE_DIR:-${dev_dir}-stable}"
 stable_branch="stable/pk"
 
+# The updater runs from the stable checkout itself. Do not create a nested
+# worktree in that case: build the checkout that was just fast-forwarded.
+if [[ "$(git -C "$dev_dir" branch --show-current 2>/dev/null || true)" == "$stable_branch" ]]; then
+  exec bash "$dev_dir/scripts/build-pk-app.sh" stable
+fi
+
 if [[ ! -e "$stable_dir/.git" ]]; then
   git -C "$dev_dir" worktree add -b "$stable_branch" "$stable_dir" HEAD
 fi

@@ -194,7 +194,7 @@ fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
 fn pk_upstream_info() -> Result<String, String> {
     let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     // Reports both update axes of the PK fork in one shot:
-   //   - upstream: official commits/tags not merged into the work branch
+    //   - upstream: official release version not yet represented by the fork
    //   - origin:   PK commits pushed from another machine (pkbehind) and
     //               local commits not pushed yet (pkahead)
     let script = r#"set -e
@@ -208,7 +208,11 @@ fi
 git fetch -q upstream
 git fetch -q origin "$source_branch" 2>/dev/null || true
 version=$(git show upstream/main:package.json 2>/dev/null | sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) version=$version behind=$(git rev-list --count HEAD..upstream/main) pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
+local_version=$(git show HEAD:package.json 2>/dev/null | sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+source_behind=$(git rev-list --count HEAD..upstream/main)
+official_behind=$source_behind
+if [ -n "$version" ] && [ "$version" = "$local_version" ]; then official_behind=0; fi
+echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) version=$version behind=$official_behind sourcebehind=$source_behind pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
 echo ---commits---
 git log --oneline -12 HEAD..upstream/main
 echo ---pk-commits---

@@ -89,6 +89,24 @@ describe("updater", () => {
     expect(invoke).not.toHaveBeenCalledWith("sync_pk_upstream");
   });
 
+  it("does not reoffer same-version upstream ancestry as an app update", async () => {
+    getVersion.mockResolvedValue("0.1.46");
+    check.mockRejectedValue(new Error("Updater does not have any endpoints set"));
+    invoke.mockResolvedValue(
+      "tag=v0.1.46 version=0.1.46 behind=49 pkbehind=0 pkahead=0\n---commits---\nnew1234 upstream change",
+    );
+
+    await expect(runUpdateFlow(true)).resolves.toEqual({
+      phase: "idle",
+      currentVersion: "0.1.46",
+    });
+    expect(message).toHaveBeenCalledWith(
+      expect.stringContaining("MonoCode officiel : 0.1.46 — à jour"),
+      { title: "Mise à jour PKmod" },
+    );
+    expect(invoke).not.toHaveBeenCalledWith("sync_pk_upstream");
+  });
+
   it("offers a PK-only update when the fork branch moved on GitHub", async () => {
     getVersion.mockResolvedValue("0.1.24");
     check.mockRejectedValue(new Error("Updater does not have any endpoints set"));

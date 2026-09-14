@@ -53,7 +53,7 @@ async function nativePkUpdateDialog(
   }
   const lists = request.axes.map((axis) => axisCommitList(axis)).join("");
   const proceed = await ask(
-    `${lines.join("\n")}${lists}\n\nPKmod va récupérer les commits officiels et PK, reconstruire l'application et la relancer.`,
+    `${lines.join("\n")}${lists}\n\nPKmod va récupérer la dernière version PK validée, reconstruire l'application et la relancer.`,
     {
       title: "Mise à jour PKmod",
       kind: "info",

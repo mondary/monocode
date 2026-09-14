@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via merge de l'amont — version **2026.09.39**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version PK **2026.09.39**, base applicative **0.1.46**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -13,7 +13,7 @@ Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu 
 
 ## 🎯 Pourquoi ce fork
 
-MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri.conf.json` identique → zéro conflit) et ajoute une couche personnelle : pilotage multi-providers réel, rail projets vivant, initialisation de projet en un clic, et une boucle de mise à jour à deux axes. Chaque réglage modifié porte un badge **PK** dans Settings.
+MonoCode PK garde **tout MonoCode officiel** (intégration validée de l'amont, `tauri.conf.json` identique → zéro conflit) et ajoute une couche personnelle : pilotage multi-providers réel, rail projets vivant, initialisation de projet en un clic, et une boucle de mise à jour à deux axes. Chaque réglage modifié porte un badge **PK** dans Settings.
 
 | Domaine | MonoCode officiel | MonoCode PK |
 |---|---|---|
@@ -22,7 +22,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 | **Providers custom** | — | Endpoints OpenAI-compatibles (base URL + API key + **bouton Test**), **onglet dédié** dans le picker, routés via OpenCode |
 | Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
 | Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
-| Mises à jour | Updater binaire officiel | Deux axes : amont **+ branche PK GitHub**, **dialog in-app stylé** avec liste des commits, un clic = merge + build + relance |
+| Mises à jour | Updater binaire officiel | Deux axes : release amont **+ branche PK GitHub**, **dialog in-app stylé** avec liste des commits, un clic = fast-forward PK validé + build + relance |
 | Environnement de dev | — | Variante **dev isolée** (`build:pk:dev`) : je code/tue/relance sans toucher à ta version quotidienne |
 
 ## ✨ En détail
@@ -56,7 +56,7 @@ MonoCode PK garde **tout MonoCode officiel** (merge régulier de l'amont, `tauri
 
 ## 🧠 Utilisation
 
-- `scripts/sync-pk-update.sh` — synchronise l'amont (fetch + merge), build, relance l'app ; dialog intégré avec bouton « Plus tard » et liste des commits en retard.
+- `scripts/sync-pk-update.sh` — récupère la branche PK validée en fast-forward, build, relance l'app ; les merges amont restent validés dans `perso/pk` avant installation.
 - `npm run build:pk:dev` — build la variante **dev** (`/Applications/MonoCodePK-Dev.app`, identifiant `com.monocode.pk.dev`) : données et permissions isolées, cohabite avec la version quotidienne pour valider les nouveautés sans tuer MonoCode PK. Le « Check for Updates » de chaque variante reconstruit et relance sa propre variante.
 
 ## ⚙️ Réglages

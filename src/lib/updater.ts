@@ -44,6 +44,19 @@ function isNewerVersion(candidate: string, current: string): boolean {
   return false;
 }
 
+function officialBehindCount(
+  info: { version: string; tag: string; behind: number },
+  currentVersion: string,
+): number {
+  const officialVersion = info.version || info.tag;
+  // Commit ancestry is intentionally not used as an update signal when the
+  // release version is already current. PK can carry fork-only commits and
+  // cannot safely merge arbitrary upstream history during an app update.
+  return isNewerVersion(officialVersion, currentVersion)
+    ? Math.max(info.behind, 1)
+    : 0;
+}
+
 export async function readAppVersion(): Promise<string> {
   try {
     return await getVersion();
@@ -103,10 +116,7 @@ export async function runUpdateFlow(
     const update = await check();
     const info = manual ? await pkUpstreamInfo() : null;
     if (manual && info) {
-      const officialBehind = Math.max(
-        info.behind,
-        isNewerVersion(info.version, currentVersion) ? 1 : 0,
-      );
+      const officialBehind = officialBehindCount(info, currentVersion);
       const proceed = await requestPkUpdateDecision({
         upToDate: officialBehind === 0 && info.pkBehind === 0 && !update,
         axes: [
@@ -172,9 +182,7 @@ export async function runUpdateFlow(
       onProgress?.(idle);
       if (manual) {
         const info = await pkUpstreamInfo();
-        const officialBehind = info
-          ? Math.max(info.behind, isNewerVersion(info.version, currentVersion) ? 1 : 0)
-          : 0;
+        const officialBehind = info ? officialBehindCount(info, currentVersion) : 0;
         const upToDate = !info || (officialBehind === 0 && info.pkBehind === 0);
         const proceed = await requestPkUpdateDecision({
           upToDate,
