@@ -15,6 +15,8 @@ import {
   saveTranscriptAnchor,
   TRANSCRIPT_ANCHOR_DEFAULT,
   loadThemePreference,
+  loadThemeDarkLightness,
+  saveThemeDarkLightness,
   saveThemePreference,
   resolveColorScheme,
   THEME_PREFERENCE_DEFAULT,
@@ -33,6 +35,7 @@ const ANCHOR_KEY = "monocode.transcriptAnchor";
 const CHAT_BACKGROUND_PATH_KEY = "monocode.chatBackgroundPath";
 const CHAT_BACKGROUND_OPACITY_KEY = "monocode.chatBackgroundOpacity";
 const CHAT_BACKGROUND_SCOPE_KEY = "monocode.chatBackgroundScope";
+const THEME_DARK_LIGHTNESS_KEY = "monocode.themeDarkLightness";
 
 function mockLocalStorage() {
   const data = new Map<string, string>();
