@@ -26,6 +26,7 @@ import {
 } from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
 import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
+import { useAnimatedReorder } from "../hooks/useAnimatedReorder";
 import {
   loadProjectRailWidth,
   PROJECT_RAIL_WIDTH_DEFAULT,
@@ -719,7 +720,7 @@ export function ProjectRail({
   );
 }
 
-type SortableHandle = ReturnType<typeof useSortable>;
+type SortableHandle = ReturnType<typeof useAnimatedReorder>;
 
 const LIVE_AGENT_MIN = 2;
 const LIVE_AGENT_CAP = 4;
@@ -988,7 +989,7 @@ function ProjectSection({
         </p>
       ) : null}
       <div className="flex flex-col gap-px px-2">
-        {items.map((item, index) => (
+        {items.map((item) => (
           <ProjectCard
             key={item.path}
             item={item}
@@ -998,7 +999,6 @@ function ProjectSection({
             glowColor={glowColor}
             pinned={pinned}
             sortable={sortable}
-            index={index}
             onSelect={onSelect}
             onTogglePin={onTogglePin}
             onContextMenu={onContextMenu}
@@ -1027,7 +1027,6 @@ function ProjectCard({
   glowColor,
   pinned,
   sortable,
-  index,
   onSelect,
   onTogglePin,
   onContextMenu,
@@ -1046,7 +1045,6 @@ function ProjectCard({
   glowColor: string;
   pinned: boolean;
   sortable: SortableHandle;
-  index: number;
   onSelect: (path: string) => void;
   onTogglePin: (path: string) => void;
   onContextMenu: (path: string, event: MouseEvent<HTMLElement>) => void;
@@ -1075,17 +1073,6 @@ function ProjectCard({
   const showDoneLeft = done && !busy && doneCheckSide === "left";
   const showDoneRight = done && !busy && doneCheckSide === "right";
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
-  const dragging = sortable.draggingId === item.path;
-  const showStart =
-    sortable.draggingId &&
-    sortable.toIndex === index &&
-    sortable.fromIndex !== null &&
-    sortable.toIndex < sortable.fromIndex;
-  const showEnd =
-    sortable.draggingId &&
-    sortable.toIndex === index &&
-    sortable.fromIndex !== null &&
-    sortable.toIndex > sortable.fromIndex;
   const diffEnabled = Boolean(item.path) && item.path !== "~";
   const stats = useProjectDiffStats(item.path, diffEnabled);
   const files = stats?.files ?? 0;
@@ -1098,11 +1085,12 @@ function ProjectCard({
   return (
     <div
       ref={(el) => sortable.setItemRef(item.path, el)}
-      className={`group relative flex touch-none items-stretch rounded-md px-2 h-8 ${
+      data-selected={selected || undefined}
+      className={`reorder-item project-reorder-item group relative flex touch-none items-stretch rounded-md px-2 h-8 ${
         selected
           ? "bg-content/12 text-content"
-          : "opacity-65 hover:bg-content/5 hover:text-content"
-      } ${dragging ? "opacity-40" : ""} cursor-default`}
+          : "opacity-65"
+      } cursor-default`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         if ((event.target as HTMLElement | null)?.closest("[data-no-drag]")) {
@@ -1119,12 +1107,6 @@ function ProjectCard({
       }}
       onContextMenu={(event) => onContextMenu(item.path, event)}
     >
-      {showStart ? (
-        <div className="pointer-events-none absolute inset-x-2 top-0 z-20 h-0.5 rounded-full bg-accent" />
-      ) : null}
-      {showEnd ? (
-        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-20 h-0.5 rounded-full bg-accent" />
-      ) : null}
       <button
         type="button"
         title={cardTitle}
