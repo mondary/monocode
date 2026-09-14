@@ -92,5 +92,11 @@ if ! git merge --no-edit -X ours upstream/main; then
   git commit --no-edit || true
 fi
 
-npm run "$build_cmd"
+# Si ce checkout est lui-même le worktree stable (.git est un fichier),
+# build-pk-stable.sh échouerait : construire directement l'app ici.
+if [[ -f "$project_dir/.git" ]]; then
+  bash "$project_dir/scripts/build-pk-app.sh" "$variant"
+else
+  npm run "$build_cmd"
+fi
 open -n "$app_path"
