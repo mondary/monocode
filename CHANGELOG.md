@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.40] - 2026-09-14
+
+### Changed
+
+- Intégration de l'amont MonoCode (13 commits) : aperçus de liens sécurisés, préchargement des sessions fermées pour une réouverture plus rapide, notifications d'activité liée déplacées dans les panneaux de session, métriques de tokens provider par tour, animations de réordonnancement des onglets/projets, contrôle de luminosité du mode sombre, `Close All Tabs` sur Cmd+Shift+W, et diverses corrections Windows/GitHub CLI.
+- Fonctionnalités PK conservées lors de l'intégration : tri du rail projets, checkmarks « terminé — à vérifier » sur les cartes projets, onglet Notes, `workingVerb` et titres de harnais.
+
+### Fixed
+
+- La mise à jour PK depuis l'app ne bloque plus sur un conflit modification/suppression (fichier supprimé dans `perso/pk`) : la suppression est répliquée automatiquement.
+- La mise à jour PK depuis l'app réussit depuis le worktree stable : le build passe en direct au lieu de recréer le worktree déjà extrait.
+
 ## [2026.09.39] - 2026-09-13
 
 ### Added
