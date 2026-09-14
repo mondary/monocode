@@ -99,7 +99,11 @@ import {
 import type { HarnessId, LinkedWorkItem } from "../lib/session";
 import type { LiveAgent } from "../lib/liveAgents";
 import type { SessionSummary } from "../lib/sessionStore";
-import type { SettingsSectionId } from "../lib/settings";
+import {
+  loadProjectTitleMode,
+  PROJECT_TITLE_MODE_CHANGE_EVENT,
+  type SettingsSectionId,
+} from "../lib/settings";
 import type { InstalledUpdate } from "../lib/updateNotice";
 import {
   loadTabGroupColors,
@@ -534,6 +538,13 @@ function SidebarComponent({
   );
   const canDragTabs = visibleTabs.length > 1;
   const showProjectRail = Boolean(onSelectProject && onOpenProject);
+  const [projectTitleMode, setProjectTitleMode] = useState(loadProjectTitleMode);
+  useEffect(() => {
+    const refresh = () => setProjectTitleMode(loadProjectTitleMode());
+    window.addEventListener(PROJECT_TITLE_MODE_CHANGE_EVENT, refresh);
+    return () => window.removeEventListener(PROJECT_TITLE_MODE_CHANGE_EVENT, refresh);
+  }, []);
+  const workspaceTitle = projectTitleMode === "project" ? projectName(cwd) : "Workspace";
   // Settings live in the rail slot, so they keep it visible even when the
   // project rail itself is collapsed.
   const railVisible = showProjectRail && (projectRailOpen || settingsOpen);
@@ -1162,7 +1173,7 @@ function SidebarComponent({
             data-tauri-drag-region="deep"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">
-              Workspace
+              {workspaceTitle}
             </span>
             <WorkspaceTitleActions onSearch={onGoToFile} onNew={onNew} />
           </div>

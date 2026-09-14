@@ -95,6 +95,42 @@ export function saveSettingsSection(id: SettingsSectionId) {
 
 const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 
+export type ProjectTitleMode = "workspace" | "project";
+export const PROJECT_TITLE_MODE_CHANGE_EVENT = "monocode:project-title-mode-change";
+export function loadProjectTitleMode(): ProjectTitleMode {
+  try { return localStorage.getItem("monocode.projectTitleMode") === "project" ? "project" : "workspace"; }
+  catch { return "workspace"; }
+}
+export function saveProjectTitleMode(value: ProjectTitleMode): void {
+  try { localStorage.setItem("monocode.projectTitleMode", value); } catch {}
+  window.dispatchEvent(new Event(PROJECT_TITLE_MODE_CHANGE_EVENT));
+}
+
+export const PROJECT_ACTIVITY_DEFAULT = true;
+export const PROJECT_ACTIVITY_CHANGE_EVENT = "monocode:project-activity-change";
+
+export function loadProjectActivity(): boolean {
+  try {
+    return localStorage.getItem("monocode.projectActivity") !== "false";
+  } catch { return PROJECT_ACTIVITY_DEFAULT; }
+}
+
+export function saveProjectActivity(value: boolean): void {
+  try { localStorage.setItem("monocode.projectActivity", String(value)); } catch {}
+  window.dispatchEvent(new Event(PROJECT_ACTIVITY_CHANGE_EVENT));
+}
+
+export function loadProjectReviewHighlight(): boolean {
+  try {
+    return localStorage.getItem("monocode.projectReviewHighlight") !== "false";
+  } catch { return true; }
+}
+
+export function saveProjectReviewHighlight(value: boolean): void {
+  try { localStorage.setItem("monocode.projectReviewHighlight", String(value)); } catch {}
+  window.dispatchEvent(new Event(PROJECT_ACTIVITY_CHANGE_EVENT));
+}
+
 /** Where the "agent finished" check replaces the project row's visuals. */
 export type DoneCheckSide = "left" | "right";
 

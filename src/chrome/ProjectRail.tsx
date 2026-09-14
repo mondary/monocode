@@ -81,6 +81,9 @@ import type { SettingsSectionId } from "../lib/settings";
 import {
   DONE_CHECK_SIDE_CHANGE_EVENT,
   loadDoneCheckSide,
+  loadProjectActivity,
+  loadProjectReviewHighlight,
+  PROJECT_ACTIVITY_CHANGE_EVENT,
   loadProjectSort,
   PROJECT_SORT_CHANGE_EVENT,
 } from "../lib/settings";
@@ -275,6 +278,16 @@ export function ProjectRail({
   // Sorting (Settings > General): manual keeps the drag order; the other
   // modes re-sort the unpinned list on every render pass below.
   const [projectSort, setProjectSort] = useState(loadProjectSort);
+  const [projectActivity, setProjectActivity] = useState(loadProjectActivity);
+  const [reviewHighlight, setReviewHighlight] = useState(loadProjectReviewHighlight);
+  useEffect(() => {
+    const onActivityChange = () => {
+      setProjectActivity(loadProjectActivity());
+      setReviewHighlight(loadProjectReviewHighlight());
+    };
+    window.addEventListener(PROJECT_ACTIVITY_CHANGE_EVENT, onActivityChange);
+    return () => window.removeEventListener(PROJECT_ACTIVITY_CHANGE_EVENT, onActivityChange);
+  }, []);
   useEffect(() => {
     const onSort = () => setProjectSort(loadProjectSort());
     window.addEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
@@ -327,6 +340,38 @@ export function ProjectRail({
     for (const path of busyPaths ?? []) set.add(path);
     return set;
   }, [busyPaths]);
+
+  // A project is "in progress" when it is actively running, has just
+  // finished in the background, or was used today. This gives the rail a
+  // useful daily workspace without asking the user to maintain another list.
+  const inProgressProjects = useMemo(() => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const busyOrDone = new Set([...busy, ...done]);
+    const today = new Set(
+      recents
+        .filter((item) => item.openedAt >= startOfDay.getTime())
+        .map((item) => item.path),
+    );
+    const candidates = [...busyOrDone, ...today];
+    const seen = new Set<string>();
+    return candidates
+      .map((path) => [...allProjects.keys()].find((entry) => sameProjectPath(entry, path)))
+      .filter((path): path is string => {
+        if (!path || seen.has(projectKey(path))) return false;
+        seen.add(projectKey(path));
+        return true;
+      })
+      .sort((a, b) => {
+        const aLive = busy.has(a) ? 0 : done.has(a) ? 1 : 2;
+        const bLive = busy.has(b) ? 0 : done.has(b) ? 1 : 2;
+        if (aLive !== bLive) return aLive - bLive;
+        return (recents.find((item) => sameProjectPath(item.path, b))?.openedAt ?? 0) -
+          (recents.find((item) => sameProjectPath(item.path, a))?.openedAt ?? 0);
+      })
+      .map((path) => allProjects.get(path)!)
+      .filter(Boolean);
+  }, [allProjects, busy, done, recents]);
 
   useEffect(() => {
     setRailOrder((prev) => {
@@ -564,6 +609,30 @@ export function ProjectRail({
             }}
             className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none pb-2"
           >
+            {projectActivity && inProgressProjects.length > 0 ? (
+              <ProjectSection
+                label="En cours"
+                items={inProgressProjects}
+                cwd={cwd}
+                busy={busy}
+                done={done}
+                reviewHighlight={reviewHighlight}
+                glowColor={glowColor}
+                sortable={NO_DRAG}
+                pinned={false}
+                searchActive={searchActive || inboxActive || notesActive}
+                onSelect={onSelectProject}
+                onTogglePin={onTogglePin}
+                onContextMenu={onProjectContextMenu}
+                onOpenMenu={openProjectMenu}
+                groupLabels={groupLabels}
+                groupColors={groupColors}
+                groupCustomColors={groupCustomColors}
+                groupLogos={groupLogos}
+                autoLogos={autoLogos}
+                groupMascots={groupMascots}
+              />
+            ) : null}
             {sections.pinned.length > 0 ? (
               <ProjectSection
                 label="Pinned"
@@ -571,6 +640,7 @@ export function ProjectRail({
                 cwd={cwd}
                 busy={busy}
                 done={done}
+                reviewHighlight={reviewHighlight}
                 glowColor={glowColor}
                 sortable={pinnedSortable}
                 pinned
@@ -596,6 +666,7 @@ export function ProjectRail({
               cwd={cwd}
               busy={busy}
               done={done}
+              reviewHighlight={reviewHighlight}
               glowColor={glowColor}
               sortable={projectSort === "manual" ? projectSortable : NO_DRAG}
               pinned={false}
@@ -927,6 +998,7 @@ function ProjectSection({
   cwd,
   busy,
   done,
+  reviewHighlight,
   glowColor,
   sortable,
   pinned,
@@ -949,6 +1021,7 @@ function ProjectSection({
   cwd: string;
   busy: Set<string>;
   done: Set<string>;
+  reviewHighlight: boolean;
   glowColor: string;
   sortable: SortableHandle;
   pinned: boolean;
@@ -995,6 +1068,7 @@ function ProjectSection({
             selected={!searchActive && sameProjectPath(item.path, cwd)}
             busy={isBusyPath(item.path, busy)}
             done={isDonePath(item.path, done)}
+            reviewHighlight={reviewHighlight}
             glowColor={glowColor}
             pinned={pinned}
             sortable={sortable}
@@ -1024,6 +1098,7 @@ function ProjectCard({
   selected,
   busy,
   done,
+  reviewHighlight,
   glowColor,
   pinned,
   sortable,
@@ -1043,6 +1118,7 @@ function ProjectCard({
   selected: boolean;
   busy: boolean;
   done: boolean;
+  reviewHighlight: boolean;
   glowColor: string;
   pinned: boolean;
   sortable: SortableHandle;
@@ -1101,7 +1177,9 @@ function ProjectCard({
       className={`group relative flex touch-none items-stretch rounded-md px-2 h-8 ${
         selected
           ? "bg-content/12 text-content"
-          : "opacity-65 hover:bg-content/5 hover:text-content"
+          : done && !busy && reviewHighlight
+            ? "bg-emerald-400/14 text-emerald-50 hover:bg-emerald-400/20"
+            : "opacity-65 hover:bg-content/5 hover:text-content"
       } ${dragging ? "opacity-40" : ""} cursor-default`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;

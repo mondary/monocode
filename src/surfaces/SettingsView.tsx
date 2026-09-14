@@ -216,10 +216,17 @@ import {
   loadFollowUpBehavior,
   loadDoneCheckSide,
   saveDoneCheckSide,
+  loadProjectActivity,
+  saveProjectActivity,
+  loadProjectReviewHighlight,
+  saveProjectReviewHighlight,
+  loadProjectTitleMode,
+  saveProjectTitleMode,
   loadProjectSort,
   saveProjectSort,
   type DoneCheckSide,
   type ProjectSortMode,
+  type ProjectTitleMode,
   loadGridArcadeEnabled,
   loadLiveAgentsEnabled,
   loadNotesEnabled,
@@ -428,6 +435,9 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [projectSort, setProjectSort] = useState<ProjectSortMode>(
     loadProjectSort,
   );
+  const [projectActivity, setProjectActivity] = useState(loadProjectActivity);
+  const [projectReviewHighlight, setProjectReviewHighlight] = useState(loadProjectReviewHighlight);
+  const [projectTitleMode, setProjectTitleMode] = useState<ProjectTitleMode>(loadProjectTitleMode);
   const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
   const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
     loadGridArcadeEnabled,
@@ -517,6 +527,21 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const onProjectSort = (next: ProjectSortMode) => {
     saveProjectSort(next);
     setProjectSort(next);
+  };
+
+  const onProjectActivity = (next: boolean) => {
+    saveProjectActivity(next);
+    setProjectActivity(next);
+  };
+
+  const onProjectReviewHighlight = (next: boolean) => {
+    saveProjectReviewHighlight(next);
+    setProjectReviewHighlight(next);
+  };
+
+  const onProjectTitleMode = (next: ProjectTitleMode) => {
+    saveProjectTitleMode(next);
+    setProjectTitleMode(next);
   };
 
   const onComposerRunner = (next: boolean) => {
@@ -820,6 +845,32 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           ]}
           onChange={onDoneCheckSide}
         />
+      </Row>
+      <Row
+        label="Workspace title"
+        description="Show the generic Workspace label, or the current project name in the workspace header."
+      >
+        <Segmented
+          label="Workspace title"
+          value={projectTitleMode}
+          options={[
+            { value: "workspace", label: "Workspace" },
+            { value: "project", label: "Project name" },
+          ]}
+          onChange={onProjectTitleMode}
+        />
+      </Row>
+      <Row
+        label="Project activity section"
+        description="Automatically show projects active or used today at the top of the project rail."
+      >
+        <Toggle label="Project activity section" on={projectActivity} onChange={onProjectActivity} />
+      </Row>
+      <Row
+        label="Review highlight"
+        description="Give projects finished in the background a green review panel in the rail."
+      >
+        <Toggle label="Review highlight" on={projectReviewHighlight} onChange={onProjectReviewHighlight} />
       </Row>
       <Row
         label="Project list order"
