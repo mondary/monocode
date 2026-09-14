@@ -47,6 +47,16 @@ if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0
   if ! git merge --no-edit -X ours "origin/$source_branch"; then
     git checkout --theirs -- Cargo.lock package-lock.json 2>/dev/null || true
     git add Cargo.lock package-lock.json 2>/dev/null || true
+    # Modify/delete (fichier supprimé dans la branche source): garder la
+    # décision de la branche source — supprimer le fichier ici aussi.
+    while IFS= read -r conflict; do
+      if git cat-file -e "origin/$source_branch:$conflict" 2>/dev/null; then
+        git checkout --ours -- "$conflict" 2>/dev/null || true
+        git add -- "$conflict" 2>/dev/null || true
+      else
+        git rm -- "$conflict" 2>/dev/null || true
+      fi
+    done < <(git diff --name-only --diff-filter=U)
     if test -n "$(git diff --name-only --diff-filter=U)"; then
       echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
       git merge --abort
