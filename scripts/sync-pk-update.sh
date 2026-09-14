@@ -22,7 +22,26 @@ exec >>"$log_file" 2>&1
 # GUI-launched Tauri commands do not inherit the interactive shell PATH.
 # Include the common Homebrew and nvm locations so npm is available during
 # an update started from MonoCode itself.
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.nvm/current/bin:$PATH"
+export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME:-/Users/clm}/.nvm/current/bin:$PATH"
+
+# Resolve npm once, because GUI-launched processes can have a different PATH
+# from the shell even after the common locations above are added.
+npm_bin=""
+for candidate in \
+  "$(command -v npm 2>/dev/null || true)" \
+  /opt/homebrew/bin/npm \
+  /usr/local/bin/npm \
+  "${HOME:-/Users/clm}/.nvm/current/bin/npm"; do
+  if [[ -n "$candidate" && -x "$candidate" ]]; then
+    npm_bin="$candidate"
+    break
+  fi
+done
+if [[ -z "$npm_bin" ]]; then
+  echo "npm introuvable: PATH=$PATH" >&2
+  osascript -e 'display notification "npm introuvable: mise à jour PKmod annulée, voir pk-update.log" with title "Mise à jour PKmod" sound name "Basso"' || true
+  exit 1
+fi
 
 notify() {
   osascript -e "display notification \"$1\" with title \"Mise à jour PKmod\" sound name \"Basso\"" || true
@@ -82,5 +101,5 @@ if ! git merge --no-edit -X ours upstream/main; then
   git commit --no-edit || true
 fi
 
-npm run "$build_cmd"
+"$npm_bin" run "$build_cmd"
 open -n "$app_path"

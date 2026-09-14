@@ -302,10 +302,17 @@ export function ProjectRail({
     const byOpenedAt = new Map(
       recents.map((item) => [item.path, item.openedAt]),
     );
+    const busyNow = new Set(busyPaths ?? []);
+    const doneNow = new Set(donePaths ?? []);
     const list = [...sections.projects];
     if (projectSort === "recent") {
       list.sort(
-        (a, b) => (byOpenedAt.get(b.path) ?? 0) - (byOpenedAt.get(a.path) ?? 0),
+        (a, b) => {
+          const aActivity = isBusyPath(a.path, busyNow) ? 0 : isDonePath(a.path, doneNow) ? 1 : 2;
+          const bActivity = isBusyPath(b.path, busyNow) ? 0 : isDonePath(b.path, doneNow) ? 1 : 2;
+          return aActivity - bActivity ||
+            (byOpenedAt.get(b.path) ?? 0) - (byOpenedAt.get(a.path) ?? 0);
+        },
       );
     } else if (projectSort === "alphabetical") {
       list.sort((a, b) =>
@@ -318,7 +325,7 @@ export function ProjectRail({
       );
     }
     return list;
-  }, [projectSort, recents, sections.projects, statsMap]);
+  }, [busyPaths, donePaths, projectSort, recents, sections.projects, statsMap]);
 
   const done = useMemo(() => {
     const set = new Set<string>();

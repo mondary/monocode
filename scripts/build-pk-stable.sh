@@ -12,7 +12,7 @@ if [[ ! -e "$stable_dir/.git" ]]; then
   git -C "$dev_dir" worktree add -b "$stable_branch" "$stable_dir" HEAD
 fi
 
-if [[ ! -e "$stable_dir/node_modules" && -d "$dev_dir/node_modules" ]]; then
+if [[ ! -d "$stable_dir/node_modules" && -d "$dev_dir/node_modules" ]]; then
   ln -s "$dev_dir/node_modules" "$stable_dir/node_modules"
 fi
 
