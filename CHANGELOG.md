@@ -5,12 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026.09.39] - 2026-09-15
+## [0.1.46] - 2026-09-15
 
 ### Changed
 
-- Le build PK, l'application et les distributions DMG/Homebrew partagent désormais la version unique 2026.09.39.
+- Le build PK reste aligné sur la version officielle applicative 0.1.46.
 - La mise à jour automatique ne fusionne plus un amont divergent sans validation ; elle installe uniquement la branche PK validée.
+
+## [2026.09.39] - 2026-09-13
 
 ### Added
 
