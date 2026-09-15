@@ -33,6 +33,7 @@ coverage/
 *.AppImage
 *.tar.gz
 *.zip
+releases/
 latest.json
 logs/
 *.log
