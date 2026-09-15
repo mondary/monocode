@@ -83,10 +83,15 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" \
-            --title "MonoCode PK $VERSION" \
-            --generate-notes \
-            "releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          ASSET="releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" \
+              --title "MonoCode PK $VERSION" \
+              --generate-notes \
+              "$ASSET"
+          fi
 
       - name: Update Homebrew tap
         if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
