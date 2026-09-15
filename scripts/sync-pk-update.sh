@@ -16,7 +16,8 @@ case "$variant" in
 esac
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
-log_file="$project_dir/pk-update.log"
+log_file="${PK_RUNTIME_DIR:-$project_dir/runtime}/pk-update.log"
+mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
 
 # GUI-launched Tauri commands do not inherit the interactive shell PATH.

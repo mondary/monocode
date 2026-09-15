@@ -3,6 +3,7 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 variant="${1:-}"
+build_dir="${PK_BUILD_DIR:-$project_dir/build}"
 
 # Deux variantes cohabitent : la version quotidienne (stable) et une version
 # dev que l'agent peut tuer/relancer pendant le développement. L'identifiant
@@ -26,9 +27,11 @@ case "$variant" in
     exit 1
     ;;
 esac
-source_app="$project_dir/target/release/bundle/macos/${product_name}.app"
+source_app="$build_dir/target/release/bundle/macos/${product_name}.app"
 
 cd "$project_dir"
+export CARGO_TARGET_DIR="$build_dir/target"
+mkdir -p "$build_dir"
 
 # Signature stable: sans elle (ad-hoc), macOS traite chaque rebuild comme une
 # nouvelle app et redemande les acces Documents/Desktop/Downloads (TCC).
@@ -86,7 +89,7 @@ fi
 # for late updater-signing errors too. Distinguish them by bundle freshness:
 # only a bundling pass that ran after the build started can be trusted.
 if [[ "$(stat -f %m "$source_app")" -lt "$build_start" ]]; then
-  echo "Build failed and the bundle in target/ is stale (not rebuilt); aborting install." >&2
+  echo "Build failed and the bundle in $build_dir/target/ is stale (not rebuilt); aborting install." >&2
   exit 1
 fi
 

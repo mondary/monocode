@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DMG="releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          DMG="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
           test -s "$DMG"
           hdiutil verify "$DMG"
           INFO="$(hdiutil attach -nobrowse -readonly "$DMG")"
@@ -83,7 +83,7 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          ASSET="releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          ASSET="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$ASSET" --clobber
           else
@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DMG="releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          DMG="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
           SHA256="$(shasum -a 256 "$DMG" | awk '{print $1}')"
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/mondary/homebrew-tap.git" "$RUNNER_TEMP/homebrew-tap"
           python3 scripts/update-homebrew-pk-cask.py "$RUNNER_TEMP/homebrew-tap" "$VERSION" "$SHA256"

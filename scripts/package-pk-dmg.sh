@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
-APP="${PK_APP_PATH:-$ROOT/../monocodePK-stable/target/release/bundle/macos/MonoCode PK.app}"
-RELEASE_DIR="${PK_RELEASE_DIR:-$ROOT/releases}"
+APP="${PK_APP_PATH:-$ROOT/../monocodePK-stable/build/target/release/bundle/macos/MonoCode PK.app}"
+RELEASE_DIR="${PK_RELEASE_DIR:-$ROOT/build/releases}"
 BACKGROUND="$ROOT/packaging/dmg-background.gif"
 DMG="$RELEASE_DIR/MonoCodePK_${VERSION}_aarch64.dmg"
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/monocodepk-dmg.XXXXXX")"
