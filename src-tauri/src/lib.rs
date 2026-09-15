@@ -195,7 +195,7 @@ fn pk_upstream_info() -> Result<String, String> {
     let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
     // Reports both update axes of the PK fork in one shot:
     //   - upstream: official release version not yet represented by the fork
-   //   - origin:   PK commits pushed from another machine (pkbehind) and
+    //   - origin:   PK commits pushed from another machine (pkbehind) and
     //               local commits not pushed yet (pkahead)
     let script = r#"set -e
 branch=$(git rev-parse --abbrev-ref HEAD)
