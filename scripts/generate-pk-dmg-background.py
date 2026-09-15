@@ -69,8 +69,10 @@ def main() -> None:
         # Finder renders icon names in black. These two quiet cards preserve
         # contrast without competing with the native app and Applications
         # icons placed above them by create-dmg.
-        draw.rounded_rectangle((92, 250, 268, 314), radius=12, fill=(190, 204, 216, 225), outline=(113, 231, 184, 110), width=1)
-        draw.rounded_rectangle((392, 250, 568, 314), radius=12, fill=(190, 204, 216, 225), outline=(113, 231, 184, 110), width=1)
+        # Finder places the label directly below a 128 px icon centered at y=170.
+        # Keep the contrast cards behind that label band, not down in the fade.
+        draw.rounded_rectangle((92, 220, 268, 284), radius=12, fill=(190, 204, 216, 225), outline=(113, 231, 184, 110), width=1)
+        draw.rounded_rectangle((392, 220, 568, 284), radius=12, fill=(190, 204, 216, 225), outline=(113, 231, 184, 110), width=1)
 
         # The real Finder icons sit at (180,170) and (480,170). Keep their
         # 128 px zones dark and use this path only as a visual instruction.
