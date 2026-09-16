@@ -199,8 +199,8 @@ fn pk_upstream_info() -> Result<String, String> {
     //               local commits not pushed yet (pkahead)
     let script = r#"set -e
 branch=$(git rev-parse --abbrev-ref HEAD)
-source_branch=$branch
-if [ "$branch" = "stable/pk" ]; then source_branch=perso/pk; fi
+    source_branch=$branch
+    if [ "$branch" = "stable/pk" ]; then source_branch=stable/pk; fi
 ahead=0
 if [ "$branch" != "stable/pk" ]; then
   ahead=$(git rev-list --count "origin/$source_branch..HEAD" 2>/dev/null || echo 0)
