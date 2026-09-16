@@ -6,55 +6,91 @@ export type SettingsSectionId =
   | "general"
   | "appearance"
   | "keybindings"
+  | "chat"
   | "providers"
   | "inbox"
   | "skills"
   | "archive";
 
-export const SETTINGS_SECTIONS: {
+export type SettingsGroupId = "app" | "agents" | "workspace";
+export type SettingsSection = {
   id: SettingsSectionId;
+  group: SettingsGroupId;
   label: string;
   description: string;
-}[] = [
+};
+
+export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "general",
+    group: "app",
     label: "General",
     description: "App-wide behavior and the build you are running.",
   },
   {
     id: "appearance",
+    group: "app",
     label: "Appearance",
     description: "Theme, translucency, and the tint applied to the chrome.",
   },
   {
     id: "keybindings",
+    group: "app",
     label: "Keybindings",
     description:
       "Every shortcut the workspace handles, from the app menu and the key handler.",
   },
   {
+    id: "chat",
+    group: "agents",
+    label: "Chat",
+    description: "Transcript and composer behavior.",
+  },
+  {
     id: "providers",
+    group: "agents",
     label: "Providers",
     description:
       "Agent CLIs MonoCode can drive, and the model new sessions start with.",
   },
   {
     id: "inbox",
+    group: "workspace",
     label: "Inbox",
     description: "Connect and manage the services that appear in your Inbox.",
   },
   {
     id: "skills",
+    group: "agents",
     label: "Skills",
     description:
       "Discover skills and configure one-click project initialization links.",
   },
   {
     id: "archive",
+    group: "workspace",
     label: "Archive",
     description: "Projects and conversations you have archived.",
   },
 ];
+
+export function settingsSectionsByGroup(): {
+  id: SettingsGroupId;
+  label: string;
+  sections: SettingsSection[];
+}[] {
+  const groups: { id: SettingsGroupId; label: string }[] = [
+    { id: "app", label: "App" },
+    { id: "agents", label: "Agents" },
+    { id: "workspace", label: "Workspace" },
+  ];
+  return groups
+    .map((group) => ({
+      ...group,
+      sections: SETTINGS_SECTIONS.filter((section) => section.group === group.id),
+    }))
+    .filter((group) => group.sections.length > 0);
+}
 
 export const SETTINGS_SECTION_DEFAULT: SettingsSectionId = "general";
 

@@ -1,4 +1,34 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { InterjectionMeta } from "./session";
+
+export type OmpInterjectionAnchor = InterjectionMeta & {
+  id: string;
+  afterAssistantText: string;
+  occurrence?: number;
+  followingAssistantText?: string | null;
+  followingAssistantTextConcat?: string | null;
+};
+
+export function ompSessionInterjections(
+  providerSessionId: string,
+): Promise<OmpInterjectionAnchor[]> {
+  return invoke<OmpInterjectionAnchor[]>("omp_session_interjections", {
+    providerSessionId,
+  });
+}
+
+export interface OmpAssistantText {
+  text: string;
+  concat: string;
+}
+
+export function ompActiveAssistantTexts(
+  providerSessionId: string,
+): Promise<OmpAssistantText[]> {
+  return invoke<OmpAssistantText[]>("omp_active_assistant_texts", {
+    providerSessionId,
+  });
+}
 import { open } from "@tauri-apps/plugin-dialog";
 import { slash } from "./paths";
 import type { ProjectInitSettings } from "./projectInit";

@@ -16,6 +16,8 @@ const TRANSCRIPT_LAYOUT_KEY = "monocode.transcriptLayout";
 const TRANSCRIPT_ANCHOR_KEY = "monocode.transcriptAnchor";
 const CHAT_BACKGROUND_PATH_KEY = "monocode.chatBackgroundPath";
 const CHAT_BACKGROUND_OPACITY_KEY = "monocode.chatBackgroundOpacity";
+const CHAT_BACKGROUND_EMPTY_OPACITY_KEY = "monocode.chatBackgroundEmptyOpacity";
+const CHAT_BACKGROUND_SESSION_OPACITY_KEY = "monocode.chatBackgroundSessionOpacity";
 const CHAT_BACKGROUND_SCOPE_KEY = "monocode.chatBackgroundScope";
 const CHANGES_VIEW_KEY = "monocode.changesView";
 let chatBackgroundRevision = Date.now();
@@ -451,6 +453,13 @@ export function applyChatBackgroundOpacity(value: number) {
   );
   return next;
 }
+
+export function loadChatBackgroundEmptyOpacity(): number { return loadChatBackgroundOpacity(); }
+export function loadChatBackgroundSessionOpacity(): number { return loadChatBackgroundOpacity(); }
+export function saveChatBackgroundEmptyOpacity(value: number) { saveChatBackgroundOpacity(value); }
+export function saveChatBackgroundSessionOpacity(value: number) { saveChatBackgroundOpacity(value); }
+export function applyChatBackgroundEmptyOpacity(value: number) { return applyChatBackgroundOpacity(value); }
+export function applyChatBackgroundSessionOpacity(value: number) { return applyChatBackgroundOpacity(value); }
 
 const BACKGROUND_PANELS_KEY = "monocode.backgroundPanels";
 export const BACKGROUND_PANELS_CHANGE_EVENT =
