@@ -62,13 +62,7 @@ fi
 # des fichiers structurants, et un merge non compilé ne doit jamais remplacer
 # l'application quotidienne. L'intégration upstream se fait dans perso/pk,
 # puis le build stable ne consomme que cette branche validée.
-if [[ -n "${PK_UPDATE_BRANCH:-}" ]]; then
-  source_branch="$PK_UPDATE_BRANCH"
-elif [[ "$variant" == "stable" ]]; then
-  source_branch="stable/pk"
-else
-  source_branch="perso/pk"
-fi
+source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
 git fetch -q origin "$source_branch" 2>/dev/null || true
 if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
   if ! git merge --ff-only "origin/$source_branch"; then
