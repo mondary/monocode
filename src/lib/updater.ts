@@ -1,9 +1,11 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import { PK_VERSION } from "./pkVersion";
 import { announceUpdateAvailable } from "./sounds";
 import { rememberInstalledUpdate } from "./updateNotice";
+import { requestPkUpdateDecision } from "./pkUpdateDialog";
 
 export type UpdaterPhase =
   | "idle"
@@ -28,11 +30,70 @@ function isUpdaterNotConfiguredError(error: unknown): boolean {
   return /updater does not have any endpoints set/i.test(text);
 }
 
+function isNewerVersion(candidate: string, current: string): boolean {
+  const left = candidate.replace(/^v/, "").split(/[+-]/, 1)[0].split(".").map(Number);
+  const right = current.replace(/^v/, "").split(/[+-]/, 1)[0].split(".").map(Number);
+  if (left.length < 2 || right.length < 2 || left.some(Number.isNaN) || right.some(Number.isNaN)) {
+    return false;
+  }
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index] ?? 0;
+    const b = right[index] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
+function officialBehindCount(
+  info: { version: string; tag: string; behind: number },
+  currentVersion: string,
+): number {
+  const officialVersion = info.version || info.tag;
+  // Commit ancestry is intentionally not used as an update signal when the
+  // release version is already current. PK can carry fork-only commits and
+  // cannot safely merge arbitrary upstream history during an app update.
+  return isNewerVersion(officialVersion, currentVersion)
+    ? Math.max(info.behind, 1)
+    : 0;
+}
+
 export async function readAppVersion(): Promise<string> {
   try {
     return await getVersion();
   } catch {
     return "0.0.0";
+  }
+}
+async function pkUpstreamInfo(): Promise<{
+  tag: string;
+  version: string;
+  behind: number;
+  commits: string[];
+  pkBehind: number;
+  pkAhead: number;
+  pkCommits: string[];
+} | null> {
+  try {
+    const raw = await invoke<string>("pk_upstream_info");
+    const [header = "", rest = ""] = raw.split("---commits---");
+    const [upstreamLog = "", pkLog = ""] = rest.split("---pk-commits---");
+    const tag = /tag=(\S*)/.exec(header)?.[1] ?? "";
+    const version = /version=(\S*)/.exec(header)?.[1] ?? "";
+    const behind = Number(/behind=(\d+)/.exec(header)?.[1] ?? "0");
+    const pkBehind = Number(/pkbehind=(\d+)/.exec(header)?.[1] ?? "0");
+    const pkAhead = Number(/pkahead=(\d+)/.exec(header)?.[1] ?? "0");
+    if (!tag || !Number.isFinite(behind)) return null;
+    return {
+      tag,
+      version,
+      behind,
+      commits: upstreamLog.split("\n").map((l) => l.trim()).filter(Boolean),
+      pkBehind: Number.isFinite(pkBehind) ? pkBehind : 0,
+      pkAhead: Number.isFinite(pkAhead) ? pkAhead : 0,
+      pkCommits: pkLog.split("\n").map((l) => l.trim()).filter(Boolean),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -53,6 +114,37 @@ export async function runUpdateFlow(
 
   try {
     const update = await check();
+    const info = manual ? await pkUpstreamInfo() : null;
+    if (manual && info) {
+      const officialBehind = officialBehindCount(info, currentVersion);
+      const proceed = await requestPkUpdateDecision({
+        upToDate: officialBehind === 0 && info.pkBehind === 0 && !update,
+        axes: [
+          {
+            label: "MonoCode officiel",
+            currentVersion,
+            availableVersion: update?.version || info.version || info.tag || null,
+            behind: officialBehind,
+            ahead: 0,
+            commits: info.commits,
+          },
+          {
+            label: "MonoCodePK",
+            currentVersion: PK_VERSION,
+            availableVersion: null,
+            behind: info.pkBehind,
+            ahead: info.pkAhead,
+            commits: info.pkCommits,
+          },
+        ],
+      });
+      if (!proceed) return { phase: "idle", currentVersion };
+      // No "update installed" notice: sync_pk_upstream quits this instance and
+      // the script relaunches the new build itself, so the freshly relaunched
+      // app must not ask for yet another restart.
+      await invoke("sync_pk_upstream");
+      return { phase: "idle", currentVersion };
+    }
     if (!update) {
       pendingUpdate = null;
       const current: UpdaterSnapshot = { phase: "current", currentVersion };
@@ -89,10 +181,32 @@ export async function runUpdateFlow(
       const idle: UpdaterSnapshot = { phase: "idle", currentVersion };
       onProgress?.(idle);
       if (manual) {
-        await message(
-          "Automatic updates aren't configured for this build.\n\nDownload releases at https://github.com/hardbeat920/monocode/releases/latest",
-          { title: "MonoCode" },
-        );
+        const info = await pkUpstreamInfo();
+        const officialBehind = info ? officialBehindCount(info, currentVersion) : 0;
+        const upToDate = !info || (officialBehind === 0 && info.pkBehind === 0);
+        const proceed = await requestPkUpdateDecision({
+          upToDate,
+          axes: [
+            {
+              label: "MonoCode officiel",
+              currentVersion,
+              availableVersion: info?.version || info?.tag || null,
+              behind: officialBehind,
+              ahead: 0,
+              commits: info?.commits ?? [],
+            },
+            {
+              label: "MonoCodePK",
+              currentVersion: PK_VERSION,
+              availableVersion: null,
+              behind: info?.pkBehind ?? 0,
+              ahead: info?.pkAhead ?? 0,
+              commits: info?.pkCommits ?? [],
+            },
+          ],
+        });
+        if (!proceed) return idle;
+        await invoke("sync_pk_upstream");
       }
       return idle;
     }
@@ -155,7 +269,7 @@ export async function installPendingUpdate(
 
     rememberInstalledUpdate(update.version);
     pendingUpdate = null;
-    await relaunch();
+    await invoke("relaunch_app");
     return {
       phase: "current",
       currentVersion: update.version,

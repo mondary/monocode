@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import {
+  forgetAllTerminals,
+  forgetTerminal,
+  markTerminalOutput,
+} from "./terminalActivity";
 
 type DataPayload = { id: string; data: string };
 type ExitPayload = { id: string; code: number | null };
@@ -79,6 +84,7 @@ function ensureBridge() {
   bridge = Promise.all([
     listen<DataPayload>("pty-data", (event) => {
       const { id, data } = event.payload;
+      markTerminalOutput(id);
       const handler = dataHandlers.get(id);
       if (!handler && !openedPtys.has(id)) return;
       const chunk = decodeBase64(data);
@@ -87,6 +93,7 @@ function ensureBridge() {
     }),
     listen<ExitPayload>("pty-exit", (event) => {
       const { id, code } = event.payload;
+      forgetTerminal(id);
       exitHandlers.get(id)?.(code);
     }),
   ]);
@@ -154,6 +161,7 @@ export async function killAllPtys(): Promise<void> {
   openedPtys.clear();
   dataBuffer.clear();
   dataBufferBytes.clear();
+  forgetAllTerminals();
   await invoke("pty_kill_all").catch(() => undefined);
 }
 

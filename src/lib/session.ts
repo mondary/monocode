@@ -1,6 +1,7 @@
 import type { ContextUsage } from "./contextUsage";
 import type { UserQuestionPrompt } from "./userQuestion";
 import type { HandoffComposerCard } from "./handoff";
+import { loadCustomProviders } from "./customProviders";
 import type { InboxComposerCard } from "./githubTasks";
 import type { InboxAskContext } from "./inboxAsk";
 import type { NoteCardMeta, NoteComposerCard } from "./notes";
@@ -13,15 +14,43 @@ import {
   resolveModel,
 } from "./models";
 
-export type HarnessId =
-  "claude" | "codex" | "cursor" | "grok" | "opencode" | "pi" | "omp" | "fx";
+export type BuiltinHarnessId =
+  | "claude"
+  | "codex"
+  | "cursor"
+  | "grok"
+  | "opencode"
+  | "zai"
+  | "mimo"
+  | "openrouter"
+  | "nvidia"
+  | "gemini"
+  | "antigravity"
+  | "pi"
+  | "omp"
+  | "fx";
 
-export const HARNESSES: HarnessId[] = [
+/** Custom providers managed from Settings; ids are `pk-custom-<slug>`. */
+export type CustomHarnessId = `pk-custom-${string}`;
+
+export type HarnessId = BuiltinHarnessId | CustomHarnessId;
+
+export function isCustomHarness(id: string): id is CustomHarnessId {
+  return id.startsWith("pk-custom-");
+}
+
+export const HARNESSES: BuiltinHarnessId[] = [
   "claude",
   "codex",
   "cursor",
   "grok",
   "opencode",
+  "zai",
+  "mimo",
+  "openrouter",
+  "nvidia",
+  "gemini",
+  "antigravity",
   "pi",
   "omp",
   "fx",
@@ -357,27 +386,57 @@ export type PendingHarnessSwitch = {
   fromProviderSessionId?: string;
 };
 
-export const HARNESS_LABEL: Record<HarnessId, string> = {
+export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
   claude: "claude",
   codex: "codex",
   cursor: "cursor",
   grok: "grok",
   opencode: "opencode",
+  zai: "zai",
+  mimo: "mimo",
+  openrouter: "openrouter",
+  nvidia: "nvidia",
+  gemini: "gemini",
+  antigravity: "antigravity",
   pi: "pi",
   omp: "omp",
   fx: "fx",
 };
 
-export const HARNESS_TITLE: Record<HarnessId, string> = {
+export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
   claude: "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
   grok: "Grok Build",
   opencode: "OpenCode",
+  zai: "Z.AI",
+  mimo: "MiMo",
+  openrouter: "OpenRouter",
+  nvidia: "NVIDIA",
+  gemini: "Gemini",
+  antigravity: "Antigravity",
   pi: "Pi",
   omp: "omp",
   fx: "fx",
 };
+
+/**
+ * Runtime titles: custom providers come from Settings and have no entry in
+ * the builtin record, so fall back to their configured name.
+ */
+export function harnessTitle(id: HarnessId): string {
+  if (isCustomHarness(id)) return customProviderName(id) ?? id;
+  return HARNESS_TITLE[id];
+}
+
+export function harnessLabel(id: HarnessId): string {
+  if (isCustomHarness(id)) return customProviderName(id) ?? id;
+  return HARNESS_LABEL[id];
+}
+
+function customProviderName(id: CustomHarnessId): string | undefined {
+  return loadCustomProviders().find((provider) => provider.id === id)?.name;
+}
 
 /** fx ACP rejects attachment prompt blocks. */
 export function harnessSupportsAttachments(id: HarnessId): boolean {
@@ -398,7 +457,7 @@ export function newSession(
     model: resolved.id,
     modelSettings: preferredModelSettings(resolved, modelSettings),
     runtimeMode,
-    title: HARNESS_LABEL[harness],
+    title: harnessLabel(harness),
     cwd,
     blocks: [],
   };
@@ -429,7 +488,7 @@ export function titleFromPrompt(
           .join(", ")
       : "";
   const seed = line || fromFiles;
-  if (!seed) return HARNESS_LABEL[harness];
+  if (!seed) return harnessLabel(harness);
   const max = 72;
   const short = seed.length > max ? `${seed.slice(0, max - 1)}…` : seed;
   return formatSessionTitle(harness, short);
@@ -437,8 +496,8 @@ export function titleFromPrompt(
 
 export function formatSessionTitle(harness: HarnessId, title: string): string {
   const trimmed = title.trim();
-  if (!trimmed) return HARNESS_LABEL[harness];
-  return `${HARNESS_LABEL[harness]} · ${trimmed}`;
+  if (!trimmed) return harnessLabel(harness);
+  return `${harnessLabel(harness)} · ${trimmed}`;
 }
 
 /** True when the stored title is still a placeholder the LLM may replace. */
@@ -449,8 +508,8 @@ export function canReplaceSessionTitle(
 ): boolean {
   return (
     current === seed ||
-    current === HARNESS_LABEL[harness] ||
-    current === HARNESS_TITLE[harness]
+    current === harnessLabel(harness) ||
+    current === harnessTitle(harness)
   );
 }
 
@@ -464,9 +523,9 @@ export function sessionNeedsInput(session: Session): boolean {
 
 /** Title without the harness prefix stored for the tab strip. */
 export function sessionDisplayTitle(title: string, harness: HarnessId): string {
-  const prefix = `${HARNESS_LABEL[harness]} · `;
+  const prefix = `${harnessLabel(harness)} · `;
   if (title.startsWith(prefix)) return title.slice(prefix.length);
-  if (title === HARNESS_LABEL[harness] || title === HARNESS_TITLE[harness]) {
+  if (title === harnessLabel(harness) || title === harnessTitle(harness)) {
     return "New session";
   }
   return title;

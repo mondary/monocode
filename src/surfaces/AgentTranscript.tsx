@@ -6,7 +6,6 @@ import {
   FilePlusCorner,
   Minus,
   Bot,
-  ChartBreakoutSquare,
   PenLine,
   Search,
   Terminal,
@@ -29,7 +28,6 @@ import { FilePreview } from "../chrome/FilePreview";
 import { FileTypeIcon } from "../chrome/FileTypeIcon";
 import { ToolDiffPreview } from "../chrome/ToolDiffPreview";
 import { PlanPreview } from "../chrome/PlanPreview";
-import { OrchestrationPreview } from "../chrome/OrchestrationPreview";
 import { TaskListPreview } from "../chrome/TaskListPreview";
 import {
   HandoffButton,
@@ -38,8 +36,6 @@ import {
 import { SecondOpinionCard } from "../chrome/SecondOpinionCard";
 import { NoteMiniCard } from "../chrome/NoteMiniCard";
 import { TerminalSpinner } from "../chrome/TerminalSpinner";
-import { Popover } from "../chrome/Popover";
-import { ProjectMascot } from "../chrome/ProjectMascot";
 import type { ApprovalDecision } from "../lib/harness";
 import {
   isEditTool,
@@ -48,7 +44,6 @@ import {
   stubFilePreview,
 } from "../lib/harness/preview";
 import { copyText } from "../lib/clipboard";
-import { visibleUserPrompt } from "../lib/orchestration";
 import { playCue } from "../lib/sounds";
 import { legacyTaskListFromText } from "../lib/taskList";
 import { displayPath, resolveWorkspacePath } from "../lib/paths";
@@ -57,15 +52,11 @@ import { harnessForTurn } from "../lib/secondOpinion";
 import { Shimmer } from "./Shimmer";
 import {
   hasPendingApproval,
-  HARNESS_TITLE,
-  type AgentStep,
   type Block,
   type HarnessId,
-  type InterjectionMeta,
-  type ModelTarget,
   type PlanBuildTarget,
   type ToolPreview,
-  type TurnMetrics,
+  harnessTitle,
 } from "../lib/session";
 import { HarnessIcon } from "../chrome/HarnessIcon";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
@@ -75,8 +66,6 @@ import { useTranscriptSelection } from "../hooks/useTranscriptSelection";
 import type { TranscriptLayout } from "../lib/appearance";
 import { AgentMarkdown } from "./AgentMarkdown";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
-import { parseUserMessageLink } from "../lib/linkPreview";
-import { UserLinkPreview } from "./UserLinkPreview";
 import {
   activityPhaseTitle,
   activityStillRunning,
@@ -87,19 +76,16 @@ import {
   foldedBlocks,
   groupTurnItems,
   groupTurns,
+  hasRunningSubagent,
   initialThinkingIndex,
   isIncompleteTool,
-  isSubagentBlock,
   isThinkingBlock,
   lastActivityIndex,
   isProseBlock,
   needsApproval,
   nestedScrollAbsorbsWheel,
   proseSummary,
-  subagentBrief,
-  subagentModelName,
-  subagentName,
-  subagentReport,
+  subagentFailureSummary,
   toolCallLabel,
   toolCallState,
   turnCopyText,
@@ -121,7 +107,6 @@ type Props = {
   cwd?: string;
   harness?: HarnessId;
   model?: string;
-  modelSettings?: Record<string, string>;
   pendingQuestion?: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onAddToChat?: (text: string) => void;
@@ -131,8 +116,8 @@ type Props = {
   onOpenDiff?: (path: string) => void;
   onOpenPlan?: (blockId: string) => void;
   onBuildPlan?: (blockId: string, target?: PlanBuildTarget) => void;
-  onSecondOpinion?: (target: ModelTarget, turn: Block[]) => void;
-  onHandoff?: (target: ModelTarget, turn: Block[]) => void;
+  onSecondOpinion?: (harness: HarnessId, turn: Block[], model: string) => void;
+  onHandoff?: (harness: HarnessId, turn: Block[], model: string) => void;
   onJumpToBottomChange?: (show: boolean) => void;
   onJumpToBottomReady?: (jump: () => void) => void;
   /** Passes a function that renders the turn that holds a block. The render completes before the function returns. */
@@ -141,8 +126,6 @@ type Props = {
   latestTurnAccessory?: ReactNode;
   /** False while another tab is in front; local transcript state is retained. */
   visible?: boolean;
-  /** A worker's transcript: show the orchestrator's turns instead of hiding them. */
-  managed?: boolean;
 };
 
 function AgentTranscriptComponent({
@@ -151,7 +134,6 @@ function AgentTranscriptComponent({
   cwd,
   harness,
   model,
-  modelSettings,
   pendingQuestion = false,
   onApproval,
   onAddToChat,
@@ -168,7 +150,6 @@ function AgentTranscriptComponent({
   onRevealReady,
   latestTurnAccessory,
   visible = true,
-  managed = false,
 }: Props) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const scroller = useRef<HTMLDivElement>(null);
@@ -194,7 +175,7 @@ function AgentTranscriptComponent({
   );
   const transcriptLayout = useTranscriptLayout();
   const promptAnchor = useTranscriptAnchor();
-  const lastUserId = lastUserBlockId(blocks, managed);
+  const lastUserId = lastUserBlockId(blocks);
   const seenUserId = useRef(lastUserId);
   if (lastUserId !== seenUserId.current) {
     seenUserId.current = lastUserId;
@@ -322,7 +303,7 @@ function AgentTranscriptComponent({
     return () => observer.disconnect();
   }, [scrollerEl, setShowJump, visible]);
 
-  const turns = groupTurns(blocks, managed);
+  const turns = groupTurns(blocks);
   const firstVisibleTurn = Math.max(0, turns.length - visibleTurnCount);
   const visibleTurns = turns.slice(firstVisibleTurn);
   const turnsRef = useRef(turns);
@@ -393,16 +374,10 @@ function AgentTranscriptComponent({
         ) : null}
         {visibleTurns.map((turn, turnIndex) => {
           const isLastTurn = firstVisibleTurn + turnIndex === turns.length - 1;
-          const userBlock = turnUserBlock(turn, managed);
+          const userBlock = turnUserBlock(turn);
           const durationMs = userBlock?.durationMs;
           const settled = !(busy && isLastTurn);
-          const proposals = turn.filter((block) => block.orchestration);
-          // Proposals are turn results, like the changes card. Keep them out
-          // of the live work and append them after all of the lead's output.
-          const items = groupTurnItems(
-            turn.filter((block) => !block.orchestration),
-            { settled },
-          );
+          const items = groupTurnItems(turn);
           // Earlier activity groups have already been followed by prose or
           // more work. Only the last one can still be the live group.
           const foldedAt = lastActivityIndex(items);
@@ -430,31 +405,28 @@ function AgentTranscriptComponent({
           const turnId = turn[0].id;
           const fold = foldableWork(items);
           const folded = fold ? foldedBlocks(items, fold) : [];
-          const workOpen = openWork[turnId] ?? false;
+          const subagentFailure = subagentFailureSummary(turn);
+          // Failures open once by default so their provider detail is not
+          // buried. An explicit click still lets the reader fold them away.
+          const workOpen = openWork[turnId] ?? !!subagentFailure;
           // The fold line is the turn's status line from the first token to
           // the last: the mark, and the clock beside it. It never moves, so a
           // turn settling does not shuffle the layout around the answer.
           const live = visible && !settled && !preparingHandoff;
           const turnModelName =
             turnModel?.name ?? (live ? currentModelName : undefined);
-          // The fold line speaks for the main agent only. A delegated run has
-          // its own row, which says who is working and how it went, so saying
-          // it again here would be two lines telling the same story.
-          const foldTitle: ReactNode = live ? (
+          const foldTitle: ReactNode = subagentFailure ? (
+            subagentFailure
+          ) : live ? (
             <LiveFoldTitle
               startedAt={startedAt}
               paused={waitingForApproval}
-              waitingLabel={
-                managed && waitingForApproval
-                  ? "Waiting for orchestrator"
-                  : pendingQuestion
-                    ? "Waiting for answers"
-                    : undefined
-              }
+              waitingLabel={pendingQuestion ? "Waiting for answers" : undefined}
+              subagent={hasRunningSubagent(turn)}
               modelName={turnModelName}
             />
           ) : durationMs != null ? (
-            formatWorkingDuration(durationMs, turnModelName, true)
+            formatWorkingDuration(durationMs, true, false, turnModelName)
           ) : (
             workSummaryLine(folded)
           );
@@ -469,16 +441,7 @@ function AgentTranscriptComponent({
               ? firstWork
               : items.length;
           const renderItem = (item: TurnItem, itemIndex: number) =>
-            item.type === "subagents" ? (
-              <SubagentStack
-                key={item.blocks[0].id}
-                blocks={item.blocks}
-                cwd={cwd}
-                live={live}
-                onOpenFile={onOpenFile}
-                onOpenDiff={onOpenDiff}
-              />
-            ) : item.type === "activity" ? (
+            item.type === "activity" ? (
               itemIndex === initialThinkingAt ? (
                 <InitialThinking
                   key={item.blocks[0].id}
@@ -512,7 +475,6 @@ function AgentTranscriptComponent({
                   isProseBlock(item.block) &&
                   itemIndex > 0 &&
                   (items[itemIndex - 1]?.type === "activity" ||
-                    items[itemIndex - 1]?.type === "subagents" ||
                     (itemIndex === foldLineAt && showFoldLine))
                 }
                 onApproval={onApproval}
@@ -523,25 +485,9 @@ function AgentTranscriptComponent({
                 planBusy={!!busy}
                 planHarness={harness}
                 planModel={model}
-                planModelSettings={modelSettings}
                 cwd={cwd}
               />
             );
-          // The fold reaches across a stack of delegated runs, but those rows
-          // do not collapse with it: they are lifted out and parked under the
-          // work, where they stay put however often it re-folds.
-          const foldEntries = fold
-            ? items.slice(fold.start, fold.end + 1).map((entry, offset) => ({
-                entry,
-                index: fold.start + offset,
-              }))
-            : [];
-          const foldSubagents = foldEntries.filter(
-            ({ entry }) => entry.type === "subagents",
-          );
-          const foldWork = foldEntries.filter(
-            ({ entry }) => entry.type !== "subagents",
-          );
           const foldLineRow = (
             <TurnRow key="work-fold" folded={!showFoldLine}>
               <WorkFoldLine
@@ -549,6 +495,7 @@ function AgentTranscriptComponent({
                 kind={workKind(folded)}
                 harness={turnHarness}
                 live={live}
+                failed={!!subagentFailure}
                 expandable={!!fold}
                 open={workOpen && !!fold}
                 onToggle={() => toggleWork(turnId, workOpen)}
@@ -575,37 +522,22 @@ function AgentTranscriptComponent({
                     foldLineRow,
                     <TurnRow key="work-details" folded={!workOpen}>
                       {() =>
-                        foldWork.map(({ entry, index }, offset) => (
-                          <div
-                            key={turnItemKey(entry)}
-                            className={`flow-root pb-1 last:pb-0 pl-5 zen-fold-rail ${
-                              offset === foldWork.length - 1
-                                ? "zen-fold-tail"
-                                : ""
-                            }${
-                              // Prose the trail holds is the agent talking
-                              // while it works; the marker lets it read as
-                              // process, not result.
-                              entry.type === "block" &&
-                              isProseBlock(entry.block)
-                                ? " zen-fold-prose"
-                                : ""
-                            }`}
-                          >
-                            {renderItem(entry, index)}
-                          </div>
-                        ))
+                        items
+                          .slice(fold.start, fold.end + 1)
+                          .map((entry, offset) => (
+                            <div
+                              key={turnItemKey(entry)}
+                              className={`flow-root pb-1 last:pb-0 pl-5 zen-fold-rail ${
+                                fold.start + offset === fold.end
+                                  ? "zen-fold-tail"
+                                  : ""
+                              }`}
+                            >
+                              {renderItem(entry, fold.start + offset)}
+                            </div>
+                          ))
                       }
                     </TurnRow>,
-                    // Delegated runs sit under the agent's own work, not
-                    // among it: they are a second thing the turn is doing,
-                    // and reading them as the first steps of the main trail
-                    // is what made them look like its work.
-                    ...foldSubagents.map(({ entry, index }) => (
-                      <div key={turnItemKey(entry)} className="flow-root pb-1">
-                        {renderItem(entry, index)}
-                      </div>
-                    )),
                   ];
                 }
                 const row = (
@@ -617,23 +549,10 @@ function AgentTranscriptComponent({
                 return [foldLineRow, row];
               })}
               {foldLineAt >= items.length ? foldLineRow : null}
-              {settled &&
-                proposals
-                  .filter((block) => block.orchestration?.status !== "planning")
-                  .map((block) => (
-                    <div
-                      key={block.id}
-                      className="px-4 pt-1 pb-2"
-                      data-orchestration-result
-                    >
-                      <OrchestrationPreview block={block} busy={!!busy} />
-                    </div>
-                  ))}
               {isLastTurn && latestTurnAccessory ? latestTurnAccessory : null}
               {durationMs != null && settled ? (
                 <TurnDuration
                   elapsedMs={durationMs}
-                  metrics={userBlock?.turnMetrics}
                   labelHidden={showFoldLine}
                   modelName={turnModelName}
                   completedAt={
@@ -645,11 +564,13 @@ function AgentTranscriptComponent({
                   fromHarness={turnHarness}
                   onSecondOpinion={
                     onSecondOpinion
-                      ? (target) => onSecondOpinion(target, turn)
+                      ? (target, model) => onSecondOpinion(target, turn, model)
                       : undefined
                   }
                   onHandoff={
-                    onHandoff ? (target) => onHandoff(target, turn) : undefined
+                    onHandoff
+                      ? (target, model) => onHandoff(target, turn, model)
+                      : undefined
                   }
                 />
               ) : null}
@@ -694,17 +615,19 @@ function LiveFoldTitle({
   startedAt,
   paused,
   waitingLabel,
+  subagent = false,
   modelName,
 }: {
   startedAt?: number;
   paused: boolean;
   waitingLabel?: string;
+  subagent?: boolean;
   modelName?: string;
 }) {
   const elapsedMs = useElapsedFrom(startedAt, paused);
   const text = paused
     ? (waitingLabel ?? "Waiting for approval")
-    : formatWorkingDuration(elapsedMs, modelName);
+    : formatWorkingDuration(elapsedMs, false, subagent, modelName);
   return (
     <Shimmer className="min-w-0 truncate font-sans text-sm" duration={1}>
       {text}
@@ -719,7 +642,6 @@ function LiveFoldTitle({
  */
 function TurnDuration({
   elapsedMs,
-  metrics,
   labelHidden = false,
   modelName,
   harness,
@@ -731,7 +653,6 @@ function TurnDuration({
   onHandoff,
 }: {
   elapsedMs: number | null;
-  metrics?: TurnMetrics;
   /** True when the fold line above already keeps the time for this turn. */
   labelHidden?: boolean;
   modelName?: string;
@@ -740,10 +661,10 @@ function TurnDuration({
   copyText?: string;
   onSaveNote?: (text: string) => void;
   fromHarness?: HarnessId;
-  onSecondOpinion?: (target: ModelTarget) => void;
-  onHandoff?: (target: ModelTarget) => void;
+  onSecondOpinion?: (harness: HarnessId, model: string) => void;
+  onHandoff?: (harness: HarnessId, model: string) => void;
 }) {
-  const label = formatWorkingDuration(elapsedMs, modelName, true);
+  const label = formatWorkingDuration(elapsedMs, true, false, modelName);
   const dot = (
     <span
       aria-hidden
@@ -772,7 +693,6 @@ function TurnDuration({
         {fromHarness && onSecondOpinion ? (
           <SecondOpinionButton from={fromHarness} onPick={onSecondOpinion} />
         ) : null}
-        <TurnMetricsBadge metrics={metrics} elapsedMs={elapsedMs} />
       </span>
 
       {labelHidden ? null : (
@@ -799,101 +719,6 @@ function TurnDuration({
       ) : null}
     </div>
   );
-}
-
-function TurnMetricsBadge({
-  metrics,
-  elapsedMs,
-}: {
-  metrics?: TurnMetrics;
-  elapsedMs: number | null;
-}) {
-  const root = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState(false);
-  if (!metrics || !hasTurnMetrics(metrics)) return null;
-
-  const outputRate =
-    metrics.outputTokens != null && elapsedMs != null && elapsedMs > 0
-      ? metrics.outputTokens / (elapsedMs / 1000)
-      : undefined;
-  const headline =
-    [
-      metrics.cacheHitPercent != null
-        ? `Cache hit ${Math.round(metrics.cacheHitPercent)}%`
-        : null,
-      outputRate != null
-        ? `Output ${formatMetricCount(outputRate)} tok/s`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || "Turn tokens";
-  const detail = [
-    metrics.inputTokens != null
-      ? `${formatMetricCount(metrics.inputTokens)} input`
-      : null,
-    metrics.outputTokens != null
-      ? `${formatMetricCount(metrics.outputTokens)} output`
-      : null,
-    metrics.cacheReadTokens != null
-      ? `${formatMetricCount(metrics.cacheReadTokens)} cached`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const label = [headline, detail].filter(Boolean).join(". ");
-
-  return (
-    <div
-      ref={root}
-      className="relative shrink-0 pl-1"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-    >
-      <span
-        role="img"
-        tabIndex={0}
-        aria-label={`Turn metrics: ${label}`}
-        title="Turn metrics"
-        className="grid rounded-sm p-1 outline-none hover:text-content focus-visible:ring-1 focus-visible:ring-accent"
-      >
-        <ChartBreakoutSquare className="size-3.5" strokeWidth={1.6} />
-      </span>
-      {hovered ? (
-        <Popover
-          anchor={root}
-          side="top"
-          align="start"
-          className="pointer-events-none w-max px-2.5 py-1.5"
-        >
-          <div className="text-[12px] leading-4 text-content">{headline}</div>
-          {detail ? (
-            <div className="text-[11px] leading-4 text-content/50">
-              {detail}
-            </div>
-          ) : null}
-        </Popover>
-      ) : null}
-    </div>
-  );
-}
-
-function hasTurnMetrics(metrics: TurnMetrics): boolean {
-  return (
-    metrics.cacheHitPercent != null ||
-    (metrics.inputTokens ?? 0) > 0 ||
-    (metrics.outputTokens ?? 0) > 0 ||
-    (metrics.cacheReadTokens ?? 0) > 0 ||
-    (metrics.cacheWriteTokens ?? 0) > 0
-  );
-}
-
-function formatMetricCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    notation: "compact",
-    maximumFractionDigits: value >= 1000 ? 1 : 0,
-  }).format(Math.max(0, Math.round(value)));
 }
 
 /** Wall-clock stamp for a finished turn, in the reader's own locale. */
@@ -996,7 +821,6 @@ const TranscriptBlock = memo(function TranscriptBlock({
   planBusy,
   planHarness,
   planModel,
-  planModelSettings,
 }: {
   block: Block;
   layout: TranscriptLayout;
@@ -1012,7 +836,6 @@ const TranscriptBlock = memo(function TranscriptBlock({
   planBusy?: boolean;
   planHarness?: HarnessId;
   planModel?: string;
-  planModelSettings?: Record<string, string>;
 }) {
   if (block.role === "user") {
     return (
@@ -1053,7 +876,6 @@ const TranscriptBlock = memo(function TranscriptBlock({
   }
 
   if (block.role === "plan") {
-    if (block.orchestration) return null;
     const legacyTasks = legacyTaskListFromText(block.text);
     if (legacyTasks) {
       return (
@@ -1071,7 +893,6 @@ const TranscriptBlock = memo(function TranscriptBlock({
           plan={block.plan}
           harness={planHarness}
           model={planModel}
-          modelSettings={planModelSettings}
           onOpen={onOpenPlan ? () => onOpenPlan(block.id) : undefined}
           onBuild={
             onBuildPlan ? (target) => onBuildPlan(block.id, target) : undefined
@@ -1098,9 +919,6 @@ const TranscriptBlock = memo(function TranscriptBlock({
   }
 
   if (block.role === "system") {
-    if (block.interjection) {
-      return <InterjectionDivider block={block} />;
-    }
     return (
       <div className="px-4 py-2 text-content/50">
         <pre className="min-w-0 whitespace-pre-wrap break-words">
@@ -1139,15 +957,10 @@ function UserMessageBlock({
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const [singleLine, setSingleLine] = useState(false);
-  const textRef = useRef<HTMLElement>(null);
+  const textRef = useRef<HTMLPreElement>(null);
   const card = block.secondOpinion;
   const note = block.noteCard;
-  const text =
-    card && card.kind !== "handoff" ? "" : visibleUserPrompt(block.text);
-  const messageLink = text ? parseUserMessageLink(text) : null;
-  const displayText = messageLink
-    ? `${messageLink.beforeText}${messageLink.afterText}`
-    : text;
+  const text = card && card.kind !== "handoff" ? "" : block.text;
   const chat = layout === "chat";
   const textOnly =
     Boolean(text) && !block.attachments?.length && !card && !note;
@@ -1204,7 +1017,7 @@ function UserMessageBlock({
       }
     >
       <div
-        className={`user-message-bubble min-w-0 bg-content/10 px-3 py-2 font-sans text-content ${
+        className={`min-w-0 bg-content/10 px-3 py-2 font-sans text-content ${
           chat
             ? `w-fit max-w-xl ${singleLine ? "rounded-full" : "rounded-xl"}`
             : "rounded-lg border border-content/10"
@@ -1231,25 +1044,12 @@ function UserMessageBlock({
             <SecondOpinionCard card={card} />
           </div>
         ) : null}
-        {messageLink ? (
-          <div
-            ref={(element) => {
-              textRef.current = element;
-            }}
-            className="user-message-with-link min-w-0 whitespace-pre-wrap break-words font-sans text-sm"
-          >
-            {messageLink.beforeText}
-            <UserLinkPreview link={messageLink.link} />
-            {messageLink.afterText}
-          </div>
-        ) : displayText ? (
+        {text ? (
           <pre
-            ref={(element) => {
-              textRef.current = element;
-            }}
+            ref={textRef}
             className={`min-w-0 whitespace-pre-wrap break-words font-sans text-sm ${expanded ? "" : "line-clamp-4"}`}
           >
-            {displayText}
+            {text}
           </pre>
         ) : null}
       </div>
@@ -1319,7 +1119,7 @@ function TurnRow({
 
 /** A turn item's identity, stable as the group it names grows. */
 function turnItemKey(item: TurnItem): string {
-  return item.type === "block" ? item.block.id : item.blocks[0].id;
+  return item.type === "activity" ? item.blocks[0].id : item.block.id;
 }
 
 /**
@@ -1333,6 +1133,7 @@ function WorkFoldLine({
   kind,
   harness,
   live = false,
+  failed = false,
   expandable,
   open,
   onToggle,
@@ -1341,13 +1142,16 @@ function WorkFoldLine({
   kind: ActivityPhaseKind;
   harness?: HarnessId;
   live?: boolean;
+  failed?: boolean;
   expandable: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
   const icon = (
     <span className="relative flex size-3.5 shrink-0 items-center justify-center">
-      {open ? (
+      {failed ? (
+        <X className="size-3.5 shrink-0 text-red-400" strokeWidth={2} />
+      ) : open ? (
         // Open, the chevron stays put: it is the way back, and hunting for it
         // under the cursor is no way to close what you opened.
         <ChevronRight
@@ -1379,7 +1183,11 @@ function WorkFoldLine({
   );
   // While the agent runs, the clock shimmers here rather than at the bottom,
   // which is now bare.
-  const label = live ? (
+  const label = failed ? (
+    <span className="min-w-0 flex-1 truncate font-sans text-sm text-red-400">
+      {title}
+    </span>
+  ) : live ? (
     title
   ) : (
     <span className="min-w-0 flex-1 truncate font-sans text-sm text-content/50 transition-colors duration-200 group-hover:text-content/80">
@@ -1427,8 +1235,6 @@ type ActivityPhasesProps = {
   blocks: Block[];
   cwd?: string;
   done?: boolean;
-  /** False inside a nested panel, which supplies its own gutter. */
-  padded?: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onOpenFile?: (path: string) => void;
   onOpenDiff?: (path: string) => void;
@@ -1438,7 +1244,6 @@ const ActivityPhases = memo(function ActivityPhases({
   blocks,
   cwd,
   done,
-  padded = true,
   onApproval,
   onOpenFile,
   onOpenDiff,
@@ -1446,7 +1251,7 @@ const ActivityPhases = memo(function ActivityPhases({
   const phases = useMemo(() => buildActivityPhases(blocks), [blocks]);
 
   return (
-    <div className={`flex min-w-0 flex-col gap-1 ${padded ? "px-4" : ""}`}>
+    <div className="flex min-w-0 flex-col gap-1 px-4">
       {phases.map((phase, index) => (
         <ActivityPhaseGroup
           key={phase.id}
@@ -1471,7 +1276,6 @@ function sameActivity(a: ActivityPhasesProps, b: ActivityPhasesProps): boolean {
   return (
     a.cwd === b.cwd &&
     a.done === b.done &&
-    a.padded === b.padded &&
     a.onApproval === b.onApproval &&
     a.onOpenFile === b.onOpenFile &&
     a.onOpenDiff === b.onOpenDiff &&
@@ -1560,7 +1364,8 @@ function ActivityPhaseGroup({
 }) {
   const [override, setOverride] = useState<boolean | null>(null);
   const waiting = phase.steps.some(needsApproval);
-  const open = waiting || (override ?? active);
+  const failed = !!subagentFailureSummary(phase.steps);
+  const open = waiting || (override ?? (active || failed));
   const [liveScroller, setLiveScroller] = useState<HTMLDivElement | null>(null);
   useLivePhaseScroll(liveScroller, active && open, phase.steps);
   const title = activityPhaseTitle(phase, active);
@@ -1688,297 +1493,6 @@ function ActivityPhaseGroup({
   );
 }
 
-/**
- * Every delegated run in the turn, one row each. The main transcript cycles —
- * work folds behind a line, prose replaces prose — and a subagent you are
- * watching must not move while that happens, so these rows are never part of a
- * fold and hold their place from the moment the agents start.
- *
- * A row is a mascot, a name, and what that agent is doing right now. Click it
- * and the agent's own trail opens underneath.
- */
-function SubagentStack({
-  blocks,
-  cwd,
-  live = false,
-  onOpenFile,
-  onOpenDiff,
-}: {
-  blocks: Block[];
-  cwd?: string;
-  live?: boolean;
-  onOpenFile?: (path: string) => void;
-  onOpenDiff?: (path: string) => void;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col px-4">
-      {blocks.map((block) => (
-        <SubagentRow
-          key={block.id}
-          block={block}
-          cwd={cwd}
-          live={live}
-          onOpenFile={onOpenFile}
-          onOpenDiff={onOpenDiff}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * One delegated run's row, stateful about being opened. A run that died opens
- * itself, so the provider's reason is not buried behind a face that looks like
- * every other finished one. A click takes the row over from there and it stays
- * where the reader puts it. The same row serves inside a settled turn's trail,
- * where the run sits as one step of the work it was spawned from.
- */
-function SubagentRow({
-  block,
-  cwd,
-  live = false,
-  onOpenFile,
-  onOpenDiff,
-}: {
-  block: Block;
-  cwd?: string;
-  live?: boolean;
-  onOpenFile?: (path: string) => void;
-  onOpenDiff?: (path: string) => void;
-}) {
-  const [override, setOverride] = useState<boolean | null>(null);
-  const open = override ?? toolCallState(block) === "rejected";
-  return (
-    <SubagentPanel
-      block={block}
-      cwd={cwd}
-      live={live}
-      open={open}
-      onToggle={() => setOverride(!open)}
-      onOpenFile={onOpenFile}
-      onOpenDiff={onOpenDiff}
-    />
-  );
-}
-
-/**
- * One delegated run: its name, what it is doing, and — once opened — the trail
- * it left, with the same tool rows, thinking and prose the main transcript
- * shows. While it runs the trail is a short window pinned to the newest step,
- * so a subagent doing hundreds of things cannot push the turn off the screen.
- */
-function SubagentPanel({
-  block,
-  cwd,
-  live = false,
-  open,
-  onToggle,
-  onOpenFile,
-  onOpenDiff,
-}: {
-  block: Block;
-  cwd?: string;
-  live?: boolean;
-  open: boolean;
-  onToggle: () => void;
-  onOpenFile?: (path: string) => void;
-  onOpenDiff?: (path: string) => void;
-}) {
-  const name = subagentName(block);
-  const brief = subagentBrief(block);
-  const model = subagentModelName(block);
-  const state = toolCallState(block);
-  const active = live && state === "pending";
-  const steps = block.agentRun?.steps ?? [];
-  // The run's trail as transcript blocks, so the panel groups it the way the
-  // main transcript groups the agent's own work: what it said, then the calls
-  // that line introduced, folding behind it once it moves on.
-  const stepBlocks = useMemo(() => steps.map(agentStepBlock), [steps]);
-  const status = subagentStatusLine(block, steps);
-  const report = subagentReport(block);
-  const failed = state === "rejected";
-
-  // The name takes the room it needs and gives the rest back: a provider that
-  // names a run with its whole brief must not push the row off the pane.
-  const label = (
-    <span className="flex min-w-0 flex-1 items-baseline gap-2">
-      {active ? (
-        <Shimmer
-          className="min-w-0 flex-1 truncate font-sans text-sm"
-          duration={1.6}
-        >
-          {name}
-        </Shimmer>
-      ) : (
-        <span
-          className={`min-w-0 flex-1 truncate font-sans text-sm transition-colors duration-200 ${
-            state === "rejected"
-              ? "text-red-400"
-              : "text-content/75 group-hover:text-content"
-          }`}
-        >
-          {name}
-        </span>
-      )}
-      {model || status ? (
-        <span className="flex min-w-0 max-w-[55%] shrink-0 items-baseline gap-2 font-sans text-[12px] text-content/40">
-          {model ? (
-            <span className="truncate" title={`Model: ${model}`}>
-              {model}
-            </span>
-          ) : null}
-          {status ? <span className="shrink-0">{status}</span> : null}
-        </span>
-      ) : null}
-    </span>
-  );
-
-  // A run that has not reported a step yet has nothing to open into. The row
-  // still holds its place, so the chevron arriving does not move anything.
-  if (steps.length === 0 && !report) {
-    return (
-      <div
-        aria-label={`Subagent: ${name}`}
-        title={brief}
-        className="-mx-1.5 flex min-w-0 items-center gap-2 px-1.5 py-1"
-      >
-        <SubagentMascot name={name} state={state} active={active} />
-        {label}
-        <span className="size-3.5 shrink-0" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={open ? `Hide ${name}'s work` : `Show ${name}'s work`}
-        title={brief}
-        onClick={onToggle}
-        // An open row keeps the wash it lit up under the cursor, so the panel
-        // below reads as hanging off it rather than off the transcript.
-        className={`group -mx-1.5 flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors duration-200 hover:bg-content/8 ${
-          open ? "bg-content/8" : ""
-        }`}
-      >
-        <SubagentMascot name={name} state={state} active={active} />
-        {label}
-        <ChevronRight
-          className={`size-3.5 shrink-0 text-content/35 transition-transform duration-200 group-hover:text-content/60 ${
-            open ? "rotate-90" : ""
-          }`}
-          strokeWidth={1.75}
-        />
-      </button>
-      <div className="zen-phase-body" data-open={open}>
-        {open ? (
-          /*
-           * No scroll window of its own. Each phase inside already keeps the
-           * group the run is working in to a short pinned window; wrapping a
-           * second window around them nests one 17.5rem scroller inside
-           * another, and the inner one can never reach its own last row.
-           */
-          <div className="flex min-w-0 flex-col pb-1">
-            <ActivityPhases
-              blocks={stepBlocks}
-              cwd={cwd}
-              done={!active}
-              padded={false}
-              onOpenFile={onOpenFile}
-              onOpenDiff={onOpenDiff}
-            />
-            {report ? (
-              <div className="zen-phase-step py-1">
-                {failed ? (
-                  <pre className="min-w-0 whitespace-pre-wrap break-words font-mono text-[12px] leading-5 text-red-400/80">
-                    {report}
-                  </pre>
-                ) : (
-                  <AgentMarkdown
-                    text={report}
-                    cwd={cwd}
-                    onOpenFile={onOpenFile}
-                  />
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The pixel mascot standing in for a subagent, hopping while it works. The
- * sprite is hashed off the agent's name, so the same reviewer keeps the same
- * face across a session and two agents in a row are told apart at a glance.
- */
-function SubagentMascot({
-  name,
-  state,
-  active = false,
-}: {
-  name: string;
-  state: ToolCallState;
-  active?: boolean;
-}) {
-  return (
-    <ProjectMascot
-      project={name}
-      active={active}
-      className={`size-3.5 shrink-0 ${
-        state === "rejected"
-          ? "text-red-400"
-          : state === "pending"
-            ? "text-content/70"
-            : "text-content/45"
-      }`}
-    />
-  );
-}
-
-/**
- * A mirrored step as the transcript block it stands for, so a subagent's trail
- * goes through the same rows — labels, file chips, diffs — as the main agent's.
- */
-function agentStepBlock(step: AgentStep): Block {
-  if (step.kind !== "tool") {
-    return {
-      id: step.id,
-      role: step.kind === "reasoning" ? "reasoning" : "assistant",
-      text: step.text,
-    };
-  }
-  return {
-    id: step.id,
-    role: "tool",
-    text: step.text,
-    tool: {
-      callId: step.id,
-      title: step.text,
-      ...(step.toolKind ? { kind: step.toolKind } : {}),
-      ...(step.status ? { status: step.status } : {}),
-      ...(step.preview ? { preview: step.preview } : {}),
-    },
-  };
-}
-
-/** What a delegated run is up to: its newest step, or how much it got through. */
-/**
- * A run is counted, never narrated. Echoing the call in flight put a second
- * scrolling command line on every row — the shimmer on the name already says
- * the agent is working, and the count says how far it has got.
- */
-function subagentStatusLine(block: Block, steps: AgentStep[]): string {
-  if (toolCallState(block) === "rejected") return "failed";
-  const tools = steps.filter((step) => step.kind === "tool").length;
-  if (tools === 0) return "";
-  return tools === 1 ? "1 step" : `${tools} steps`;
-}
-
 /** Whether the line that titled a group has more in it than the header shows. */
 function headlineHasMore(block?: Block): boolean {
   if (!block) return false;
@@ -2037,12 +1551,6 @@ function ActivityRow({
       />
     );
   }
-  if (block.interjection) {
-    return <ActivityInterjectionRow block={block} />;
-  }
-  if (block.role === "system") {
-    return <ActivityStatusRow block={block} />;
-  }
   if (isProseBlock(block)) {
     return (
       <ActivityNoteRow
@@ -2051,20 +1559,6 @@ function ActivityRow({
         bare
         expandable
         onOpenFile={onOpenFile}
-      />
-    );
-  }
-  // Only a settled turn routes a delegated run here; live turns pin the row
-  // outside the trail. Either way it is the same row, so it still opens onto
-  // the agent's own work.
-  if (isSubagentBlock(block)) {
-    return (
-      <SubagentRow
-        block={block}
-        cwd={cwd}
-        live={live}
-        onOpenFile={onOpenFile}
-        onOpenDiff={onOpenDiff}
       />
     );
   }
@@ -2078,82 +1572,6 @@ function ActivityRow({
       onOpenFile={onOpenFile}
       onOpenDiff={onOpenDiff}
     />
-  );
-}
-
-/** A status row folded into the trail: one muted line, nothing to open. */
-function ActivityStatusRow({ block }: { block: Block }) {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 py-1">
-      <span
-        title={block.text}
-        className="min-w-0 flex-1 truncate font-sans text-sm text-content/50"
-      >
-        {block.text.trim()}
-      </span>
-    </div>
-  );
-}
-
-/**
- * An interjection inside the work trail: one compact line naming where it came
- * from and what it said. It opens on a click, so folding the work never costs
- * you a note you wanted to read.
- */
-function ActivityInterjectionRow({ block }: { block: Block }) {
-  const [open, setOpen] = useState(false);
-  const meta = block.interjection;
-  if (!meta) return null;
-  const chrome = interjectionChrome(meta);
-  const summary = proseSummary(block.text);
-  const label = (
-    <span className="min-w-0 flex-1 truncate font-sans text-sm">
-      <span className="text-content/55">{chrome.label}</span>
-      {chrome.severityText ? (
-        <span className={`text-[11px] ${chrome.severityClass}`}>
-          {" "}
-          {chrome.severityText}
-        </span>
-      ) : null}
-      {summary ? (
-        <span className="text-content/50 transition-colors duration-200 group-hover:text-content/75">
-          {" · "}
-          {summary}
-        </span>
-      ) : null}
-    </span>
-  );
-
-  if (!block.text.trim()) {
-    return (
-      <div
-        aria-label={`${chrome.label} note`}
-        className="flex min-w-0 items-center gap-1.5 py-1"
-      >
-        {label}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={
-          open ? `Hide the ${chrome.label} note` : `${chrome.label}: ${summary}`
-        }
-        onClick={() => setOpen((value) => !value)}
-        className="group flex min-w-0 items-center gap-1.5 py-1 text-left"
-      >
-        {label}
-      </button>
-      {open ? (
-        <div className="min-w-0 pb-2">
-          <pre className={INTERJECTION_BODY}>{block.text}</pre>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -2460,17 +1878,28 @@ function useElapsedFrom(
 
 function formatWorkingDuration(
   elapsedMs: number | null,
-  modelName?: string,
   done = false,
+  subagent = false,
+  modelName?: string,
 ): string {
   const who = modelName?.trim();
   const elapsed = formatElapsed(elapsedMs);
-  const verb = done ? (who ? "worked" : "Worked") : who ? "working" : "Working";
+  const verb = workingVerb(done, subagent, !who);
   if (elapsed == null) {
     if (done) return who ? `${who} ${verb}` : verb;
     return who ? `${who} ${verb}…` : `${verb}…`;
   }
   return who ? `${who} ${verb} for ${elapsed}` : `${verb} for ${elapsed}`;
+}
+
+function workingVerb(
+  done: boolean,
+  subagent: boolean,
+  capitalized: boolean,
+): string {
+  if (done) return capitalized ? "Worked" : "worked";
+  if (subagent) return capitalized ? "Subagent running" : "subagent running";
+  return capitalized ? "Working" : "working";
 }
 
 function formatElapsed(elapsedMs: number | null): string | null {
@@ -2782,20 +2211,20 @@ function ApprovalControls({
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
 }) {
   const approval = block.approval;
-  if (!approval || approval.decided || !onApproval) return null;
+  if (!approval || approval.decided) return null;
   return (
     <div className="mt-1.5 flex gap-2">
       <button
         type="button"
         className="rounded-md bg-content px-2.5 py-0.5 text-[11px] hover:bg-content/80     text-background-base"
-        onClick={() => onApproval(approval.requestId, "allow")}
+        onClick={() => onApproval?.(approval.requestId, "allow")}
       >
         Allow
       </button>
       <button
         type="button"
         className="rounded-md bg-content/10 px-2.5 py-0.5 text-[11px] text-content/70 hover:bg-content/20"
-        onClick={() => onApproval(approval.requestId, "deny")}
+        onClick={() => onApproval?.(approval.requestId, "deny")}
       >
         Deny
       </button>
@@ -2808,7 +2237,7 @@ function HandoffDivider({ block }: { block: Block }) {
   if (!meta) return null;
 
   const preparing = meta.status === "preparing";
-  const label = preparing ? "Preparing a handoff" : HARNESS_TITLE[meta.to];
+  const label = preparing ? "Preparing a handoff" : harnessTitle(meta.to);
 
   return (
     <div className="px-4 py-5">
@@ -2818,7 +2247,7 @@ function HandoffDivider({ block }: { block: Block }) {
           role="separator"
           aria-label={
             preparing
-              ? `Preparing a handoff to ${HARNESS_TITLE[meta.to]}`
+              ? `Preparing a handoff to ${harnessTitle(meta.to)}`
               : `Continued with ${label}`
           }
           className="flex max-w-[min(100%,20rem)] items-center gap-1.5 px-1.5 font-sans text-[12px] text-content/55"
@@ -2840,116 +2269,13 @@ function HandoffDivider({ block }: { block: Block }) {
   );
 }
 
-/** The label and severity chrome an interjection wears, wherever it sits. */
-function interjectionChrome(meta: InterjectionMeta): {
-  label: string;
-  severityText?: string;
-  severityClass: string;
-} {
-  const label =
-    meta.customType === "advisor"
-      ? "Advisor"
-      : meta.customType === "custom"
-        ? "Notice"
-        : meta.customType;
-  const severityText =
-    meta.severity === "blocker"
-      ? "Blocker"
-      : meta.severity === "concern"
-        ? "Concern"
-        : meta.severity === "nit"
-          ? "Nit"
-          : undefined;
-  const severityClass =
-    meta.severity === "blocker"
-      ? "text-red-400"
-      : meta.severity === "concern"
-        ? "text-amber-400"
-        : "text-content/55";
-  return { label, severityText, severityClass };
+function lastUserBlockId(blocks: Block[]): string | undefined {
+  return turnUserBlock(blocks)?.id;
 }
 
-/** The advisory body under an interjection, wherever the note is surfaced. */
-const INTERJECTION_BODY =
-  "min-w-0 whitespace-pre-wrap break-words font-sans text-[12.5px] leading-5 text-content/70";
-
-/** A mid-turn interjection, e.g. OMP advisor notes: a labeled boundary with
- * a collapsible advisory body below it. */
-function InterjectionDivider({ block }: { block: Block }) {
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  const textRef = useRef<HTMLPreElement>(null);
-
-  useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!el || !block.text) {
-      setOverflows(false);
-      return;
-    }
-    const measure = () => {
-      if (!expanded) {
-        setOverflows(el.scrollHeight > el.clientHeight + 1);
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [block.text, expanded]);
-
-  const meta = block.interjection;
-  if (!meta) return null;
-  const { label, severityText, severityClass } = interjectionChrome(meta);
-  return (
-    <div className="px-4 py-4">
-      <div className="flex items-center gap-3">
-        <div className="h-px min-w-4 flex-1 bg-content/12" />
-        <div
-          role="separator"
-          aria-label={`Interjection: ${label}`}
-          className="flex items-center gap-2 px-1.5 font-sans text-[12px] text-content/55"
-        >
-          <span>{label}</span>
-          {severityText ? (
-            <span className={`text-[11px] ${severityClass}`}>
-              {severityText}
-            </span>
-          ) : null}
-        </div>
-        <div className="h-px min-w-4 flex-1 bg-content/12" />
-      </div>
-      {block.text ? (
-        <div className="mt-2 px-2">
-          <pre
-            ref={textRef}
-            className={`${INTERJECTION_BODY} ${expanded ? "" : "line-clamp-2"}`}
-          >
-            {block.text}
-          </pre>
-          {overflows ? (
-            <button
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => setExpanded((value) => !value)}
-              className="mt-1 py-1 font-sans text-xs text-content/55 hover:text-content"
-            >
-              {expanded ? "Show less" : "Show more"}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function lastUserBlockId(blocks: Block[], managed = false): string | undefined {
-  return turnUserBlock(blocks, managed)?.id;
-}
-
-function turnUserBlock(blocks: Block[], managed = false): Block | undefined {
+function turnUserBlock(blocks: Block[]): Block | undefined {
   for (let i = blocks.length - 1; i >= 0; i--) {
-    const block = blocks[i];
-    if (block.role === "user" && (managed || !block.internal)) return block;
+    if (blocks[i].role === "user") return blocks[i];
   }
   return undefined;
 }

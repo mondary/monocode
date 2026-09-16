@@ -6,6 +6,12 @@ import fx from "../assets/providers/fx.svg";
 import grok from "../assets/providers/grok.svg";
 import omp from "../assets/providers/omp.svg";
 import opencode from "../assets/providers/opencode.svg";
+import zai from "../assets/providers/zai.svg";
+import mimo from "../assets/providers/mimo.svg";
+import openrouter from "../assets/providers/openrouter.svg";
+import nvidia from "../assets/providers/nvidia.svg";
+import gemini from "../assets/providers/gemini.svg";
+import antigravity from "../assets/providers/antigravity.svg";
 import pi from "../assets/providers/pi.svg";
 import type { HarnessId } from "../lib/session";
 
@@ -15,6 +21,12 @@ export const HARNESS_ICONS: Record<HarnessId, string> = {
   cursor,
   grok,
   opencode,
+  zai,
+  mimo,
+  openrouter,
+  nvidia,
+  gemini,
+  antigravity,
   pi,
   omp,
   fx,
@@ -25,6 +37,9 @@ export const MONOCHROME_HARNESSES = new Set<HarnessId>([
   "cursor",
   "grok",
   "opencode",
+  "zai",
+  "mimo",
+  "openrouter",
   "pi",
   "fx",
 ]);
@@ -82,16 +97,6 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
-  if (harness === "opencode") {
-    return (
-      <MonoIcon className={className}>
-        <path
-          fillRule="evenodd"
-          d="M20.4 5.8H8.8V23.2H20.4V5.8ZM26.2 29H3V0H26.2V29Z"
-        />
-      </MonoIcon>
-    );
-  }
   if (harness === "pi") {
     return (
       <MonoIcon className={className}>
@@ -103,12 +108,41 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
+  if (harness === "opencode") {
+    return (
+      <MonoIcon className={className}>
+        <path
+          fillRule="evenodd"
+          d="M20.4 5.8H8.8V23.2H20.4V5.8ZM26.2 29H3V0H26.2V29Z"
+        />
+      </MonoIcon>
+    );
+  }
+  const icon = HARNESS_ICONS[harness];
+  if (!icon) {
+    // Custom providers have no brand asset: initial letter chip.
+    const letter = harness
+      .replace("pk-custom-", "")
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 1)
+      .toUpperCase();
+    return (
+      <span
+        aria-hidden
+        className={`grid shrink-0 place-items-center rounded-sm bg-content/15 font-semibold text-content/70 ${className}`}
+      >
+        {letter || "•"}
+      </span>
+    );
+  }
   return (
     <img
-      src={HARNESS_ICONS[harness]}
+      src={icon}
       alt=""
       draggable={false}
-      className={`block object-contain ${className}`}
+      className={`block object-contain ${
+        MONOCHROME_HARNESSES.has(harness) ? "provider-icon-monochrome" : ""
+      } ${className}`}
     />
   );
 }

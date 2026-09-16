@@ -7,6 +7,7 @@ import {
   MessageSquarePlus,
   Undo2,
   UnfoldVertical,
+  FolderOpen,
 } from "../chrome/icons";
 import {
   memo,
@@ -21,7 +22,8 @@ import { FileTypeIcon } from "../chrome/FileTypeIcon";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useColorScheme } from "../hooks/useColorScheme";
 import type { ColorScheme } from "../lib/appearance";
-import { basename } from "../lib/fs";
+import { basename, revealPath } from "../lib/fs";
+import { IS_MAC, IS_WIN } from "../lib/platform";
 import { highlightDiffFile, type SyntaxToken } from "./syntaxTokens";
 import { DiffCommentComposer } from "./DiffCommentComposer";
 import {
@@ -392,6 +394,18 @@ const FileSection = memo(function FileSection({
           </span>
           <DiffCounts additions={file.additions} deletions={file.deletions} />
         </button>
+        <IconButton
+          title={
+            IS_MAC
+              ? "Reveal in Finder"
+              : IS_WIN
+                ? "Reveal in File Explorer"
+                : "Open Containing Folder"
+          }
+          onClick={() => void revealPath(file.path)}
+        >
+          <FolderOpen className="size-3.5" strokeWidth={1.75} />
+        </IconButton>
         {file.canDiscard && onDiscardFile ? (
           <IconButton
             title="Discard file"

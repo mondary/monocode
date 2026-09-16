@@ -1,6 +1,9 @@
 import {
   Archive,
-  BellOff,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
   FolderOpen,
   ImagePlus,
   Inbox,
@@ -13,12 +16,16 @@ import {
   Settings,
   Trash2,
 } from "./icons";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
-import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
-import { useAnimatedReorder } from "../hooks/useAnimatedReorder";
-import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
+import {
+  useProjectDiffStats,
+  useProjectDiffStatsMap,
+} from "../hooks/useProjectDiffStats";
+import { useSortable } from "../hooks/useSortable";
+import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   loadProjectRailWidth,
   PROJECT_RAIL_WIDTH_DEFAULT,
@@ -26,9 +33,9 @@ import {
   PROJECT_RAIL_WIDTH_MIN,
   saveProjectRailWidth,
 } from "../lib/appearance";
-import { basename, revealPath, type GitDiffStats } from "../lib/fs";
+import { basename, gitDiffIndex, listProjectFiles, revealPath, type GitDiffStats } from "../lib/fs";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
-import { pathKey, projectKey, projectName } from "../lib/paths";
+import { projectKey, projectName } from "../lib/paths";
 import {
   collectRailProjects,
   loadPinnedProjects,
@@ -56,8 +63,8 @@ import {
   saveTabGroupLabel,
   saveTabGroupMascot,
 } from "../lib/tabGroups";
-import type { LiveAgent } from "../lib/liveAgents";
-import { LiveAgentsPreview } from "./LiveAgentsPreview";
+import { formatLiveElapsed, type LiveAgent } from "../lib/liveAgents";
+import { HarnessIcon } from "./HarnessIcon";
 import { ProjectLogoIcon } from "./ProjectLogoIcon";
 import { ProjectBackgroundDialog } from "./ProjectBackgroundDialog";
 import { ProjectMascot } from "./ProjectMascot";
@@ -69,18 +76,22 @@ import type { InstalledUpdate } from "../lib/updateNotice";
 import { SettingsNav } from "./SettingsRail";
 import { Shimmer } from "../surfaces/Shimmer";
 import { TabGroupMenu, type TabGroupMenuExtraItem } from "./TabGroupMenu";
+import { TerminalSpinner } from "./TerminalSpinner";
 import type { SettingsSectionId } from "../lib/settings";
 import {
-  knownNotificationProject,
-  type NotificationProject,
-} from "../lib/notificationProjects";
-import { NotificationMuteDatePicker } from "./NotificationMuteDatePicker";
-import { Popover } from "./Popover";
-import { InboxNotificationMenu } from "./InboxNotificationMenu";
-import { notificationMuteActions, notificationMuteDeadline, notificationMuteStatus } from "./notificationMuteActions";
-import { useProjectNotificationPreferences } from "../hooks/useProjectNotificationPreferences";
-import { useNotificationProjects } from "../hooks/useNotificationProjects";
-import { updateNotificationPreferences } from "../lib/notificationPreferences";
+  DONE_CHECK_SIDE_CHANGE_EVENT,
+  loadDoneCheckSide,
+  loadProjectActivity,
+  loadProjectReviewHighlight,
+  PROJECT_ACTIVITY_CHANGE_EVENT,
+  loadProjectSort,
+  PROJECT_SORT_CHANGE_EVENT,
+} from "../lib/settings";
+import {
+  BUSY_GLOW_CHANGE_EVENT,
+  loadBusyGlowColor,
+} from "../lib/busyGlowSettings";
+import { GithubMark, GitlabMark } from "./InboxProviderMark";
 
 const REVEAL_LABEL = IS_MAC
   ? "Reveal in Finder"
@@ -88,11 +99,24 @@ const REVEAL_LABEL = IS_MAC
     ? "Reveal in File Explorer"
     : "Open Containing Folder";
 
+function remoteWebUrl(remote: string): string | null {
+  const value = remote.trim();
+  if (value.startsWith("git@")) {
+    const match = value.match(/^git@([^:]+):(.+)$/);
+    return match ? `https://${match[1]}/${match[2].replace(/\.git$/, "")}` : null;
+  }
+  if (value.startsWith("ssh://git@")) return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
+  return value.replace(/\.git$/, "");
+}
+
+function remoteHost(remote: string): string {
+  try { return new URL(remoteWebUrl(remote) ?? remote).hostname.toLowerCase(); } catch { return ""; }
+}
+
 function projectMenuExtraItems(
   pinned: boolean,
   canRemove: boolean,
-  canConfigureNotifications: boolean,
-  notificationReady: boolean,
+  remoteUrl: string | null,
 ): TabGroupMenuExtraItem[] {
   const items: TabGroupMenuExtraItem[] = [
     {
@@ -104,20 +128,14 @@ function projectMenuExtraItems(
       ? { id: "unpin", label: "Unpin project", icon: PinOff }
       : { id: "pin", label: "Pin project", icon: Pin },
     { id: "reveal", label: REVEAL_LABEL, icon: FolderOpen },
-    {
-      id: "notifications-mute",
-      label: "Mute notifications",
-      icon: BellOff,
-      sepBefore: true,
-      disabled: !notificationReady,
-      submenu: notificationMuteActions(),
-    },
   ];
-  if (canConfigureNotifications) {
+  if (remoteUrl) {
+    const github = remoteHost(remoteUrl) === "github.com";
     items.push({
-      id: "notifications-settings",
-      label: "Notification settings…",
-      icon: Settings,
+      id: "remote",
+      label: github ? "Open on GitHub" : "Open repository",
+      icon: (github ? GithubMark : GitlabMark) as unknown as TabGroupMenuExtraItem["icon"],
+      sepBefore: true,
     });
   }
   if (canRemove) {
@@ -134,6 +152,8 @@ type Props = {
   recents: RecentProject[];
   inboxUnseen?: boolean;
   busyPaths?: Iterable<string>;
+  /** Projects whose agent finished while unfocused — waiting for review. */
+  donePaths?: Iterable<string>;
   canGoBack?: boolean;
   canGoForward?: boolean;
   onGoBack?: () => void;
@@ -155,7 +175,6 @@ type Props = {
   settingsOpen?: boolean;
   settingsSection?: SettingsSectionId;
   onOpenSettings?: () => void;
-  onOpenNotificationSettings?: (projectPath?: string) => void;
   onSelectSettingsSection?: (section: SettingsSectionId) => void;
   onCloseSettings?: () => void;
   updateNotice?: InstalledUpdate | null;
@@ -168,6 +187,7 @@ export function ProjectRail({
   recents,
   inboxUnseen = false,
   busyPaths,
+  donePaths,
   canGoBack = false,
   canGoForward = false,
   onGoBack,
@@ -189,7 +209,6 @@ export function ProjectRail({
   settingsOpen = false,
   settingsSection = "general",
   onOpenSettings,
-  onOpenNotificationSettings,
   onSelectSettingsSection,
   onCloseSettings,
   updateNotice = null,
@@ -212,41 +231,14 @@ export function ProjectRail({
   const [groupCustomColors, setGroupCustomColors] = useState(
     loadTabGroupCustomColors,
   );
+  const [autoLogos, setAutoLogos] = useState<Record<string, string>>({});
   const [projectMenu, setProjectMenu] = useState<{
     x: number;
     y: number;
     path: string;
     projectKey: string;
+    remoteUrl: string | null;
   } | null>(null);
-  const [notificationMenu, setNotificationMenu] = useState<{
-    x: number;
-    y: number;
-    path: string;
-    project: NotificationProject;
-  } | null>(null);
-  const [notificationError, setNotificationError] = useState<string | null>(null);
-  const notificationPreferences = useProjectNotificationPreferences();
-  const allProjects = useMemo(
-    () => collectRailProjects(recents, cwd),
-    [cwd, recents],
-  );
-  const notificationProjects = useNotificationProjects([...allProjects.keys()]);
-  const notificationPath = projectMenu?.path;
-  const readyNotificationProject = notificationPath
-    ? knownNotificationProject(notificationPath)
-    : undefined;
-  const notificationMenuError = notificationError;
-  const menuMuteStatus = readyNotificationProject
-    ? notificationMuteStatus(notificationPreferences[readyNotificationProject.id])
-    : null;
-  useEffect(() => {
-    setNotificationError(null);
-  }, [notificationPath]);
-  const [inboxMenu, setInboxMenu] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-  const menuTrigger = useRef<HTMLElement | null>(null);
   const [removing, setRemoving] = useState<{
     path: string;
     name: string;
@@ -258,20 +250,135 @@ export function ProjectRail({
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const groupLogos = useTabGroupLogos();
-  const muteStatuses = new Map<string, string | null>();
-  for (const project of notificationProjects.projects) {
-    const status = notificationMuteStatus(notificationPreferences[project.id]);
-    for (const path of project.paths) muteStatuses.set(pathKey(path), status);
-  }
+  const allProjects = useMemo(
+    () => collectRailProjects(recents, cwd),
+    [cwd, recents],
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      [...allProjects.keys()].map(async (path) => {
+        const files = await listProjectFiles(path).catch(() => []);
+        const icon = files.find((file) =>
+          /^(icon|icone)\.(png|jpe?g)$/i.test(file.name) && !file.relative.includes("/"),
+        );
+        return icon ? [projectKey(path), icon.path] as const : null;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setAutoLogos(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry != null)));
+    });
+    return () => { cancelled = true; };
+  }, [allProjects]);
   const sections = useMemo(
     () => projectRailSections(recents, cwd, railOrder, pinnedPaths),
     [cwd, pinnedPaths, railOrder, recents],
   );
+
+  // Sorting (Settings > General): manual keeps the drag order; the other
+  // modes re-sort the unpinned list on every render pass below.
+  const [projectSort, setProjectSort] = useState(loadProjectSort);
+  const [projectActivity, setProjectActivity] = useState(loadProjectActivity);
+  const [reviewHighlight, setReviewHighlight] = useState(loadProjectReviewHighlight);
+  useEffect(() => {
+    const onActivityChange = () => {
+      setProjectActivity(loadProjectActivity());
+      setReviewHighlight(loadProjectReviewHighlight());
+    };
+    window.addEventListener(PROJECT_ACTIVITY_CHANGE_EVENT, onActivityChange);
+    return () => window.removeEventListener(PROJECT_ACTIVITY_CHANGE_EVENT, onActivityChange);
+  }, []);
+  useEffect(() => {
+    const onSort = () => setProjectSort(loadProjectSort());
+    window.addEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
+    return () => window.removeEventListener(PROJECT_SORT_CHANGE_EVENT, onSort);
+  }, []);
+  const statsMap = useProjectDiffStatsMap(
+    sections.projects.map((item) => item.path),
+    projectSort === "unpushed",
+  );
+  const sortedProjects = useMemo(() => {
+    if (projectSort === "manual") return sections.projects;
+    const byOpenedAt = new Map(
+      recents.map((item) => [item.path, item.openedAt]),
+    );
+    const busyNow = new Set(busyPaths ?? []);
+    const doneNow = new Set(donePaths ?? []);
+    const list = [...sections.projects];
+    if (projectSort === "recent") {
+      list.sort(
+        (a, b) => {
+          const aActivity = isBusyPath(a.path, busyNow) ? 0 : isDonePath(a.path, doneNow) ? 1 : 2;
+          const bActivity = isBusyPath(b.path, busyNow) ? 0 : isDonePath(b.path, doneNow) ? 1 : 2;
+          return aActivity - bActivity ||
+            (byOpenedAt.get(b.path) ?? 0) - (byOpenedAt.get(a.path) ?? 0);
+        },
+      );
+    } else if (projectSort === "alphabetical") {
+      list.sort((a, b) =>
+        projectName(a.path).localeCompare(projectName(b.path)),
+      );
+    } else {
+      list.sort(
+        (a, b) =>
+          (statsMap.get(b.path)?.ahead ?? 0) - (statsMap.get(a.path)?.ahead ?? 0),
+      );
+    }
+    return list;
+  }, [busyPaths, donePaths, projectSort, recents, sections.projects, statsMap]);
+
+  const done = useMemo(() => {
+    const set = new Set<string>();
+    for (const path of donePaths ?? []) set.add(path);
+    return set;
+  }, [donePaths]);
+
+  const [glowColor, setGlowColor] = useState(loadBusyGlowColor);
+
+  // Settings > General can re-pick the busy glow while the rail is mounted.
+  useEffect(() => {
+    const onGlow = () => setGlowColor(loadBusyGlowColor());
+    window.addEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+    return () => window.removeEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+  }, []);
+
   const busy = useMemo(() => {
     const set = new Set<string>();
     for (const path of busyPaths ?? []) set.add(path);
     return set;
   }, [busyPaths]);
+
+  // A project is "in progress" when it is actively running, has just
+  // finished in the background, or was used today. This gives the rail a
+  // useful daily workspace without asking the user to maintain another list.
+  const inProgressProjects = useMemo(() => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const busyOrDone = new Set([...busy, ...done]);
+    const today = new Set(
+      recents
+        .filter((item) => item.openedAt >= startOfDay.getTime())
+        .map((item) => item.path),
+    );
+    const candidates = [...busyOrDone, ...today];
+    const seen = new Set<string>();
+    return candidates
+      .map((path) => [...allProjects.keys()].find((entry) => sameProjectPath(entry, path)))
+      .filter((path): path is string => {
+        if (!path || seen.has(projectKey(path))) return false;
+        seen.add(projectKey(path));
+        return true;
+      })
+      .sort((a, b) => {
+        const aLive = busy.has(a) ? 0 : done.has(a) ? 1 : 2;
+        const bLive = busy.has(b) ? 0 : done.has(b) ? 1 : 2;
+        if (aLive !== bLive) return aLive - bLive;
+        return (recents.find((item) => sameProjectPath(item.path, b))?.openedAt ?? 0) -
+          (recents.find((item) => sameProjectPath(item.path, a))?.openedAt ?? 0);
+      })
+      .map((path) => allProjects.get(path)!)
+      .filter(Boolean);
+  }, [allProjects, busy, done, recents]);
 
   useEffect(() => {
     setRailOrder((prev) => {
@@ -300,16 +407,20 @@ export function ProjectRail({
   }, [projectMenu]);
 
   const openProjectMenu = (path: string, x: number, y: number) => {
-    menuTrigger.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setInboxMenu(null);
-    setNotificationMenu(null);
     setProjectMenu({
       x,
       y,
       path,
       projectKey: projectKey(path),
+      remoteUrl: null,
     });
+    void gitDiffIndex(path).then((index) => {
+      setProjectMenu((current) =>
+        current?.path === path
+          ? { ...current, remoteUrl: index.remoteUrl }
+          : current,
+      );
+    }).catch(() => undefined);
   };
 
   const onProjectContextMenu = (
@@ -318,7 +429,6 @@ export function ProjectRail({
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus();
     openProjectMenu(path, event.clientX, event.clientY);
   };
 
@@ -394,31 +504,17 @@ export function ProjectRail({
   const onProjectMenuPick = (action: string) => {
     if (!projectMenu) return;
     const { path, projectKey } = projectMenu;
-    if (action === "mute:custom") {
-      if (!readyNotificationProject) return false;
-      setNotificationMenu({ ...projectMenu, project: readyNotificationProject });
-    }
-    else if (action.startsWith("mute:") || action === "notifications-resume") {
-      if (!readyNotificationProject) return false;
-      const mutedUntil = notificationMuteDeadline(action);
-      if (action !== "notifications-resume" && mutedUntil === undefined) return false;
-      try {
-        updateNotificationPreferences([readyNotificationProject.id], { mutedUntil });
-      } catch {
-        setNotificationError("Could not save notification preferences. Please try again.");
-        return false;
-      }
-    }
-    else if (action === "notifications-settings") {
-      onOpenNotificationSettings?.(path);
-    }
-    else if (action === "pin" || action === "unpin") onTogglePin(path);
+    if (action === "pin" || action === "unpin") onTogglePin(path);
     else if (action === "background") {
       setBackgroundProject({
         project: projectKey,
         name: resolveTabGroupLabel(projectKey, groupLabels, basename(path)),
       });
     } else if (action === "reveal") void revealPath(path);
+    else if (action === "remote" && projectMenu.remoteUrl) {
+      const url = remoteWebUrl(projectMenu.remoteUrl);
+      if (url) void openUrl(url).catch(() => undefined);
+    }
     else if (action === "archive") {
       onRemoveProject?.(path, { purgeData: false });
     } else if (action === "delete") {
@@ -437,13 +533,28 @@ export function ProjectRail({
 
   const pinnedIds = sections.pinned.map((item) => item.path);
   const projectIds = sections.projects.map((item) => item.path);
-  const pinnedSortable = useAnimatedReorder(pinnedIds, onReorderPinned, "y");
-  const projectSortable = useAnimatedReorder(projectIds, onReorderProjects, "y");
+  // Reordering a sorted list fights the sort — neutralize drag there.
+  const NO_DRAG = {
+    draggingId: null,
+    toIndex: null,
+    fromIndex: null,
+    consumeClick: () => false,
+    setItemRef: () => undefined,
+    onItemPointerDown: () => undefined,
+  } as unknown as typeof projectSortable;
+  const pinnedSortable = useSortable(pinnedIds, onReorderPinned, {
+    axis: "y",
+    onActivate: onSelectProject,
+  });
+  const projectSortable = useSortable(projectIds, onReorderProjects, {
+    axis: "y",
+    onActivate: onSelectProject,
+  });
   return (
     <nav
       ref={resize.setPaneRef}
       aria-label="Projects"
-      className="sidebar-glass relative flex shrink-0 flex-col border-r border-stroke"
+      className="sidebar-glass relative flex shrink-0 flex-col border-r border-content/10"
     >
       <div
         className="flex h-10 shrink-0 select-none items-center pr-1.5"
@@ -483,15 +594,6 @@ export function ProjectRail({
               label="Inbox"
               icon={Inbox}
               onClick={onOpenInbox}
-              onOpenContextMenu={(x, y) => {
-                menuTrigger.current =
-                  document.activeElement instanceof HTMLElement
-                    ? document.activeElement
-                    : null;
-                setProjectMenu(null);
-                setNotificationMenu(null);
-                setInboxMenu({ x, y });
-              }}
               active={inboxActive}
               dot={inboxUnseen}
               ariaLabel={inboxUnseen ? "Inbox, new items" : "Inbox"}
@@ -514,13 +616,39 @@ export function ProjectRail({
             }}
             className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none pb-2"
           >
+            {projectActivity && inProgressProjects.length > 0 ? (
+              <ProjectSection
+                label="En cours"
+                items={inProgressProjects}
+                cwd={cwd}
+                busy={busy}
+                done={done}
+                reviewHighlight={reviewHighlight}
+                glowColor={glowColor}
+                sortable={NO_DRAG}
+                pinned={false}
+                searchActive={searchActive || inboxActive || notesActive}
+                onSelect={onSelectProject}
+                onTogglePin={onTogglePin}
+                onContextMenu={onProjectContextMenu}
+                onOpenMenu={openProjectMenu}
+                groupLabels={groupLabels}
+                groupColors={groupColors}
+                groupCustomColors={groupCustomColors}
+                groupLogos={groupLogos}
+                autoLogos={autoLogos}
+                groupMascots={groupMascots}
+              />
+            ) : null}
             {sections.pinned.length > 0 ? (
               <ProjectSection
                 label="Pinned"
                 items={sections.pinned}
-                muteStatuses={muteStatuses}
                 cwd={cwd}
                 busy={busy}
+                done={done}
+                reviewHighlight={reviewHighlight}
+                glowColor={glowColor}
                 sortable={pinnedSortable}
                 pinned
                 searchActive={searchActive || inboxActive || notesActive}
@@ -532,19 +660,22 @@ export function ProjectRail({
                 groupColors={groupColors}
                 groupCustomColors={groupCustomColors}
                 groupLogos={groupLogos}
+                autoLogos={autoLogos}
                 groupMascots={groupMascots}
               />
             ) : null}
 
             <ProjectSection
               label="Projects"
-              items={sections.projects}
-              muteStatuses={muteStatuses}
+              items={sortedProjects}
               emptyLabel="No projects yet"
               onAdd={onOpenProject}
               cwd={cwd}
               busy={busy}
-              sortable={projectSortable}
+              done={done}
+              reviewHighlight={reviewHighlight}
+              glowColor={glowColor}
+              sortable={projectSort === "manual" ? projectSortable : NO_DRAG}
               pinned={false}
               searchActive={searchActive || inboxActive || notesActive}
               onSelect={onSelectProject}
@@ -555,6 +686,7 @@ export function ProjectRail({
               groupColors={groupColors}
               groupCustomColors={groupCustomColors}
               groupLogos={groupLogos}
+              autoLogos={autoLogos}
               groupMascots={groupMascots}
             />
           </div>
@@ -608,7 +740,7 @@ export function ProjectRail({
             groupCustomColors,
             projectName(projectMenu.path),
           )}
-          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos)}
+          logoPath={resolveTabGroupLogo(projectMenu.projectKey, groupLogos) ?? autoLogos[projectMenu.projectKey] ?? null}
           logoProject={projectMenu.path}
           mascotName={resolveTabGroupMascot(
             projectMenu.projectKey,
@@ -621,50 +753,16 @@ export function ProjectRail({
           onMascotChange={onProjectMascotChange}
           onLogoChange={() => {}}
           onPick={() => {}}
-          onClose={() => {
-            setProjectMenu(null);
-            menuTrigger.current?.focus();
-          }}
+          onClose={() => setProjectMenu(null)}
           showActions={false}
-          leadingAction={menuMuteStatus ? {
-            id: "notifications-resume",
-            label: "Resume notifications",
-            description: menuMuteStatus,
-            icon: BellOff,
-          } : undefined}
           extraItems={projectMenuExtraItems(
             pinnedPaths.some((pinned) =>
               sameProjectPath(pinned, projectMenu.path),
             ),
             Boolean(onRemoveProject),
-            Boolean(onOpenNotificationSettings),
-            Boolean(readyNotificationProject),
+            projectMenu.remoteUrl,
           )}
-          footer={notificationMenuError ? (
-            <p role="alert" className="px-2 py-1 text-xs text-red-400">{notificationMenuError}</p>
-          ) : null}
           onExtraPick={onProjectMenuPick}
-        />
-      ) : null}
-      {notificationMenu ? (
-        <ProjectNotificationDatePicker
-          key={notificationMenu.path}
-          {...notificationMenu}
-          onClose={() => {
-            setNotificationMenu(null);
-            menuTrigger.current?.focus();
-          }}
-        />
-      ) : null}
-      {inboxMenu ? (
-        <InboxNotificationMenu
-          {...inboxMenu}
-          projectPaths={[...allProjects.keys()]}
-          onOpenSettings={onOpenNotificationSettings}
-          onClose={() => {
-            setInboxMenu(null);
-            menuTrigger.current?.focus();
-          }}
         />
       ) : null}
       {removing ? (
@@ -699,48 +797,216 @@ export function ProjectRail({
   );
 }
 
-type SortableHandle = ReturnType<typeof useAnimatedReorder>;
+type SortableHandle = ReturnType<typeof useSortable>;
 
-function ProjectNotificationDatePicker({
-  project,
-  x,
-  y,
-  onClose,
+const LIVE_AGENT_MIN = 2;
+const LIVE_AGENT_CAP = 4;
+
+function LiveAgentsPreview({
+  agents,
+  activeSessionId,
+  onSelect,
+  groupLabels,
+  groupColors,
+  groupCustomColors,
+  groupMascots,
 }: {
-  project: NotificationProject;
-  x: number;
-  y: number;
-  onClose: () => void;
+  agents: LiveAgent[];
+  activeSessionId?: string;
+  onSelect?: (sessionId: string) => void;
+  groupLabels: Record<string, string>;
+  groupColors: Record<string, number>;
+  groupCustomColors: Record<string, string>;
+  groupMascots: Record<string, string>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const lockList = useLockOverscroll<HTMLDivElement>();
+  const ticking =
+    agents.length >= LIVE_AGENT_MIN &&
+    agents.some((agent) => !agent.done && agent.startedAt != null);
+
+  useEffect(() => {
+    if (!ticking) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [ticking]);
+
+  if (agents.length < LIVE_AGENT_MIN) return null;
+
+  const extra = agents.length - LIVE_AGENT_CAP;
+  const visible =
+    expanded || extra <= 0 ? agents : agents.slice(0, LIVE_AGENT_CAP);
+
   return (
-    <Popover
-      anchor={{ x, y }}
-      gap={0}
-      width={280}
-      role="dialog"
-      aria-label="Mute project notifications"
-      onDismiss={onClose}
-      className="space-y-1 overflow-y-auto p-3"
-    >
-      <p
-        className="truncate px-1 text-xs font-medium text-content/85"
-        title={project.name}
+    <div className="shrink-0 px-2">
+      <div
+        role="status"
+        aria-label="Working agents"
+        className="overflow-hidden rounded-lg bg-content/5"
       >
-        {project.name}
-      </p>
-      <NotificationMuteDatePicker projectIds={[project.id]} onCancel={onClose} onChanged={onClose} />
-    </Popover>
+        <div className="flex items-center gap-2 px-3.5 py-1.5">
+          <span
+            aria-hidden
+            className="size-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)] animate-pulse"
+          />
+          <span className="min-w-0 flex-1 truncate text-xs text-content/50">
+            Working
+          </span>
+          <span className="text-[11px] tabular-nums text-content/40">
+            {agents.length}
+          </span>
+        </div>
+        <div
+          ref={expanded ? lockList : undefined}
+          className={`flex flex-col gap-px px-1 ${
+            extra > 0 ? "" : "pb-1"
+          } ${expanded ? "max-h-[45vh] overflow-y-auto overscroll-none" : ""}`}
+        >
+          {visible.map((agent) => (
+            <LiveAgentCard
+              key={agent.id}
+              agent={agent}
+              now={now}
+              selected={agent.id === activeSessionId}
+              onSelect={onSelect}
+              groupLabels={groupLabels}
+              groupColors={groupColors}
+              groupCustomColors={groupCustomColors}
+              groupMascots={groupMascots}
+            />
+          ))}
+        </div>
+        {extra > 0 ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((open) => !open)}
+            className="flex w-full items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-content/50 hover:bg-content/8 hover:text-content"
+          >
+            {expanded ? (
+              <ChevronUp className="size-3" strokeWidth={1.75} />
+            ) : (
+              <ChevronDown className="size-3" strokeWidth={1.75} />
+            )}
+            {expanded ? "Show less" : `${extra} more`}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LiveAgentCard({
+  agent,
+  now,
+  selected,
+  onSelect,
+  groupLabels,
+  groupColors,
+  groupCustomColors,
+  groupMascots,
+}: {
+  agent: LiveAgent;
+  now: number;
+  selected: boolean;
+  onSelect?: (sessionId: string) => void;
+  groupLabels: Record<string, string>;
+  groupColors: Record<string, number>;
+  groupCustomColors: Record<string, string>;
+  groupMascots: Record<string, string>;
+}) {
+  const seed = projectName(agent.cwd);
+  const key = projectKey(agent.cwd);
+  const project = resolveTabGroupLabel(key, groupLabels, seed);
+  const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
+  const elapsed = agent.done
+    ? agent.durationMs != null
+      ? formatLiveElapsed(0, agent.durationMs)
+      : ""
+    : agent.startedAt != null
+      ? formatLiveElapsed(agent.startedAt, now)
+      : "";
+  const activity = agent.needsApproval
+    ? "Need approval"
+    : agent.done
+      ? "Done"
+      : agent.activity;
+  const live = !agent.needsApproval && !agent.done;
+  const title = [agent.title, project, activity, elapsed]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={[agent.title, project, activity, elapsed]
+        .filter(Boolean)
+        .join(", ")}
+      aria-current={selected ? "true" : undefined}
+      onClick={() => onSelect?.(agent.id)}
+      className={`relative flex w-full flex-col rounded-md px-2 py-1.5 text-left ${
+        selected ? "bg-content/10" : "hover:bg-content/8"
+      }`}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <ProjectMascot
+          project={seed}
+          color={color}
+          name={resolveTabGroupMascot(key, groupMascots)}
+          className="size-2 shrink-0"
+          active={live}
+        />
+        {live ? (
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-snug">
+            {agent.title}
+          </p>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-snug">
+            {agent.title}
+          </span>
+        )}
+      </span>
+      <span
+        className={`mt-1 flex min-w-0 items-center gap-1.5 pl-4 text-[11px] leading-tight ${
+          agent.needsApproval
+            ? "text-amber-400"
+            : agent.done
+              ? "text-emerald-400"
+              : "text-content/50"
+        }`}
+      >
+        {agent.needsApproval ? (
+          <CircleAlert className="size-3 shrink-0" strokeWidth={1.75} />
+        ) : agent.done ? (
+          <Check className="size-3 shrink-0" strokeWidth={2.25} />
+        ) : (
+          <TerminalSpinner className="inline-block w-3 select-none text-center text-[11px] leading-none" />
+        )}
+        <span className="min-w-0 truncate">{activity}</span>
+      </span>
+      <span className="mt-1 flex min-w-0 items-center gap-1.5 pl-4 text-[11px] leading-tight text-content/45">
+        <HarnessIcon harness={agent.harness} className="size-3 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{project}</span>
+        {elapsed ? (
+          <span className="shrink-0 tabular-nums">{elapsed}</span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 
 function ProjectSection({
   label,
   items,
-  muteStatuses,
   emptyLabel,
   onAdd,
   cwd,
   busy,
+  done,
+  reviewHighlight,
+  glowColor,
   sortable,
   pinned,
   searchActive,
@@ -752,15 +1018,18 @@ function ProjectSection({
   groupColors,
   groupCustomColors,
   groupLogos,
+  autoLogos,
   groupMascots,
 }: {
   label: string;
   items: RecentProject[];
-  muteStatuses: ReadonlyMap<string, string | null>;
   emptyLabel?: string;
   onAdd?: () => void;
   cwd: string;
   busy: Set<string>;
+  done: Set<string>;
+  reviewHighlight: boolean;
+  glowColor: string;
   sortable: SortableHandle;
   pinned: boolean;
   searchActive: boolean;
@@ -771,7 +1040,8 @@ function ProjectSection({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: ReturnType<typeof useTabGroupLogos>;
+  groupLogos: TabGroupLogos;
+  autoLogos: Record<string, string>;
   groupMascots: Record<string, string>;
 }) {
   return (
@@ -798,15 +1068,18 @@ function ProjectSection({
         </p>
       ) : null}
       <div className="flex flex-col gap-px px-2">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <ProjectCard
             key={item.path}
             item={item}
-            muteStatus={muteStatuses.get(pathKey(item.path)) ?? undefined}
             selected={!searchActive && sameProjectPath(item.path, cwd)}
             busy={isBusyPath(item.path, busy)}
+            done={isDonePath(item.path, done)}
+            reviewHighlight={reviewHighlight}
+            glowColor={glowColor}
             pinned={pinned}
             sortable={sortable}
+            index={index}
             onSelect={onSelect}
             onTogglePin={onTogglePin}
             onContextMenu={onContextMenu}
@@ -815,6 +1088,7 @@ function ProjectSection({
             groupColors={groupColors}
             groupCustomColors={groupCustomColors}
             groupLogos={groupLogos}
+            autoLogos={autoLogos}
             groupMascots={groupMascots}
           />
         ))}
@@ -828,11 +1102,14 @@ const nameClassName =
 
 function ProjectCard({
   item,
-  muteStatus,
   selected,
   busy,
+  done,
+  reviewHighlight,
+  glowColor,
   pinned,
   sortable,
+  index,
   onSelect,
   onTogglePin,
   onContextMenu,
@@ -841,14 +1118,18 @@ function ProjectCard({
   groupColors,
   groupCustomColors,
   groupLogos,
+  autoLogos,
   groupMascots,
 }: {
   item: RecentProject;
-  muteStatus?: string;
   selected: boolean;
   busy: boolean;
+  done: boolean;
+  reviewHighlight: boolean;
+  glowColor: string;
   pinned: boolean;
   sortable: SortableHandle;
+  index: number;
   onSelect: (path: string) => void;
   onTogglePin: (path: string) => void;
   onContextMenu: (path: string, event: MouseEvent<HTMLElement>) => void;
@@ -856,33 +1137,57 @@ function ProjectCard({
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
   groupCustomColors: Record<string, string>;
-  groupLogos: ReturnType<typeof useTabGroupLogos>;
+  groupLogos: TabGroupLogos;
+  autoLogos: Record<string, string>;
   groupMascots: Record<string, string>;
 }) {
   const fallbackName = basename(item.path);
   const key = projectKey(item.path);
   const seed = projectName(item.path);
   const name = resolveTabGroupLabel(key, groupLabels, fallbackName);
-  const logoPath = resolveTabGroupLogo(key, groupLogos);
+  const logoPath = resolveTabGroupLogo(key, groupLogos) ?? autoLogos[key] ?? null;
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [logoPath]);
+  const [doneCheckSide, setDoneCheckSide] = useState(loadDoneCheckSide);
+  useEffect(() => {
+    const onSide = () => setDoneCheckSide(loadDoneCheckSide());
+    window.addEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
+    return () =>
+      window.removeEventListener(DONE_CHECK_SIDE_CHANGE_EVENT, onSide);
+  }, []);
+  const showDoneLeft = done && !busy && doneCheckSide === "left";
+  const showDoneRight = done && !busy && doneCheckSide === "right";
   const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
+  const dragging = sortable.draggingId === item.path;
+  const showStart =
+    sortable.draggingId &&
+    sortable.toIndex === index &&
+    sortable.fromIndex !== null &&
+    sortable.toIndex < sortable.fromIndex;
+  const showEnd =
+    sortable.draggingId &&
+    sortable.toIndex === index &&
+    sortable.fromIndex !== null &&
+    sortable.toIndex > sortable.fromIndex;
   const diffEnabled = Boolean(item.path) && item.path !== "~";
   const stats = useProjectDiffStats(item.path, diffEnabled);
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
   const hasChanges = files > 0 || additions > 0 || deletions > 0;
-  const cardTitle = projectCardTitle(item.path, name, stats, busy);
-  const cardAriaLabel = projectCardAriaLabel(name, stats, busy);
+  const cardTitle = projectCardTitle(item.path, name, stats, busy, done);
+  const cardAriaLabel = projectCardAriaLabel(name, stats, busy, done);
 
   return (
     <div
       ref={(el) => sortable.setItemRef(item.path, el)}
-      data-selected={selected || undefined}
-      className={`reorder-item project-reorder-item group relative flex touch-none items-stretch rounded-md px-2 h-8 ${
+      className={`group relative flex touch-none items-stretch rounded-md px-2 h-8 ${
         selected
-          ? "bg-selection-strong text-content"
-          : "opacity-65"
-      } cursor-default`}
+          ? "bg-content/12 text-content"
+          : done && !busy && reviewHighlight
+            ? "bg-emerald-400/14 text-emerald-50 hover:bg-emerald-400/20"
+            : "opacity-65 hover:bg-content/5 hover:text-content"
+      } ${dragging ? "opacity-40" : ""} cursor-default`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         if ((event.target as HTMLElement | null)?.closest("[data-no-drag]")) {
@@ -898,30 +1203,35 @@ function ProjectCard({
         onSelect(item.path);
       }}
       onContextMenu={(event) => onContextMenu(item.path, event)}
-      onKeyDown={(event) => {
-        if (
-          event.key !== "ContextMenu" &&
-          !(event.shiftKey && event.key === "F10")
-        ) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const rect = event.currentTarget.getBoundingClientRect();
-        onOpenMenu(item.path, rect.left, rect.bottom);
-      }}
     >
+      {showStart ? (
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-20 h-0.5 rounded-full bg-accent" />
+      ) : null}
+      {showEnd ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-20 h-0.5 rounded-full bg-accent" />
+      ) : null}
       <button
         type="button"
-        title={muteStatus ? `${cardTitle}\n${muteStatus}` : cardTitle}
-        aria-label={muteStatus ? `${cardAriaLabel}, ${muteStatus}` : cardAriaLabel}
+        title={cardTitle}
+        aria-label={cardAriaLabel}
         aria-current={selected ? "true" : undefined}
-        className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left transition-[padding] duration-150 motion-reduce:transition-none group-hover:pr-6 group-has-[:focus-visible]:pr-6"
+        className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6"
       >
-        <div className="project-card-logo grid size-4 shrink-0 place-items-center transition-opacity group-hover:opacity-0">
-          {logoPath && !busy ? (
+        <div className="grid size-4 shrink-0 place-items-center transition-opacity group-hover:opacity-0">
+          {showDoneLeft ? (
+            <span
+              title="Agent terminé — vérifier les modifications"
+              aria-label="Agent terminé, modifications à vérifier"
+              className="grid size-4 place-items-center rounded-full bg-emerald-400/15 text-emerald-400"
+            >
+              <Check className="size-3" strokeWidth={2.5} />
+            </span>
+          ) : logoPath && !logoFailed && !busy ? (
             <ProjectLogoIcon
               path={logoPath}
               className="size-4 rounded-sm"
               imageClassName="size-4"
+              onLoadError={() => setLogoFailed(true)}
             />
           ) : (
             <ProjectMascot
@@ -934,25 +1244,37 @@ function ProjectCard({
           )}
         </div>
         {busy ? (
-          <Shimmer as="span" duration={1.4} className={nameClassName}>
+          <Shimmer
+            as="span"
+            duration={1.4}
+            className={nameClassName}
+            highlight={glowColor || undefined}
+          >
             {name}
           </Shimmer>
         ) : (
           <span className={nameClassName}>{name}</span>
         )}
-        {hasChanges ? (
-          <span className="project-card-stats shrink-0 group-hover:hidden group-has-[:focus-visible]:hidden">
+        {showDoneRight ? (
+          <span
+            title="Agent finished — review the work"
+            aria-label="Finished, needs review"
+            className="grid size-4 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-400 group-hover:hidden"
+          >
+            <Check className="size-2.5" strokeWidth={2.5} />
+          </span>
+        ) : null}
+        {hasChanges && !showDoneRight ? (
+          <span className="shrink-0 group-hover:hidden">
             <ProjectDiffStat additions={additions} deletions={deletions} />
           </span>
         ) : null}
-        {muteStatus ? (
+        {stats && stats.ahead > 0 ? (
           <span
-            role="img"
-            aria-label={muteStatus}
-            title={muteStatus}
-            className="grid size-4 shrink-0 place-items-center text-amber-400"
+            className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-sky-400 group-hover:hidden"
+            title={`${stats.ahead} commit${stats.ahead === 1 ? "" : "s"} not pushed`}
           >
-            <BellOff className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            ↑{stats.ahead}
           </span>
         ) : null}
       </button>
@@ -965,14 +1287,9 @@ function ProjectCard({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
-          const rect = event.currentTarget.getBoundingClientRect();
-          onOpenMenu(
-            item.path,
-            event.detail === 0 ? rect.left : event.clientX,
-            event.detail === 0 ? rect.bottom : event.clientY,
-          );
+          onOpenMenu(item.path, event.clientX, event.clientY);
         }}
-        className="absolute right-1 top-1/2 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-content/55 hover:bg-content/8 hover:text-content group-hover:grid group-has-[:focus-visible]:grid"
+        className="absolute right-1 top-1/2 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-content/55 hover:bg-content/8 hover:text-content group-hover:grid"
       >
         <MoreHorizontal className="size-4" strokeWidth={1.75} />
       </button>
@@ -1000,6 +1317,13 @@ function ProjectCard({
 
 function isBusyPath(path: string, busy: Set<string>): boolean {
   for (const other of busy) {
+    if (sameProjectPath(path, other)) return true;
+  }
+  return false;
+}
+
+function isDonePath(path: string, done: Set<string>): boolean {
+  for (const other of done) {
     if (sameProjectPath(path, other)) return true;
   }
   return false;
@@ -1041,12 +1365,16 @@ function projectCardTitle(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
+  done: boolean,
 ): string {
   const parts = [name, path];
   if (busy) parts.push("Working");
+  else if (done) parts.push("Finished — needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;
+  const ahead = stats?.ahead ?? 0;
+  const behind = stats?.behind ?? 0;
   if (files > 0 || additions > 0 || deletions > 0) {
     parts.push(
       [
@@ -1058,6 +1386,11 @@ function projectCardTitle(
         .join(" "),
     );
   }
+  if (ahead > 0 || behind > 0) {
+    parts.push(
+      `${ahead} ahead, ${behind} behind remote`,
+    );
+  }
   return parts.join("\n");
 }
 
@@ -1065,9 +1398,11 @@ function projectCardAriaLabel(
   name: string,
   stats: GitDiffStats | null,
   busy: boolean,
+  done: boolean,
 ): string {
   const parts = [name];
   if (busy) parts.push("working");
+  else if (done) parts.push("finished, needs review");
   const files = stats?.files ?? 0;
   const additions = stats?.additions ?? 0;
   const deletions = stats?.deletions ?? 0;

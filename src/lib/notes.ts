@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { fuzzyMatch } from "./fuzzy";
 import type { ProjectFile } from "./fs";
 import type { RankedFile } from "./fileIndex";
+import { loadNotesAutoExport } from "./settings";
 import { projectName } from "./paths";
 import { looksLikeProject } from "./recents";
 
@@ -54,6 +55,27 @@ export function noteCardMeta(card: NoteComposerCard): NoteCardMeta {
 
 export const ADD_NOTE_TO_CHAT_EVENT = "monocode:add-note-to-chat";
 
+export const OPEN_NOTE_EVENT = "monocode:open-note";
+
+let pendingOpenNoteId: string | null = null;
+
+/**
+ * Ask the app to open the Notes view focused on a note. The id is parked in
+ * a module slot so the view can consume it even if it mounts after the event
+ * (the sidebar tab dispatches before the overlay renders).
+ */
+export function requestOpenNote(id: string): void {
+  pendingOpenNoteId = id;
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(OPEN_NOTE_EVENT));
+}
+
+export function consumePendingOpenNote(): string | null {
+  const id = pendingOpenNoteId;
+  pendingOpenNoteId = null;
+  return id;
+}
+
 const MAX_TITLE = 200;
 export const MAX_NOTE_TAGS = 20;
 export const MAX_NOTE_TAG_LENGTH = 48;
@@ -97,14 +119,26 @@ export async function getNote(id: string): Promise<Note | null> {
 }
 
 export async function upsertNote(note: NoteUpsert): Promise<Note> {
-  const saved = await invoke<Note>("notes_upsert", { note });
+  const saved = await invoke<Note>("notes_upsert", {
+    note: { ...note, autoExport: loadNotesAutoExport() },
+  });
   cache = null;
   return saved;
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await invoke("notes_delete", { id });
+  await invoke("notes_delete", { id, autoExport: loadNotesAutoExport() });
   cache = null;
+}
+
+/** Write one note as markdown to an absolute .md path. */
+export function exportNote(id: string, target: string): Promise<void> {
+  return invoke("notes_export", { id, target });
+}
+
+/** Mirror every note with a source project into .monocode/notes; returns count. */
+export function exportAllNotesToProjects(): Promise<number> {
+  return invoke<number>("notes_export_all");
 }
 
 export async function createNote(input: {

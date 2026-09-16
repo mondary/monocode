@@ -1,5 +1,9 @@
-import type { HarnessId } from "../session";
-import { HARNESSES } from "../session";
+import {
+  HARNESSES,
+  isCustomHarness,
+  type BuiltinHarnessId,
+  type HarnessId,
+} from "../session";
 import {
   resolveClaudeBinary,
   resolveCodexBinary,
@@ -12,7 +16,7 @@ import {
 } from "./child";
 import { isLiveHarness } from "./registry";
 
-export type HarnessAvailability = Record<HarnessId, boolean>;
+export type HarnessAvailability = Record<BuiltinHarnessId, boolean>;
 
 /**
  * We only ever check whether the binary exists, never whether it is
@@ -27,6 +31,12 @@ const CLI: Record<HarnessId, { name: string; install?: string }> = {
     install: "curl -fsSL https://x.ai/cli/install.sh | bash",
   },
   opencode: { name: "OpenCode CLI" },
+  zai: { name: "Z.AI via OpenCode CLI" },
+  mimo: { name: "MiMo via OpenCode CLI" },
+  openrouter: { name: "OpenRouter via OpenCode CLI" },
+  nvidia: { name: "NVIDIA via OpenCode CLI" },
+  gemini: { name: "Gemini via OpenCode CLI" },
+  antigravity: { name: "Antigravity via OpenCode CLI" },
   pi: { name: "Pi CLI", install: "npm i -g @earendil-works/pi-coding-agent" },
   omp: { name: "omp CLI", install: "curl -fsSL https://omp.sh/install | sh" },
   fx: { name: "fx CLI", install: "curl -fsSL https://fx.sh/setup.sh | bash" },
@@ -38,6 +48,12 @@ let availability: HarnessAvailability = {
   cursor: false,
   grok: false,
   opencode: false,
+  zai: false,
+  mimo: false,
+  openrouter: false,
+  nvidia: false,
+  gemini: false,
+  antigravity: false,
   pi: false,
   omp: false,
   fx: false,
@@ -76,10 +92,14 @@ export function hasProbedHarnessAvailability(): boolean {
 }
 
 export function isHarnessAvailable(id: HarnessId): boolean {
+  if (isCustomHarness(id)) return true;
   return availability[id];
 }
 
 export function harnessUnavailableHint(id: HarnessId): string {
+  if (isCustomHarness(id)) {
+    return "Custom provider — requires the OpenCode CLI and a saved entry in Settings > Custom providers.";
+  }
   const { name, install } = CLI[id];
   const how = install ? ` (\`${install}\`)` : "";
   return `${name} not found${how}. Install it, or restart MonoCode if it is already installed.`;
@@ -119,7 +139,9 @@ export function probeHarnessAvailability(
           return [id, false] as const;
         }
       }
-      if (id === "opencode") {
+      if (
+        ["opencode", "zai", "mimo", "openrouter", "nvidia", "gemini", "antigravity"].includes(id)
+      ) {
         try {
           await resolveOpenCodeBinary();
           return [id, true] as const;

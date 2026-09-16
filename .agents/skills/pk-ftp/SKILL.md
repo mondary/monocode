@@ -1,0 +1,1 @@
+/Users/clm/Documents/GitHub/-agent/opencode/commands/pk-ftp.md

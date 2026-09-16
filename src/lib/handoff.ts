@@ -2,13 +2,13 @@ import { isEditTool } from "./harness/preview";
 import { limitSection } from "./jsonText";
 import { displayPath } from "./paths";
 import {
-  HARNESS_TITLE,
   type Block,
   type HarnessId,
   type HandoffMeta,
   type PendingHarnessSwitch,
   type SecondOpinionMeta,
   type Session,
+  harnessTitle,
 } from "./session";
 
 export const HANDOFF_TITLE = "Handoff";
@@ -340,7 +340,7 @@ export function wrapHandoffPrompt(
   userText: string,
   earlierRequests: string[] = [],
 ): string {
-  const fromTitle = HARNESS_TITLE[from];
+  const fromTitle = harnessTitle(from);
   const request = userText.trim();
   const body = stripGoalSections(brief);
   const earlier = earlierRequests.map((text) => text.trim()).filter(Boolean);

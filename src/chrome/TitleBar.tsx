@@ -23,8 +23,13 @@ import {
   type ReactNode,
 } from "react";
 import { basename } from "../lib/fs";
+import {
+  BUSY_GLOW_CHANGE_EVENT,
+  loadBusyGlowColor,
+} from "../lib/busyGlowSettings";
 import { looksLikeProject } from "../lib/recents";
 import type { HarnessId } from "../lib/session";
+import { usePkVariant } from "../lib/pkVariant";
 import { CwdPicker } from "./CwdPicker";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import {
@@ -265,6 +270,15 @@ function TitleTabItem({
   itemRef?: (el: HTMLDivElement | null) => void;
 }) {
   const { headline, meta, tooltip } = tabCopy(tab);
+  // Busy tabs glow in the same color the user picked for busy project titles.
+  const [glowColor, setGlowColor] = useState(loadBusyGlowColor);
+  useEffect(() => {
+    const onGlow = () => setGlowColor(loadBusyGlowColor());
+    window.addEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+    return () => window.removeEventListener(BUSY_GLOW_CHANGE_EVENT, onGlow);
+  }, []);
+  const working = tab.busyHarnesses.length > 0;
+  const busyTint = working ? glowColor || "var(--color-accent)" : undefined;
   const fileIcon = tab.files[0];
   const accessibleTooltip =
     (tab.doneHarnesses?.length ?? 0) > 0
@@ -346,6 +360,7 @@ function TitleTabItem({
                   ? "text-[13px] @min-[11rem]:text-[10px] @min-[11rem]:font-medium"
                   : "text-[13px]"
               }`}
+              style={busyTint ? { color: busyTint } : undefined}
             >
               {headline}
             </span>
@@ -363,6 +378,12 @@ function TitleTabItem({
             </span>
           ) : null}
         </span>
+        {busyTint ? (
+          <span
+            className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full"
+            style={{ background: busyTint }}
+          />
+        ) : null}
       </button>
       {closable ? (
         <button
@@ -472,18 +493,29 @@ export function IconButton({
 }
 
 export function DevModeLabel() {
+  const variant = usePkVariant();
+  if (variant === "dev") {
+    return (
+      <span
+        title="MonoCode PK Dev — le build cobaye, reconstruit à chaque test"
+        className="mr-1 min-w-0 truncate rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent"
+      >
+        DEV
+      </span>
+    );
+  }
   if (!import.meta.env.DEV) return null;
   return (
     <span
-      title="Development build"
+      title="PKmod personal build"
       className="mr-1 min-w-0 truncate rounded-md bg-skill/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-skill"
     >
-      Development
+      PKmod
     </span>
   );
 }
 
-/** Flex spacer that keeps the Development badge next to the visit arrows. */
+/** Flex spacer that keeps the PKmod badge next to the visit arrows. */
 export function DevModeSlot() {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-end">
@@ -688,12 +720,12 @@ function TitleBarComponent({
       : "";
     const project = cwd ? basename(cwd) : "";
     if (activeName && project && activeName !== project) {
-      return `${activeName} — ${project} — MonoCode`;
+      return `${activeName} — ${project} — MonoCode PK`;
     }
     if (project) {
-      return `${project} — MonoCode`;
+      return `${project} — MonoCode PK`;
     }
-    return "MonoCode";
+    return "MonoCode PK";
   }, [activeTab, cwd]);
 
   useEffect(() => {

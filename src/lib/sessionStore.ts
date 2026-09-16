@@ -530,7 +530,7 @@ function sanitizeTurnModel(value: unknown): TurnModel | undefined {
   const name = typeof record.name === "string" ? record.name.trim() : "";
   if (
     typeof harness !== "string" ||
-    !HARNESSES.includes(harness as HarnessId) ||
+    !(HARNESSES as string[]).includes(harness) ||
     !id ||
     !name
   ) {

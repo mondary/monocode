@@ -6,7 +6,6 @@ import {
 } from "../chrome/MarkdownModeToggle";
 import { SurfaceTabs } from "../chrome/SurfaceTabs";
 import {
-  isAgentTab,
   isChangesTab,
   isCommitTab,
   isPlanTab,
@@ -25,7 +24,6 @@ import type { PlanBuildTarget, Session } from "../lib/session";
 import { Play } from "../chrome/icons";
 import { BuildTargetButton } from "../chrome/SecondOpinionButton";
 import { loadDiffViewer, subscribeDiffViewer } from "../lib/settings";
-import { AgentTabView } from "./AgentTabView";
 import { MarkdownPreview } from "./AgentMarkdown";
 import { BinaryFileView } from "./BinaryFileView";
 import { CommitDiff } from "./CommitDiff";
@@ -44,7 +42,6 @@ type Props = {
   onFocus: (paneId: string) => void;
   onSelectFile: (paneId: string, fileId: string) => void;
   onCloseFile: (paneId: string, fileId: string) => void;
-  onCloseOtherFiles: (paneId: string, fileId: string) => void;
   onDirtyChange: (fileId: string, dirty: boolean) => void;
   onErrorCountChange: (fileId: string, count: number) => void;
   onReorderFiles: (paneId: string, ids: string[]) => void;
@@ -58,6 +55,7 @@ type Props = {
   editorNavigation?: EditorNavigationTarget | null;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
+  hideTerminalTabs?: boolean;
 };
 
 function FilePaneComponent({
@@ -69,7 +67,6 @@ function FilePaneComponent({
   onFocus,
   onSelectFile,
   onCloseFile,
-  onCloseOtherFiles,
   onDirtyChange,
   onErrorCountChange,
   onReorderFiles,
@@ -79,6 +76,7 @@ function FilePaneComponent({
   editorNavigation,
   onPaneDragStart,
   onTerminalMetaChange,
+  hideTerminalTabs = false,
 }: Props) {
   const diffViewer = useSyncExternalStore(
     subscribeDiffViewer,
@@ -100,17 +98,18 @@ function FilePaneComponent({
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       onMouseDown={() => onFocus(pane.id)}
     >
-      <SurfaceTabs
-        files={pane.files}
-        activeFileId={pane.activeFileId}
-        dirtyFileIds={dirtyFileIds}
-        fileErrorCounts={fileErrorCounts}
-        onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
-        onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
-        onCloseOtherFiles={(fileId) => onCloseOtherFiles(pane.id, fileId)}
-        onReorder={(ids) => onReorderFiles(pane.id, ids)}
-        onPaneDragStart={onPaneDragStart}
-      />
+      {!hideTerminalTabs ? (
+        <SurfaceTabs
+          files={pane.files}
+          activeFileId={pane.activeFileId}
+          dirtyFileIds={dirtyFileIds}
+          fileErrorCounts={fileErrorCounts}
+          onSelectFile={(fileId) => onSelectFile(pane.id, fileId)}
+          onCloseFile={(fileId) => onCloseFile(pane.id, fileId)}
+          onReorder={(ids) => onReorderFiles(pane.id, ids)}
+          onPaneDragStart={onPaneDragStart}
+        />
+      ) : null}
       <div className="relative min-h-0 flex-1">
         {sessionReview ? (
           <div className="absolute inset-0 h-full">
@@ -151,16 +150,7 @@ function FilePaneComponent({
                   : "hidden"
               }
             >
-              {isAgentTab(file) ? (
-                <AgentTabView
-                  title={file.path}
-                  session={sessions.find(
-                    (entry) => entry.id === file.agent.sessionId,
-                  )}
-                  visible={file.id === pane.activeFileId}
-                  onOpenFile={onOpenFile}
-                />
-              ) : isPlanTab(file) ? (
+              {isPlanTab(file) ? (
                 <PlanSurface
                   file={file}
                   sessions={sessions}
@@ -219,7 +209,6 @@ export const FilePane = memo(FilePaneComponent, (previous, next) => {
     previous.onFocus !== next.onFocus ||
     previous.onSelectFile !== next.onSelectFile ||
     previous.onCloseFile !== next.onCloseFile ||
-    previous.onCloseOtherFiles !== next.onCloseOtherFiles ||
     previous.onDirtyChange !== next.onDirtyChange ||
     previous.onErrorCountChange !== next.onErrorCountChange ||
     previous.onReorderFiles !== next.onReorderFiles ||
@@ -234,8 +223,7 @@ export const FilePane = memo(FilePaneComponent, (previous, next) => {
   }
 
   for (const file of next.pane.files) {
-    // Plans and agent tabs both read a live session object from this pane.
-    const sessionId = file.plan?.sessionId ?? file.agent?.sessionId;
+    const sessionId = file.plan?.sessionId;
     if (!sessionId) continue;
     const before = previous.sessions.find(
       (session) => session.id === sessionId,
@@ -325,10 +313,9 @@ function PlanSurface({
               <BuildTargetButton
                 from={session.harness}
                 model={session.model}
-                settings={session.modelSettings}
                 disabled={buildDisabled}
-                onPick={(target) =>
-                  onBuildPlan(plan.sessionId, block.id, target)
+                onPick={(harness, model) =>
+                  onBuildPlan(plan.sessionId, block.id, { harness, model })
                 }
               />
             ) : null}

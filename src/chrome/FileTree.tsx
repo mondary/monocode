@@ -2,11 +2,15 @@ import {
   ChevronDown,
   ChevronRight,
   FilePlus,
+  FolderOpen,
   FolderPlus,
   FoldVertical,
   GitCompare,
+  Loader,
   Search,
+  WandSparkles,
 } from "./icons";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   createContext,
   memo,
@@ -45,14 +49,24 @@ import {
   copyPath,
   createPath,
   deletePath,
+  initializeProject,
   movePath,
+  openProjectPath,
   renamePath,
   revealPath,
   type FsEntry,
 } from "../lib/fs";
-import { displayPath, parentPath, rebasePath } from "../lib/paths";
+import {
+  loadProjectInitSettings,
+  projectInitResultMessage,
+} from "../lib/projectInit";
+import {
+  EXPLORER_SETTINGS_CHANGE_EVENT,
+  loadExplorerHighlightActions,
+  loadExplorerShowChanges,
+} from "../lib/explorerSettings";
+import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
-import type { OpenFileFn } from "../lib/search";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
@@ -67,7 +81,9 @@ const GIT_STATUS_COLOR: Record<string, string> = {
 
 type Props = {
   cwd: string;
-  onOpenFile: OpenFileFn;
+  /** Project path, independent from the active session's working directory. */
+  projectCwd?: string;
+  onOpenFile: (path: string) => void;
   onOpenTerminal?: (cwd: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
@@ -98,7 +114,7 @@ type TreeCtxValue = {
   gitStatuses?: GitStatusMap;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
-  onOpenFile: OpenFileFn;
+  onOpenFile: (path: string) => void;
   onCreateCommit: (id: number, raw: string) => Promise<void>;
   onCreateCancel: (id: number) => void;
   onRenameCommit: (path: string, raw: string) => Promise<void>;
@@ -107,6 +123,7 @@ type TreeCtxValue = {
     entry: { path: string; isDir: boolean },
     e: ReactMouseEvent,
   ) => void;
+  moveEntryTo: (from: string, destDir: string) => Promise<void>;
 };
 
 const TreeCtx = createContext<TreeCtxValue | null>(null);
@@ -210,6 +227,9 @@ function explorerItems(
           },
         ]
       : []),
+    ...(isHtmlFile(target.path) && !target.isDir
+      ? [{ kind: "item" as const, id: "open-browser", label: "Open in Browser" }]
+      : []),
     { kind: "item", id: "reveal", label: REVEAL_LABEL },
   ];
 }
@@ -218,6 +238,7 @@ function explorerItems(
 // intact unless file-tree props, local state, or subscriptions actually change.
 export const FileTree = memo(function FileTree({
   cwd,
+  projectCwd,
   onOpenFile,
   onOpenTerminal,
   onFileMoved,
@@ -238,7 +259,13 @@ export const FileTree = memo(function FileTree({
   const [clip, setClip] = useState<Clip | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
+  const [opNotice, setOpNotice] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  const [showChanges, setShowChanges] = useState(loadExplorerShowChanges);
+  const [highlightActions, setHighlightActions] = useState(
+    loadExplorerHighlightActions,
+  );
   const creatingRef = useRef(creating);
   creatingRef.current = creating;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -329,7 +356,7 @@ export const FileTree = memo(function FileTree({
     expandDirs(touched);
     setSelectedPath(created);
     saveSelected(cwd, created);
-    if (!asFolder) onOpenFile(created, undefined, { exact: true });
+    if (!asFolder) onOpenFile(created);
   };
 
   const onRenameCancel = () => setRenaming(null);
@@ -413,8 +440,23 @@ export const FileTree = memo(function FileTree({
     saveSelected(cwd, created);
   };
 
-  const duplicateAt = async (path: string) => {
-    if (path === cwd) return;
+  /** Drop-target move: same plumbing as cut/paste, minus the clipboard. */
+  const moveEntryTo = async (from: string, destDir: string) => {
+    if (from === cwd || destDir === from) return;
+    if (destDir.startsWith(`${from}/`)) {
+      throw new Error("Cannot move a folder into itself.");
+    }
+    const isDir = isDirAt(cwd, from);
+    const created = await movePath(from, destDir);
+    await refreshTouched(dirsTouchedByMove(from, created), isDir ? [from] : []);
+    remapTreePaths(from, created);
+    onFileMoved?.(from, created);
+    expandDirs([destDir]);
+    setSelectedPath(created);
+    saveSelected(cwd, created);
+  };
+
+  const duplicateAt = async (path: string) => {    if (path === cwd) return;
     const destParent = parentPath(path);
     const created = await copyPath(path, destParent);
     await refreshTouched([destParent]);
@@ -424,10 +466,30 @@ export const FileTree = memo(function FileTree({
 
   const run = async (work: () => Promise<void>) => {
     setOpError(null);
+    setOpNotice(null);
     try {
       await work();
     } catch (err: unknown) {
       setOpError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const onInitializeProject = async () => {
+    setInitializing(true);
+    setOpError(null);
+    setOpNotice(null);
+    try {
+      const projectPath = projectCwd && projectCwd !== "~" ? projectCwd : cwd;
+      const result = await initializeProject(
+        projectPath,
+        loadProjectInitSettings(),
+      );
+      await refreshTouched([cwd]);
+      setOpNotice(projectInitResultMessage(result));
+    } catch (err: unknown) {
+      setOpError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setInitializing(false);
     }
   };
 
@@ -477,6 +539,24 @@ export const FileTree = memo(function FileTree({
         return;
       case "open-terminal":
         onOpenTerminal?.(target.isDir ? target.path : parentPath(target.path));
+        return;
+      case "open-browser":
+        await run(async () => {
+          try {
+            // Prefer the URL API so HTML files use the user's browser, not
+            // whichever editor happens to own the file association.
+            await openUrl(fileUrl(target.path));
+          } catch (error) {
+            // Some macOS installations reject local file:// URLs through the
+            // opener URL scope. The path API still delegates the file to the
+            // system's HTML handler, so Open in Browser remains useful.
+            try {
+              await openPath(target.path);
+            } catch {
+              throw error;
+            }
+          }
+        });
         return;
     }
   };
@@ -568,6 +648,18 @@ export const FileTree = memo(function FileTree({
     };
   }, []);
 
+  // Settings > General can flip either Explorer header option while this tree
+  // is mounted; re-read both so the header follows without a remount.
+  useEffect(() => {
+    const onSettings = () => {
+      setShowChanges(loadExplorerShowChanges());
+      setHighlightActions(loadExplorerHighlightActions());
+    };
+    window.addEventListener(EXPLORER_SETTINGS_CHANGE_EVENT, onSettings);
+    return () =>
+      window.removeEventListener(EXPLORER_SETTINGS_CHANGE_EVENT, onSettings);
+  }, []);
+
   useEffect(() => {
     const hit = peekDir(cwd);
     if (hit) {
@@ -611,6 +703,7 @@ export const FileTree = memo(function FileTree({
         onRenameCommit,
         onRenameCancel,
         onItemContextMenu,
+        moveEntryTo: (from, destDir) => run(() => moveEntryTo(from, destDir)),
       }}
     >
       <div
@@ -621,7 +714,7 @@ export const FileTree = memo(function FileTree({
         onContextMenu={onBackgroundMenu}
       >
         <div
-          className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2"
+          className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-content/10 px-2"
           onContextMenu={(e) => e.stopPropagation()}
         >
           <HeaderIcon label="New File" onClick={() => startCreate(false)}>
@@ -650,13 +743,35 @@ export const FileTree = memo(function FileTree({
               <Search className="size-3.5" strokeWidth={1.75} />
             </HeaderIcon>
           ) : null}
-          {onShowSourceControl ? (
+          {onShowSourceControl && showChanges ? (
             <FileTreeDiffButton
               cwd={cwd}
               active={sourceControlActive}
               onClick={onShowSourceControl}
             />
           ) : null}
+          <HeaderIcon
+            label={REVEAL_LABEL}
+            highlight={highlightActions}
+            onClick={() => {
+              void run(() => openProjectPath(projectCwd ?? cwd));
+            }}
+          >
+            <FolderOpen className="size-3.5" strokeWidth={1.75} />
+          </HeaderIcon>
+          <HeaderIcon
+            label="Initialize project"
+            highlight={highlightActions}
+            onClick={() => {
+              void onInitializeProject();
+            }}
+          >
+            {initializing ? (
+              <Loader className="size-3.5 animate-spin" strokeWidth={1.75} />
+            ) : (
+              <WandSparkles className="size-3.5" strokeWidth={1.75} />
+            )}
+          </HeaderIcon>
         </div>
         <div className="flex h-8 shrink-0 items-center">
           <button
@@ -699,6 +814,11 @@ export const FileTree = memo(function FileTree({
               {opError}
             </p>
           ) : null}
+          {opNotice ? (
+            <p className="px-3 py-1 text-[12px] leading-4 text-emerald-400">
+              {opNotice}
+            </p>
+          ) : null}
           {rootOpen ? (
             <div role="tree" aria-label={`${name} files`}>
               <TreeChildren
@@ -733,11 +853,13 @@ function HeaderIcon({
   label,
   onClick,
   active = false,
+  highlight = false,
   children,
 }: {
   label: string;
   onClick?: () => void;
   active?: boolean;
+  highlight?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -750,13 +872,19 @@ function HeaderIcon({
       onClick={onClick}
       className={`flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
         active
-          ? "bg-selection text-content"
-          : "text-content/50 hover:bg-content/5 hover:text-content"
+          ? "bg-content/10 text-content"
+          : highlight
+            ? "border border-accent/35 bg-accent/10 text-accent hover:bg-accent/15"
+            : "text-content/50 hover:bg-content/5 hover:text-content"
       }`}
     >
       {children}
     </button>
   );
+}
+
+function isHtmlFile(path: string): boolean {
+  return /\.html?$/i.test(path);
 }
 
 function FileTreeDiffButton({
@@ -797,7 +925,7 @@ function FileTreeDiffButton({
       onClick={onClick}
       className={`relative flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
         active
-          ? "bg-selection text-content"
+          ? "bg-content/10 text-content"
           : "text-content/50 hover:bg-content/5 hover:text-content"
       }`}
     >
@@ -882,6 +1010,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     onRenameCommit,
     onRenameCancel,
     onItemContextMenu,
+    moveEntryTo,
   } = useTree();
   const open = expanded.has(entry.path);
   const [children, setChildren] = useState<FsEntry[] | null>(() =>
@@ -922,10 +1051,18 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     };
   }, [entry.isDir, entry.path, open, epoch]);
 
-  const onClick = () => {
+  const [dropHover, setDropHover] = useState(false);
+
+  const onRowClick = (e: ReactMouseEvent) => {
+    // Cmd/Ctrl+click opens the file with its system default app (like `open`).
+    if (!entry.isDir && (IS_MAC ? e.metaKey : e.ctrlKey)) {
+      e.preventDefault();
+      void openPath(entry.path);
+      return;
+    }
     onSelect(entry.path);
     if (entry.isDir) onToggle(entry.path);
-    else onOpenFile(entry.path, undefined, { exact: true });
+    else onOpenFile(entry.path);
   };
 
   const siblings = (peekDir(parentPath(entry.path)) ?? [])
@@ -950,14 +1087,46 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
           role="treeitem"
           title={entry.path}
           aria-expanded={entry.isDir ? open : undefined}
-          onClick={onClick}
+          onClick={onRowClick}
           onContextMenu={(e) => onItemContextMenu(entry, e)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/monocode-path", entry.path);
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={
+            entry.isDir
+              ? (e) => {
+                  if (!e.dataTransfer.types.includes("text/monocode-path")) {
+                    return;
+                  }
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDropHover(true);
+                }
+              : undefined
+          }
+          onDragLeave={entry.isDir ? () => setDropHover(false) : undefined}
+          onDrop={
+            entry.isDir
+              ? (e) => {
+                  e.preventDefault();
+                  setDropHover(false);
+                  const from = e.dataTransfer.getData("text/monocode-path");
+                  if (from && from !== entry.path) {
+                    void moveEntryTo(from, entry.path);
+                  }
+                }
+              : undefined
+          }
           style={{ paddingLeft: 8 + depth * 12 }}
           className={`flex h-7.5 w-full cursor-default items-center gap-1 pr-2 text-left text-[14px] leading-none ${
             selected
-              ? "bg-selection text-content"
+              ? "bg-content/10 text-content"
               : "text-content hover:bg-content/5"
-          } ${cutPath === entry.path ? "opacity-50" : ""}`}
+          } ${cutPath === entry.path ? "opacity-50" : ""} ${
+            dropHover ? "ring-1 ring-inset ring-accent" : ""
+          }`}
         >
           <span className="grid size-4 shrink-0 place-items-center text-content/50">
             {entry.isDir ? (

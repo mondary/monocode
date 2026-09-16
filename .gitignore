@@ -33,6 +33,7 @@ coverage/
 *.AppImage
 *.tar.gz
 *.zip
+releases/
 latest.json
 logs/
 *.log
@@ -53,3 +54,13 @@ lerna-debug.log*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+src-tauri/tauri.pk.conf.json
+.agent
+.inspi
+AGENT.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+GLM.md
+OPENCODE.md
+src-tauri/tauri.pk.dev.conf.json

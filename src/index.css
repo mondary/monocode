@@ -5,23 +5,6 @@
 
 @custom-variant dark (&:where(html:not(.theme-light), html:not(.theme-light) *));
 
-@container settings (width < 560px) {
-  .settings-row {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .settings-row-control {
-    max-width: 100%;
-    justify-content: flex-start;
-  }
-
-  .settings-row:has(> .settings-row-control > [role="switch"]:only-child) {
-    flex-direction: row;
-    gap: 1.5rem;
-  }
-}
-
 @theme {
   /* Preserve descenders in compact labels, including two 10px lines in a 30px tab. */
   --leading-label: 1.4;
@@ -30,35 +13,6 @@
   );
   --color-content: hsl(
     var(--theme-hue) var(--theme-saturation) var(--content-lightness)
-  );
-  /* Structural separators: use border-stroke, divide-stroke, or bg-stroke. */
-  --color-stroke: color-mix(in srgb, var(--color-content) 7%, transparent);
-  /* Interactive fills keep their dark-theme contrast but use gentler ink in
-     light mode. Prefer these over content opacity for selected/raised UI. */
-  --color-selection-subtle: color-mix(
-    in srgb,
-    var(--color-content) var(--selection-subtle-strength),
-    transparent
-  );
-  --color-selection: color-mix(
-    in srgb,
-    var(--color-content) var(--selection-strength),
-    transparent
-  );
-  --color-selection-strong: color-mix(
-    in srgb,
-    var(--color-content) var(--selection-strong-strength),
-    transparent
-  );
-  --color-selection-hover: color-mix(
-    in srgb,
-    var(--color-content) var(--selection-hover-strength),
-    transparent
-  );
-  --color-selection-emphasis: color-mix(
-    in srgb,
-    var(--color-content) var(--selection-emphasis-strength),
-    transparent
   );
   --color-accent: hsl(211 92% 62%);
   --color-skill: #e8c547;
@@ -72,21 +26,11 @@
 }
 
 :root {
-  --motion-reorder-duration: 160ms;
-  --motion-feedback-duration: 120ms;
-  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --theme-hue: 240;
   --theme-saturation: 0%;
-  --theme-dark-lightness: 9%;
   --sidebar-opacity: 0.85;
-  --chat-background-empty-opacity: 0.24;
-  --chat-background-session-opacity: 0.24;
-  --selection-subtle-strength: 8%;
-  --selection-strength: 10%;
-  --selection-strong-strength: 12%;
-  --selection-hover-strength: 15%;
-  --selection-emphasis-strength: 20%;
-  --background-lightness: var(--theme-dark-lightness);
+  --chat-background-opacity: 0.24;
+  --background-lightness: 9%;
   --content-lightness: 92%;
   --link-color: #7dd3fc;
   --color-skill: #e8c547;
@@ -105,12 +49,74 @@ html.theme-light {
   --color-skill: #a07c10;
   --color-mention: #0284c7;
   --color-markdown-heading: #be185d;
-  --selection-subtle-strength: 5%;
-  --selection-strength: 6%;
-  --selection-strong-strength: 7%;
-  --selection-hover-strength: 10%;
-  --selection-emphasis-strength: 14%;
   color-scheme: light;
+}
+
+/* CodexBar's monochrome provider marks are white SVGs. Keep them visible on
+   the light theme without altering the colored NVIDIA mark. */
+html.theme-light .provider-icon-monochrome {
+  /* White source mark -> the same soft dark tone used by text-content. */
+  filter: invert(0.82);
+}
+
+html.theme-preset-dracula {
+  --theme-hue: 231;
+  --theme-saturation: 15%;
+  --background-lightness: 18%;
+  --content-lightness: 97%;
+  --color-background-base: #282a36;
+  --color-content: #f8f8f2;
+  --color-accent: #bd93f9;
+  --link-color: #8be9fd;
+  --color-markdown-heading: #ff79c6;
+}
+
+html.theme-preset-catppuccin-frappe {
+  --theme-hue: 229;
+  --theme-saturation: 19%;
+  --background-lightness: 23%;
+  --content-lightness: 86%;
+  --color-background-base: #303446;
+  --color-content: #c6d0f5;
+  --color-accent: #ca9ee6;
+  --link-color: #8caaee;
+  --color-markdown-heading: #f4b8e4;
+}
+
+html.theme-preset-catppuccin-latte {
+  --theme-hue: 219;
+  --theme-saturation: 27%;
+  --background-lightness: 94%;
+  --content-lightness: 35%;
+  --color-background-base: #eff1f5;
+  --color-content: #4c4f69;
+  --color-accent: #8839ef;
+  --link-color: #1e66f5;
+  --color-markdown-heading: #ea76cb;
+}
+
+html.theme-preset-catppuccin-macchiato {
+  --theme-hue: 234;
+  --theme-saturation: 23%;
+  --background-lightness: 18%;
+  --content-lightness: 89%;
+  --color-background-base: #24273a;
+  --color-content: #cad3f5;
+  --color-accent: #c6a0f6;
+  --link-color: #8aadf4;
+  --color-markdown-heading: #f5bde6;
+}
+
+html.theme-preset-catppuccin-mocha {
+  --theme-hue: 240;
+  --theme-saturation: 21%;
+  --background-lightness: 15%;
+  --content-lightness: 93%;
+  --color-background-base: #1e1e2e;
+  --color-content: #cdd6f4;
+  --color-accent: #cba6f7;
+  --link-color: #89b4fa;
+  --color-markdown-heading: #f5c2e7;
 }
 
 html,
@@ -167,60 +173,6 @@ html.has-native-glass:not(.theme-light) #root {
   background: transparent;
 }
 
-.reorder-item {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-}
-
-.reorder-item:is([data-dragging], [data-settling]) {
-  z-index: 10;
-}
-
-.tab-motion,
-.tab-motion > button {
-  transition:
-    background-color var(--motion-feedback-duration) var(--motion-ease-out),
-    color var(--motion-feedback-duration) var(--motion-ease-out),
-    opacity var(--motion-feedback-duration) var(--motion-ease-out);
-}
-
-.tab-motion[data-reordering] [data-no-drag] {
-  visibility: hidden;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tab-motion,
-  .tab-motion > button {
-    transition: none;
-  }
-}
-
-.workspace-tab:not([data-reordering])
-  > button:not([aria-selected="true"]):hover,
-.workspace-tab[data-dragging] > button:not([aria-selected="true"]),
-.project-reorder-item:not([data-reordering], [data-selected]):hover,
-.project-reorder-item[data-dragging]:not([data-selected]) {
-  background: color-mix(in srgb, var(--color-content) 5%, transparent);
-  color: var(--color-content);
-}
-
-/* Keep project controls from appearing as rows pass beneath the pointer. */
-.project-reorder-item[data-reordering] [data-no-drag] {
-  visibility: hidden;
-}
-
-.project-reorder-item[data-reordering] > button:first-of-type {
-  padding-right: 0;
-}
-
-.project-reorder-item[data-reordering] .project-card-logo {
-  opacity: 1;
-}
-
-.project-reorder-item[data-reordering] .project-card-stats {
-  display: flex;
-}
-
 .sidebar-glass {
   background: color-mix(in srgb, var(--color-background-base) 90%, black);
 }
@@ -234,6 +186,15 @@ html.has-native-glass:not(.theme-light) .sidebar-glass {
     var(--theme-hue) var(--theme-saturation) var(--background-lightness) /
       var(--sidebar-opacity)
   );
+}
+
+/* Personal presets keep every navigation pane on the same base surface. */
+html.theme-preset-dracula .sidebar-glass,
+html.theme-preset-catppuccin-frappe .sidebar-glass,
+html.theme-preset-catppuccin-latte .sidebar-glass,
+html.theme-preset-catppuccin-macchiato .sidebar-glass,
+html.theme-preset-catppuccin-mocha .sidebar-glass {
+  background: var(--color-background-base) !important;
 }
 
 .body-glass {
@@ -258,19 +219,56 @@ html.has-native-glass:not(.theme-light) .sidebar-glass {
 
 html.has-chat-background .chat-pane-background::before,
 .chat-pane-background[data-project-chat-background="true"]::before {
-  opacity: var(--chat-background-empty-opacity);
-}
-
-html.has-chat-background
-  .chat-pane-background[data-session-empty="false"]::before,
-.chat-pane-background[data-project-chat-background="true"][data-session-empty="false"]::before {
-  opacity: var(--chat-background-session-opacity);
+  opacity: var(--chat-background-opacity);
 }
 
 html.chat-background-empty-only
   .chat-pane-background[data-project-chat-background="false"][data-session-empty="false"]::before,
 .chat-pane-background[data-project-chat-background="true"][data-project-background-scope="empty"][data-session-empty="false"]::before {
   opacity: 0;
+}
+
+/* Panel scope: the same image extends to the workspace panes (sidebar +
+   project rail) and behind the transparent terminal canvases. */
+html.has-chat-background.background-workspace .sidebar-glass {
+  position: relative;
+  isolation: isolate;
+}
+
+html.has-chat-background.background-workspace .sidebar-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--chat-background-image, none);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: var(--chat-background-opacity);
+  pointer-events: none;
+}
+
+html.has-chat-background.background-terminal .monocode-terminal {
+  position: relative;
+  isolation: isolate;
+}
+
+html.has-chat-background.background-terminal .monocode-terminal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--chat-background-image, none);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: var(--chat-background-opacity);
+  pointer-events: none;
+}
+
+/* Chat panel turned off: suppress the per-pane layer entirely. */
+html.no-background-chat .chat-pane-background::before {
+  opacity: 0 !important;
 }
 
 .transcript-turn {
@@ -285,26 +283,6 @@ html.chat-background-empty-only
  */
 .transcript-turn-live {
   content-visibility: visible;
-}
-
-.user-message-with-link {
-  display: block;
-}
-
-html.has-user-accent .user-message-bubble {
-  background: color-mix(in srgb, var(--user-accent-color) 24%, transparent);
-  border-color: color-mix(in srgb, var(--user-accent-color) 30%, transparent);
-}
-
-.user-link-preview {
-  display: inline;
-  white-space: normal;
-}
-
-.user-link-preview-title {
-  display: inline;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 /*
@@ -335,6 +313,13 @@ input,
 .monocode-terminal,
 .monocode-terminal .xterm,
 .monocode-terminal .xterm-viewport {
+  user-select: text;
+}
+
+/* Settings is documentation as much as a control panel: allow copying
+   endpoints, paths, provider ids and explanatory text with the mouse. */
+.settings-body {
+  -webkit-user-select: text;
   user-select: text;
 }
 
@@ -413,51 +398,18 @@ html.theme-light [data-composer-box] {
     0 2px 6px color-mix(in srgb, var(--color-content) 6%, transparent);
 }
 
-/* Solid primary actions share the composer submit treatment. */
-.primary-action:not(:disabled) {
-  background: white;
-  color: black;
-}
-
-.primary-action:not(:disabled):hover {
-  background: color-mix(in srgb, white 90%, transparent);
-}
-
-.primary-action:disabled {
-  background: color-mix(in srgb, white 30%, transparent);
-  color: color-mix(in srgb, black 40%, transparent);
-}
-
-html.theme-light .primary-action:not(:disabled) {
+html.theme-light .composer-send:not(:disabled) {
   background: var(--color-content);
   color: var(--color-background-base);
 }
 
-html.theme-light .primary-action:not(:disabled):hover {
+html.theme-light .composer-send:not(:disabled):hover {
   background: color-mix(in srgb, var(--color-content) 90%, transparent);
 }
 
-html.theme-light .primary-action:disabled {
+html.theme-light .composer-send:disabled {
   background: color-mix(in srgb, var(--color-content) 25%, transparent);
   color: color-mix(in srgb, var(--color-background-base) 75%, transparent);
-}
-
-html.has-user-accent .primary-action:not(:disabled) {
-  background: var(--user-accent-color);
-  color: var(--user-accent-foreground);
-}
-
-html.has-user-accent .primary-action:not(:disabled):hover {
-  background: color-mix(
-    in srgb,
-    var(--user-accent-color) 88%,
-    var(--color-content)
-  );
-}
-
-html.has-user-accent .primary-action:disabled {
-  background: color-mix(in srgb, var(--user-accent-color) 28%, transparent);
-  color: color-mix(in srgb, var(--color-content) 35%, transparent);
 }
 
 .composer-field {
@@ -847,25 +799,6 @@ header[data-tauri-drag-region] button {
   color: color-mix(in srgb, var(--color-content) 78%, transparent);
 }
 
-/* AgentMarkdown passes dir="auto", so Streamdown puts every block in its own
-   <div dir="..." style="display: contents"> wrapper. A display:contents box
-   drops its own margins, so Streamdown's `space-y-4` on the root (it targets
-   those wrappers) paints no gap at all. Headings, blockquotes and rules keep
-   their spacing because their margin sits on the element itself (mt-6/mb-2,
-   my-4, my-6); paragraphs and lists carry none, so every "\n\n" started a new
-   <p> with no visible gap and the reply read as one dense block (#218).
-   Put the gap back on the block inside the wrapper, top side only, so a reply
-   never ends with a trailing gap. Ignore empty wrappers before the first
-   visible block, and keep lists closer to the paragraph that introduces them. */
-.agent-markdown > div:not(:empty) ~ div > p {
-  margin-top: 1rem;
-}
-
-.agent-markdown > div:not(:empty) ~ div > [data-streamdown="unordered-list"],
-.agent-markdown > div:not(:empty) ~ div > [data-streamdown="ordered-list"] {
-  margin-top: 0.5rem;
-}
-
 .agent-markdown p strong,
 .agent-markdown p em,
 .agent-markdown p [data-streamdown="strong"] {
@@ -925,31 +858,12 @@ header[data-tauri-drag-region] button {
   animation: approval-toast-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes linked-activity-notice-in {
-  from {
-    transform: translateY(-8px);
-  }
-  to {
-    transform: none;
-  }
-}
-
-.linked-activity-notice {
-  animation: linked-activity-notice-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .linked-activity-notice {
-    animation: none;
-  }
-}
-
 .shimmer-text {
   background-image:
     linear-gradient(
       90deg,
       transparent calc(50% - var(--spread)),
-      var(--color-content) calc(50%),
+      var(--shimmer-highlight, var(--color-content)) calc(50%),
       transparent calc(50% + var(--spread))
     ),
     linear-gradient(
@@ -1236,64 +1150,6 @@ header[data-tauri-drag-region] button {
   border-bottom-left-radius: 8px;
 }
 
-/*
- * Prose the fold holds is the agent talking while it works — process, not
- * result. It stays readable at one notch quieter: muted ink, headings
- * demoted to bold lines, and tighter spacing, so a mid-run note never poses
- * as the answer it led to.
- */
-.zen-fold-prose .agent-markdown > :not(:last-child) {
-  margin-block-end: 0.5rem;
-}
-
-.zen-fold-prose .agent-markdown p,
-.zen-fold-prose .agent-markdown li {
-  color: color-mix(in srgb, var(--color-content) 65%, transparent);
-}
-
-.zen-fold-prose .agent-markdown p strong,
-.zen-fold-prose .agent-markdown p em,
-.zen-fold-prose .agent-markdown p [data-streamdown="strong"],
-.zen-fold-prose .agent-markdown li strong,
-.zen-fold-prose .agent-markdown li em,
-.zen-fold-prose .agent-markdown li [data-streamdown="strong"] {
-  color: color-mix(in srgb, var(--color-content) 80%, transparent) !important;
-}
-
-/* A heading in a work note is a bold line, not a display size. */
-.zen-fold-prose .agent-markdown [data-streamdown="heading-1"],
-.zen-fold-prose .agent-markdown [data-streamdown="heading-2"],
-.zen-fold-prose .agent-markdown [data-streamdown="heading-3"],
-.zen-fold-prose .agent-markdown [data-streamdown="heading-4"],
-.zen-fold-prose .agent-markdown [data-streamdown="heading-5"],
-.zen-fold-prose .agent-markdown [data-streamdown="heading-6"] {
-  margin-top: 0.75rem;
-  margin-bottom: 0.25rem;
-  font-size: 14px;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--color-content) 80%, transparent);
-}
-
-.zen-fold-prose .agent-markdown [data-streamdown="blockquote"],
-.zen-fold-prose .agent-markdown .markdown-code-shell {
-  margin-block: 0.5rem;
-}
-
-.zen-fold-prose .agent-markdown [data-streamdown="code-block"],
-.zen-fold-prose .agent-markdown [data-streamdown="table-wrapper"] {
-  border-color: color-mix(in srgb, var(--color-content) 8%, transparent);
-  background: color-mix(in srgb, var(--color-content) 4%, transparent);
-}
-
-.zen-fold-prose .agent-markdown [data-streamdown="table-header-cell"],
-.zen-fold-prose .agent-markdown [data-streamdown="table-cell"] {
-  color: color-mix(in srgb, var(--color-content) 65%, transparent);
-}
-
-.zen-fold-prose .agent-markdown [data-streamdown="horizontal-rule"] {
-  margin-block: 0.75rem;
-}
-
 .zen-fold-item[data-fold-state="closed"] {
   display: grid;
   grid-template-rows: 0fr;
@@ -1428,23 +1284,26 @@ html.theme-light .popover-backdrop {
   background: color-mix(in srgb, var(--color-background-base) 10%, transparent);
 }
 
-/* Animate content only; its sibling glass stays still. Finish at `none` and
-   do not retain the animation's transform/opacity compositing state with a
-   forwards fill. Hover repaints should happen in the ordinary resting state. */
+/* Popover contents grow in from the edge they hang off, sliding the last few
+   pixels out of their trigger. The glass frame stays still: WebKit composites
+   `backdrop-filter` on its own layer and can flash a stale backdrop if that
+   same layer moves and a menu-item hover invalidates it. Still brief — a menu
+   that takes its time reads as lag rather than polish. */
 @keyframes popover-open {
   from {
     opacity: 0;
-    transform: translate(var(--popover-shift, 0), var(--popover-lift, 0))
+    transform: translate3d(var(--popover-shift, 0), var(--popover-lift, 0), 0)
       scale(0.94);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
 .popover-open {
-  animation: popover-open 170ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: popover-open 170ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  backface-visibility: hidden;
 }
 
 .popover-open[data-popover-side="bottom"] {
@@ -1469,158 +1328,8 @@ html.theme-light .popover-backdrop {
   }
 }
 
-/* The selected project mascot turns banked resets into a tiny status scene. */
-.reset-mascot-scene {
-  position: absolute;
-  right: 8px;
-  bottom: 5px;
-  width: 68px;
-  height: 68px;
-  display: grid;
-  place-items: center;
-  isolation: isolate;
-  pointer-events: none;
-}
-
-.reset-mascot-glow {
-  position: absolute;
-  inset: 14px 8px 3px;
-  z-index: -1;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.14;
-  filter: blur(12px);
-}
-
-.reset-mascot-sprite {
-  width: 56px;
-  height: 56px;
-  overflow: visible;
-  filter: drop-shadow(0 5px 6px rgb(0 0 0 / 0.18));
-  transform-origin: 50% 100%;
-}
-
-.reset-mascot-scene[data-reset-mascot-mood="happy"] .reset-mascot-sprite {
-  animation: reset-mascot-happy-in 720ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
-}
-
-.reset-mascot-scene[data-reset-mascot-mood="sad"] .reset-mascot-sprite {
-  transform: translateX(-3px) rotate(-3deg);
-  animation: reset-mascot-sad-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  opacity: 0.68;
-}
-
-.reset-mascot-spark {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  background: currentColor;
-  box-shadow: 0 0 8px currentColor;
-  transform: rotate(45deg);
-  animation: reset-mascot-spark-in 620ms 260ms cubic-bezier(0.16, 1, 0.3, 1)
-    both;
-}
-
-.reset-mascot-spark-a {
-  top: 8px;
-  right: 7px;
-}
-
-.reset-mascot-spark-b {
-  top: 19px;
-  left: 3px;
-  width: 3px;
-  height: 3px;
-  animation-delay: 360ms;
-}
-
-.reset-mascot-tear {
-  position: absolute;
-  top: 31px;
-  left: 19px;
-  width: 4px;
-  height: 6px;
-  border-radius: 999px 999px 999px 2px;
-  background: #60a5fa;
-  opacity: 0.75;
-  transform: rotate(12deg);
-  animation: reset-mascot-tear-in 680ms 300ms cubic-bezier(0.22, 1, 0.36, 1)
-    both;
-}
-
-@keyframes reset-mascot-happy-in {
-  0% {
-    opacity: 0;
-    transform: translateY(9px) scale(0.82);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-10px) rotate(-3deg) scaleY(1.05);
-  }
-  68% {
-    transform: translateY(0) scaleX(1.08) scaleY(0.92);
-  }
-  84% {
-    transform: translateY(-4px) rotate(2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes reset-mascot-sad-in {
-  0% {
-    opacity: 0;
-    transform: translateX(8px) rotate(5deg) scale(0.9);
-  }
-  42% {
-    opacity: 0.68;
-    transform: translateX(0) rotate(0);
-  }
-  68% {
-    transform: translateX(-5px) rotate(-5deg);
-  }
-  100% {
-    opacity: 0.68;
-    transform: translateX(-3px) rotate(-3deg);
-  }
-}
-
-@keyframes reset-mascot-spark-in {
-  from {
-    opacity: 0;
-    transform: rotate(45deg) scale(0);
-  }
-  to {
-    opacity: 0.7;
-    transform: rotate(45deg) scale(1);
-  }
-}
-
-@keyframes reset-mascot-tear-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) rotate(12deg) scale(0.5);
-  }
-  to {
-    opacity: 0.75;
-    transform: translateY(0) rotate(12deg) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reset-mascot-sprite,
-  .reset-mascot-spark,
-  .reset-mascot-tear {
-    animation: none !important;
-  }
-}
-
-/* Centered modals: lift the content inside the stationary glass frame. */
+/* Centered modals: a short lift rather than a fade. Glass already sits on
+   its own compositor layer, so opacity alone barely reads. */
 @keyframes modal-backdrop-in {
   from {
     opacity: 0;
@@ -1646,7 +1355,7 @@ html.theme-light .popover-backdrop {
 }
 
 .modal-panel {
-  animation: modal-panel-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: modal-panel-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1770,4 +1479,36 @@ html.theme-light .popover-backdrop {
     var(--color-content) 10%,
     var(--color-background-base)
   );
+}
+
+/* PKmod: terminal activity pac — chomps while a runtime produces output. */
+.terminal-activity-pac {
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from -35deg,
+    currentColor 0deg 325deg,
+    transparent 325deg 360deg
+  );
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.terminal-activity-pac-on {
+  opacity: 0.85;
+  animation: pk-pac-chomp 0.28s ease-in-out infinite alternate;
+}
+@keyframes pk-pac-chomp {
+  from {
+    transform: rotate(-12deg) scale(0.94);
+  }
+  to {
+    transform: rotate(12deg) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-activity-pac-on {
+    animation: none;
+    opacity: 0.6;
+  }
 }

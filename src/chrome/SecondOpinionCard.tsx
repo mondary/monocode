@@ -1,5 +1,8 @@
 import { ChevronRight } from "./icons";
-import { HARNESS_TITLE, type SecondOpinionMeta } from "../lib/session";
+import {
+  harnessTitle,
+  type SecondOpinionMeta,
+} from "../lib/session";
 import { HarnessIcon } from "./HarnessIcon";
 
 type Props = {
@@ -19,13 +22,13 @@ export function SecondOpinionCard({ card }: Props) {
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-content/50">
         <HarnessIcon harness={card.from} className="size-3 shrink-0" />
-        <span className="truncate">{HARNESS_TITLE[card.from]}</span>
+        <span className="truncate">{harnessTitle(card.from)}</span>
         <ChevronRight
           className="size-3 shrink-0 text-content/35"
           strokeWidth={1.75}
         />
         <HarnessIcon harness={card.to} className="size-3 shrink-0" />
-        <span className="truncate">{HARNESS_TITLE[card.to]}</span>
+        <span className="truncate">{harnessTitle(card.to)}</span>
       </div>
       {files ? (
         <div className="mt-1 text-[11px] leading-4 text-content/45">

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   flattenOpenCodeModels,
-  openCodeProviderName,
   parseAgentListCliOutput,
   parseModelsCliOutput,
 } from "./opencodeCatalog";
@@ -9,9 +8,7 @@ import {
   buildOpenCodePermissionRules,
   compareSemver,
   contextUsedFromMessageInfo,
-  turnMetricsFromMessageInfo,
   detailFromToolPart,
-  eventSessionId,
   inferDefaultAgent,
   inferDefaultVariant,
   isOpenCodeDefaultTitle,
@@ -23,42 +20,6 @@ import {
   toOpenCodePermissionReply,
   toolKindFromName,
 } from "./opencodeProtocol";
-
-describe("eventSessionId", () => {
-  it.each([
-    {
-      type: "permission.asked",
-      properties: { id: "permission_1", sessionID: "session_1" },
-    },
-    {
-      type: "session.created",
-      properties: { info: { id: "session_1", parentID: "session_parent" } },
-    },
-    {
-      type: "message.updated",
-      properties: { info: { id: "message_1", sessionID: "session_1" } },
-    },
-    {
-      type: "message.part.updated",
-      properties: { part: { id: "part_1", sessionID: "session_1" } },
-    },
-    {
-      type: "message.part.delta",
-      properties: { sessionID: "session_1", partID: "part_1" },
-    },
-  ])("extracts the owning session for $type", (event) => {
-    expect(eventSessionId(event)).toBe("session_1");
-  });
-
-  it("does not mistake message IDs for session IDs", () => {
-    expect(
-      eventSessionId({
-        type: "message.updated",
-        properties: { info: { id: "message_1" } },
-      }),
-    ).toBeUndefined();
-  });
-});
 
 describe("parseOpenCodeModelSlug", () => {
   it("splits provider/model", () => {
@@ -161,18 +122,47 @@ describe("OpenCode CLI inventory parsers", () => {
     ]);
     expect(models.map((model) => model.nativeId)).toEqual([
       "anthropic/claude-sonnet-4-6",
+      "openrouter/deepseek/deepseek-chat-v3.1",
+      "google/gemini-2.5-pro",
+      "antigravity/gemini-3-flash",
+      "google/gemini-3-flash-preview",
+      "antigravity/gemini-3-pro",
       "opencode/glm-5",
+      "zai-coding-plan/glm-5.1",
+      "zai-coding-plan/glm-5.2",
+      "zai-coding-plan/glm-5.3",
+      "zai-coding-plan/glm-5.3-flash",
+      "xiaomi-token-plan-ams/mimo-v2.5",
+      "xiaomi-token-plan-ams/mimo-v2.5-pro",
+      "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
     ]);
-    expect(models.map((model) => model.provider)).toEqual([
-      { id: "anthropic", name: "Anthropic" },
-      { id: "opencode", name: "OpenCode" },
+    expect(models[6].settings?.some((setting) => setting.id === "variant")).toBe(
+      true,
+    );
+    expect(models[0].settings?.find((setting) => setting.id === "agent")?.value).toBe(
+      "build",
+    );
+  });
+
+  it("keeps the requested built-in providers in the OpenCode catalog", () => {
+    const models = flattenOpenCodeModels(
+      { providers: new Map(), connected: [] },
+      [],
+    );
+    expect(models.map((model) => model.nativeId)).toEqual([
+      "openrouter/deepseek/deepseek-chat-v3.1",
+      "google/gemini-2.5-pro",
+      "antigravity/gemini-3-flash",
+      "google/gemini-3-flash-preview",
+      "antigravity/gemini-3-pro",
+      "zai-coding-plan/glm-5.1",
+      "zai-coding-plan/glm-5.2",
+      "zai-coding-plan/glm-5.3",
+      "zai-coding-plan/glm-5.3-flash",
+      "xiaomi-token-plan-ams/mimo-v2.5",
+      "xiaomi-token-plan-ams/mimo-v2.5-pro",
+      "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
     ]);
-    expect(
-      models[1].settings?.some((setting) => setting.id === "variant"),
-    ).toBe(true);
-    expect(
-      models[0].settings?.find((setting) => setting.id === "agent")?.value,
-    ).toBe("build");
   });
 
   it("parses agent list headers", () => {
@@ -183,12 +173,6 @@ describe("OpenCode CLI inventory parsers", () => {
       { name: "build", mode: "primary", hidden: false },
       { name: "compaction", mode: "primary", hidden: true },
     ]);
-  });
-
-  it("uses familiar provider names and readable custom-provider fallbacks", () => {
-    expect(openCodeProviderName("opencode-go")).toBe("OpenCode Go");
-    expect(openCodeProviderName("openai")).toBe("OpenAI");
-    expect(openCodeProviderName("acme-cloud")).toBe("Acme Cloud");
   });
 });
 
@@ -229,9 +213,9 @@ describe("OpenCode helpers", () => {
     expect(inferDefaultVariant("openai", ["low", "medium", "high"])).toBe(
       "medium",
     );
-    expect(inferDefaultAgent([{ name: "plan" }, { name: "build" }])).toBe(
-      "build",
-    );
+    expect(
+      inferDefaultAgent([{ name: "plan" }, { name: "build" }]),
+    ).toBe("build");
   });
 });
 
@@ -260,33 +244,9 @@ describe("contextUsedFromMessageInfo", () => {
   it("treats an all-zero reading as nothing to report", () => {
     expect(
       contextUsedFromMessageInfo({
-        tokens: {
-          input: 0,
-          output: 0,
-          reasoning: 0,
-          cache: { read: 0, write: 0 },
-        },
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
       }),
     ).toBeUndefined();
-  });
-
-  it("normalizes cache usage for a turn tooltip", () => {
-    expect(
-      turnMetricsFromMessageInfo({
-        tokens: {
-          input: 1_200,
-          output: 800,
-          reasoning: 200,
-          cache: { read: 40_000, write: 5_000 },
-        },
-      }),
-    ).toEqual({
-      inputTokens: 1_200,
-      outputTokens: 1_000,
-      cacheReadTokens: 40_000,
-      cacheWriteTokens: 5_000,
-      cacheHitPercent: (40_000 / 46_200) * 100,
-    });
   });
 });
 

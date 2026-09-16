@@ -1,41 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { slash } from "./paths";
-import type { InterjectionMeta } from "./session";
-
-export type OmpInterjectionAnchor = InterjectionMeta & {
-  id: string;
-  afterAssistantText: string;
-  /** One-based occurrence among assistant messages with exactly this text. */
-  afterOccurrence: number;
-  /** Direct-concat live representation, with its own exact-text occurrence. */
-  afterAssistantTextConcat?: string;
-  afterConcatOccurrence?: number;
-  text: string;
-  /** Full text of a directly following text-only answer, if present. */
-  followingAssistantText?: string | null;
-  followingAssistantTextConcat?: string | null;
-};
-
-export function ompSessionInterjections(
-  providerSessionId: string,
-): Promise<OmpInterjectionAnchor[]> {
-  return invoke<OmpInterjectionAnchor[]>("omp_session_interjections", {
-    providerSessionId,
-  });
-}
-
-/** One active-path assistant message in source order. Its newline and concat
- * representations are alternative forms of the same message, not two messages.
- */
-export interface OmpAssistantText {
-  text: string;
-  concat: string;
-}
-
-export function ompActiveAssistantTexts(providerSessionId: string): Promise<OmpAssistantText[]> {
-  return invoke<OmpAssistantText[]>("omp_active_assistant_texts", { providerSessionId });
-}
+import type { ProjectInitSettings } from "./projectInit";
 
 export type FsEntry = {
   name: string;
@@ -91,6 +57,8 @@ export type GitDiffStats = {
   files: number;
   additions: number;
   deletions: number;
+  ahead: number;
+  behind: number;
 };
 
 export function gitDiffStats(cwd: string): Promise<GitDiffStats> {
@@ -113,6 +81,7 @@ export type GitDiffIndex = {
   additions: number;
   deletions: number;
   remote: string | null;
+  remoteUrl: string | null;
   upstream: string | null;
   defaultBranch: string | null;
   ahead: number;
@@ -377,6 +346,27 @@ export function movePath(from: string, destParent: string): Promise<string> {
 
 export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
+}
+
+export type ProjectInitResult = {
+  created: string[];
+  updated: string[];
+  existing: string[];
+  skipped: string[];
+  missing: string[];
+  metadataCreated: string[];
+  gitignoreUpdated: boolean;
+};
+
+export function initializeProject(
+  cwd: string,
+  settings: ProjectInitSettings,
+): Promise<ProjectInitResult> {
+  return invoke<ProjectInitResult>("initialize_project", { cwd, settings });
+}
+
+export function openProjectPath(path: string): Promise<void> {
+  return invoke<void>("open_project_path", { path });
 }
 
 export function homeDir(): Promise<string> {

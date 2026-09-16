@@ -1,0 +1,112 @@
+name: Release MonoCode PK
+
+on:
+  push:
+    tags:
+      - "pk-*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "PK release tag to build, for example pk-2026.09.39"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm ci
+
+      - name: Validate PK release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          fi
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          EXPECTED="pk-${VERSION}"
+          if [[ "$TAG" != "$EXPECTED" ]]; then
+            echo "Expected $EXPECTED, got $TAG" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build PK stable app
+        run: npm run build:pk
+
+      - name: Package styled DMG
+        env:
+          PK_RELEASE_DIR: ${{ github.workspace }}/releases
+        run: npm run package:pk:dmg
+
+      - name: Verify DMG contents
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          test -s "$DMG"
+          hdiutil verify "$DMG"
+          INFO="$(hdiutil attach -nobrowse -readonly "$DMG")"
+          MOUNT="$(printf '%s\n' "$INFO" | sed -n 's#^/dev/[^[:space:]]*s[0-9][[:space:]].*[[:space:]]\(/Volumes/.*\)$#\1#p' | tail -1)"
+          test -n "$MOUNT"
+          test -f "$MOUNT/.background/dmg-background.gif"
+          test -d "$MOUNT/MonoCode PK.app"
+          test -e "$MOUNT/Applications"
+          hdiutil detach "$MOUNT" >/dev/null
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ASSET="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" \
+              --title "MonoCode PK $VERSION" \
+              --generate-notes \
+              "$ASSET"
+          fi
+
+      - name: Update Homebrew tap
+        if: ${{ env.HOMEBREW_TAP_TOKEN != '' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG="build/releases/MonoCodePK_${VERSION}_aarch64.dmg"
+          SHA256="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/mondary/homebrew-tap.git" "$RUNNER_TEMP/homebrew-tap"
+          python3 scripts/update-homebrew-pk-cask.py "$RUNNER_TEMP/homebrew-tap" "$VERSION" "$SHA256"
+          cd "$RUNNER_TEMP/homebrew-tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/monocode-pk.rb VERSION README.md README_en.md CHANGELOG.md
+          git commit -m "MAJ: cask monocode-pk $VERSION"
+          git push origin main

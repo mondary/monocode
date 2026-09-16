@@ -138,6 +138,7 @@ type Shared = {
   ) => void;
   onNewTerminal: (sessionId: string) => void;
   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
+  hideTerminalTabs?: boolean;
 };
 
 type Props = Shared & { layout: LayoutNode };
@@ -207,6 +208,7 @@ function PaneTreeComponent({
   onDetachPane,
   onNewTerminal,
   onTerminalMetaChange,
+  hideTerminalTabs = false,
 }: Props) {
   const treeRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef(layout);
@@ -387,6 +389,9 @@ function PaneTreeComponent({
                 editorNavigation={editorNavigation}
                 onPaneDragStart={onPaneDragStart}
                 onTerminalMetaChange={onTerminalMetaChange}
+                hideTerminalTabs={
+                  hideTerminalTabs && editorPane.files.every((file) => file.terminal)
+                }
               />
             ) : session ? (
               <SessionPane

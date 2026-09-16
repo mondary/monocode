@@ -5,7 +5,240 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.46] - 2026-09-15
+
+### Changed
+
+- Le build PK reste aligné sur la version officielle applicative 0.1.46.
+- La mise à jour automatique ne fusionne plus un amont divergent sans validation ; elle installe uniquement la branche PK validée.
+
+## [2026.09.39] - 2026-09-13
+
+### Added
+
+- Fournisseurs Gemini (API) et Antigravity en onglets de première classe via l'OpenCode CLI, avec icônes de marque et badge PK.
+- Export d'une note en markdown (frontmatter titre/tags/dates) depuis la vue Notes.
+- Option d'auto-export des notes rattachées à un projet vers `<projet>/.monocode/notes/<slug>.md`, réécrite à chaque édition et supprimée avec la note ; activation = export immédiat des notes existantes.
+
+### Fixed
+
+- La fenêtre « Mise à jour installée » ne demande plus un redémarrage redondant juste après que la mise à jour PK a déjà relancé l'application.
+- Z.AI/GLM-5.3 ne plante plus sur `SchemaError ... at ["subtask"]` : l'outil `task` est retiré du toolset des modèles zai-coding-plan au démarrage du serveur OpenCode.
+
+## [2026.09.38] - 2026-09-12
+
+- Version PK incrémentée après les huit commits PK en attente.
+
+## [2026.09.29] - 2026-09-11
+
+### Changed
+
+- Quota provider ordering now uses a dedicated vertical list with clear visibility toggles, positions, and move controls.
+
+## [2026.09.28] - 2026-09-11
+
+### Fixed
+
+- Provider quota aliases such as Kilo, Kilo Code, and KiloCode now share one selection state.
+- The quota provider ordering controls are visible regardless of the selected provider mode.
+- A finished project now shows its review check indicator in place of the project logo until it is opened.
+
+## [2026.09.27] - 2026-09-11
+
+### Changed
+
+- The update-launch dialog remains visible for three seconds before the application exits for its rebuild and restart.
+
+## [2026.09.26] - 2026-09-11
+
+### Changed
+
+- The workspace now opens on the Changes tab when MonoCode starts.
+
+## [2026.09.25] - 2026-09-11
+
+### Fixed
+
+- The post-update restart notification is now displayed globally above the application, even when the sidebar is hidden.
+
+## [2026.09.24] - 2026-09-11
+
+### Changed
+
+- Quota providers now normalize CodexBar aliases such as `kilo`/Kilo Code, and their footer order can be customized from Settings.
+
+## [2026.09.23] - 2026-09-11
+
+### Added
+
+- Project context menus can open the detected GitHub/GitLab repository directly.
+- Root `icon.png`, `icon.jpg`, or `icon.jpeg` is used automatically as the project logo when no custom logo is set.
+- The project logo picker now exposes the detected root icon as the default without replacing a manually chosen logo.
+
+## [2026.09.22] - 2026-09-11
+
+### Added
+
+- A persistent post-update notification with an explicit Redémarrer button.
+
+- The quota picker now includes Devin, Kilo Code, and CodeBuff, and provider details open in a readable click-based card.
+
+## [2026.09.21] - 2026-09-11
+
+### Changed
+
+- PK release version bumped after the quota provider selection and click-to-open quota details updates.
+
+## [2026.09.20] - 2026-09-11
+
+### Fixed
+
+- The update dialog always shows both MonoCode official and MonoCodePK axes, including delayed PK commits, even when the official updater also has a release available.
+- Stable updates now identify the current PK release separately from the official MonoCode version.
+
+## [2026.09.19] - 2026-09-11
+
+### Changed
+
+- Custom providers get their own tab in the model picker and their own row in Settings > Providers (models, default, picker visibility), instead of nesting inside OpenCode. Brand-less marks render as an initial-letter chip.
+
+### Fixed
+
+- Full access no longer sends ordinary Codex command and file-change requests through an `on-request` approval flow, so the app does not repeatedly ask for « Allow » after Full access is selected. Explicit MCP consent remains interactive.
+- The project rail now receives the active agent paths, restoring the working glow and the finished « needs review » indicator.
+- Settings text and provider endpoints can be selected and copied with the mouse.
+- PK quota choices keep Claude, Codex, ZAI, OpenCode Go, and Xiaomi MiMo visible even when CodexBar has not detected one of them yet.
+
+## [2026.09.18] - 2026-09-11
+
+### Added
+
+- Dev variant marker: a DEV badge in the title bar and Settings > About distinguishes the cobaye build from the daily MonoCode PK at a glance (bundle-identifier driven).
+
+## [2026.09.17] - 2026-09-11
+
+### Added
+
+- Catppuccin theme presets: Latte, Macchiato, and Mocha join Frappé (official palette hexes). Picking Latte switches to the light scheme automatically since that flavor is designed for light surfaces.
+
+## [2026.09.16] - 2026-09-11
+
+### Added
+
+- Background image panel scope: after picking an image, enable it per panel — Chat, Workspace (sidebar + project rail), Terminal (transparent xterm canvases) — from Settings > Appearance.
+- Custom OpenAI-compatible providers (Settings > Providers > Custom providers): endpoint + API key + Test button that lists the models the endpoint returns. Saved providers are merged into OpenCode's config (`opencode.json`) so their models appear in the OpenCode tab; keys stay on this device.
+
+## [2026.09.15] - 2026-09-11
+
+### Added
+
+- Per-project Notes tab next to Sessions / Explorer / Changes: the project's notes with search, quick create, delete, and handoff to the full Notes view (opens it focused on the note).
+
+## [2026.09.14] - 2026-09-11
+
+### Changed
+
+- Provider icons: Nvidia now uses the official green eye mark (#76B900, no longer tinted), and omp renders its real gradient logo instead of the monochrome bars. ZAI, MiMo, and OpenRouter keep their official monochrome marks (those brands have no colored logo).
+
+## [2026.09.13] - 2026-09-11
+
+### Changed
+
+- The PK update prompt is now an in-app dialog styled like What's New: two panes (official + PK) with commit lists, per-axis up-to-date chips, unpushed-commit warnings, and Mettre à jour / Plus tard buttons — replacing the native macOS dialog. Headless runs keep the native fallback.
+
+## [2026.09.12] - 2026-09-11
+
+### Added
+
+- Working glow color setting: pick the shimmer highlight on busy project titles (theme or six presets), and a "needs review" badge marks projects whose agent finished while you were elsewhere.
+
+### Changed
+
+- Usage providers: "Current chat" / "Choose" replace the unclear Active/Custom labels, the Choose scope fetches its picks regardless of the focused conversation, provider names render properly (ZAI, OpenCode Go, Xiaomi MiMo), and OpenCode sessions match the OpenCode Go chip.
+
+## [2026.09.11] - 2026-09-10
+
+### Added
+
+- Dev variant (`npm run build:pk:dev`): `/Applications/MonoCodePK-Dev.app` with its own bundle identifier, data, and TCC permissions, so agent-driven rebuilds never touch the daily MonoCode PK. Each variant's update flow rebuilds and relaunches itself.
+
+## [2026.09.10] - 2026-09-10
+
+### Changed
+
+- The Changes header "Open repository" button now shows the official GitHub mark (GitLab logo on gitlab.com remotes) instead of a generic link icon.
+
+## [2026.09.9] - 2026-09-10
+
+### Fixed
+
+- Cmd+Tab and Dock now render the custom PK icon: the stale compiled asset catalog no longer shadows the regenerated `icon.icns` (build strips `CFBundleIconName` and re-signs the bundle).
+
+## [2026.09.8] - 2026-09-10
+
+### Added
+
+- Settings > General > Explorer can hide the header Changes button when the Source Control tab already covers it.
+- Settings > General > Explorer can tint the Reveal and Initialize project buttons with the PK accent color; both apply live.
+
+## [2026.09.7] - 2026-09-10
+
+### Added
+
+- Explorer now has a PK project initialization button for configurable `.agent`, `.inspi`, template, and skill symlinks.
+- Settings > Skills now stores editable initialization links and options for agent instructions, `.gitignore`, `VERSION`, and `CHANGELOG.md`.
+
+### Changed
+
+- Project initialization never overwrites real local files or folders; existing symlinks are reused or updated safely.
+
+## [2026.09.6] - 2026-09-10
+
+### Fixed
+
+- Explorer uses the current project path for its workspace button and resolves the Git repository root before opening Finder.
+- Directory reveal actions open the Git repository root instead of selecting the repository's parent folder.
+
+## [2026.09.5] - 2026-09-10
+
+### Added
+
+- General settings now starts with the About and update block, marked with a PK badge; What's new opens official MonoCode and MonoCodePK release notes side by side.
+- Explorer's Finder button opens the Git repository root that contains `.git`.
+
+### Changed
+
+- The update status copy distinguishes official MonoCode releases from MonoCodePK updates.
+- README includes the supplied MonoCodePK workspace capture.
+
+## [2026.09.4] - 2026-09-10
+
+### Changed
+
+- The PKmod update dialog now reports both axes with clear labels: MonoCode officiel (upstream semver) and MonoCodePK (CalVer), including PK commits available on GitHub and unpushed local commits.
+- App icon regenerated from the reference artwork (Catppuccin-tinted MonoCode glyph).
+
+### Fixed
+
+- The PK update flow pulls the fork branch from GitHub before merging upstream, so updates pushed from another machine are installed too.
+
+## [2026.09.3] - 2026-09-10
+
+### Added
+
+- Reveal workspace in Finder button in the Explorer tab toolbar.
+
+## [2026.09.2] - 2026-09-10
+
+### Changed
+
+- The MonoCode PK icon (official glyph in Catppuccin mauve) is used everywhere: app bundle, dock, boot splash, favicon, update card, and README.
+
+## [2026.09.1] - 2026-09-10
+
+### Fixed
+
+- Right-clicking an HTML file in the file tree and choosing Open in Browser now works: the opener capability allows local `file://` URLs, filenames containing `#`, `%`, or spaces are encoded correctly, and failures surface in the sidebar instead of being silently ignored.
 
 ## [0.1.48] - 2026-09-16
 

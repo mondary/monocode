@@ -1,28 +1,47 @@
-import { RefreshCw, Terminal } from "./icons";
+import { RefreshCw } from "./icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HarnessIcon } from "./HarnessIcon";
 import { Popover } from "./Popover";
 import {
-  consumeCodexRateLimitResetCredit,
   fetchClaudeRateLimits,
+  fetchCodexBarRateLimits,
   fetchCodexRateLimits,
 } from "../lib/rateLimitsFetch";
 import {
-  errorRateLimits,
+  clampUsedPercent,
   fetchingRateLimits,
+  formatRateLimitWindowChipLabel,
+  formatDisplayedUsagePercent,
+  loadHiddenUsageProviders,
+  loadUsageDisplayMode,
+  loadUsageScope,
+  loadUsageProviderOrder,
+  loadUsageWindowVisibility,
+  USAGE_DISPLAY_MODE_CHANGE_EVENT,
+  USAGE_SCOPE_CHANGE_EVENT,
+  USAGE_WINDOW_VISIBILITY_CHANGE_EVENT,
+  USAGE_PROVIDER_ORDER_CHANGE_EVENT,
   idleRateLimits,
   RATE_LIMIT_POLL_MS,
+  rateLimitWindowTooltip,
   shouldFetchProvider,
   type ProviderRateLimits,
   type RateLimitProvider,
+  type RateLimitWindow,
+  type UsageDisplayMode,
+  type UsageScope,
+  type UsageWindowVisibility,
+  normalizeUsageProviderId,
 } from "../lib/rateLimits";
-import { HARNESS_LABEL, HARNESS_TITLE, type HarnessId } from "../lib/session";
+import {
+  harnessLabel,
+  harnessTitle,
+  type HarnessId,
+} from "../lib/session";
 import {
   runningTerminalChipLabel,
   type RunningTerminal,
 } from "../lib/terminalTab";
-import { MOD } from "../lib/platform";
-import { UsageProviderChip } from "./UsageProviderChip";
 
 const CLOCK_MS = 30_000;
 
@@ -33,39 +52,53 @@ export type UsageFooterSession = {
 export function UsageFooter({
   providers,
   session,
-  project,
   terminals = [],
   terminalOpen = false,
   onToggleTerminal,
-  onNewTerminal,
-  onShowTerminal,
-  projectTerminalActive = false,
 }: {
   providers: RateLimitProvider[];
   session?: UsageFooterSession;
-  project?: string;
   terminals?: RunningTerminal[];
   terminalOpen?: boolean;
   onToggleTerminal?: (fileId: string) => void;
-  onNewTerminal?: () => void;
-  onShowTerminal?: () => void;
-  projectTerminalActive?: boolean;
 }) {
-  const wantClaude = providers.includes("claude");
-  const wantCodex = providers.includes("codex");
   const [claude, setClaude] = useState<ProviderRateLimits>(() =>
     idleRateLimits("claude"),
   );
   const [codex, setCodex] = useState<ProviderRateLimits>(() =>
     idleRateLimits("codex"),
   );
+  const [codexbar, setCodexbar] = useState<ProviderRateLimits[]>([]);
+  const [displayMode, setDisplayMode] = useState<UsageDisplayMode>(
+    loadUsageDisplayMode,
+  );
+  const [usageScope, setUsageScope] = useState<UsageScope>(loadUsageScope);
+  const [windowVisibility, setWindowVisibility] =
+    useState<UsageWindowVisibility>(loadUsageWindowVisibility);
+  const [providerOrder, setProviderOrder] = useState(loadUsageProviderOrder);
+  const [hiddenProviders, setHiddenProviders] = useState<string[]>(
+    loadHiddenUsageProviders,
+  );
+  // "Current chat" scope tracks the active session's provider. "Choose"
+  // (custom) must fetch and show picks regardless of which chat is focused —
+  // the old session-driven gate made the Claude chip vanish on other chats.
+  const wantClaude =
+    usageScope === "custom"
+      ? !hiddenProviders.includes("claude")
+      : providers.includes("claude");
+  const wantCodex =
+    usageScope === "custom"
+      ? !hiddenProviders.includes("codex")
+      : providers.includes("codex");
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const inflight = useRef<Promise<void> | null>(null);
   const claudeRef = useRef(claude);
   const codexRef = useRef(codex);
+  const codexbarRef = useRef(codexbar);
   claudeRef.current = claude;
   codexRef.current = codex;
+  codexbarRef.current = codexbar;
 
   const refresh = useCallback(
     (force = false) => {
@@ -76,7 +109,14 @@ export function UsageFooter({
         shouldFetchProvider(claudeRef.current, { force, visible });
       const fetchCodex =
         wantCodex && shouldFetchProvider(codexRef.current, { force, visible });
-      if (!fetchClaude && !fetchCodex) return;
+      const fetchCodexbar =
+        (usageScope === "custom" || providers.length > 0) &&
+        (force ||
+          codexbarRef.current.length === 0 ||
+          codexbarRef.current.some((entry) =>
+            shouldFetchProvider(entry, { force, visible }),
+          ));
+      if (!fetchClaude && !fetchCodex && !fetchCodexbar) return;
       if (force) setRefreshing(true);
       const jobs: Promise<void>[] = [];
       if (fetchClaude) {
@@ -95,6 +135,13 @@ export function UsageFooter({
           }),
         );
       }
+      if (fetchCodexbar) {
+        jobs.push(
+          fetchCodexBarRateLimits().then((value) => {
+            if (value.length > 0) setCodexbar(value);
+          }),
+        );
+      }
       const run = Promise.allSettled(jobs)
         .then(() => undefined)
         .finally(() => {
@@ -104,7 +151,7 @@ export function UsageFooter({
       inflight.current = run;
       return run;
     },
-    [wantClaude, wantCodex],
+    [providers.length, usageScope, wantClaude, wantCodex],
   );
 
   useEffect(() => {
@@ -125,43 +172,49 @@ export function UsageFooter({
     return () => window.clearInterval(timer);
   }, []);
 
-  const consumeCodexReset = useCallback(async (creditId?: string) => {
-    while (inflight.current) await inflight.current;
-    setRefreshing(true);
-    setCodex((current) => fetchingRateLimits("codex", current));
-    let outcome: Awaited<ReturnType<typeof consumeCodexRateLimitResetCredit>>;
-    const operation = (async () => {
-      try {
-        outcome = await consumeCodexRateLimitResetCredit(creditId);
-        setCodex(await fetchCodexRateLimits());
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Could not use Codex reset";
-        setCodex((current) => errorRateLimits("codex", message, current));
-        throw error;
-      }
-    })();
-    const tracked = operation.finally(() => {
-      inflight.current = null;
-      setRefreshing(false);
-    });
-    inflight.current = tracked;
-    await tracked;
-    return outcome!;
+  useEffect(() => {
+    const onChange = () => {
+      setDisplayMode(loadUsageDisplayMode());
+      setUsageScope(loadUsageScope());
+      setWindowVisibility(loadUsageWindowVisibility());
+      setProviderOrder(loadUsageProviderOrder());
+      setHiddenProviders(loadHiddenUsageProviders());
+    };
+    window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
+    return () => {
+      window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
+    };
   }, []);
 
-  const showUsage = wantClaude || wantCodex;
+  const native = [wantClaude ? claude : null, wantCodex ? codex : null].filter(
+    (entry): entry is ProviderRateLimits => entry != null,
+  );
+  const codexbarProviders = new Set(codexbar.map((entry) => entry.provider));
+  const mergedUsage = [
+    ...codexbar,
+    ...native.filter((entry) => !codexbarProviders.has(entry.provider)),
+  ];
+  const usage =
+    usageScope === "active"
+      ? mergedUsage.filter((entry) =>
+          usageProviderMatches(entry.provider, providers),
+        )
+      : mergedUsage.filter(
+        (entry) => !hiddenProviders.includes(normalizeUsageProviderId(entry.provider)),
+        )
+      .sort((a, b) => providerOrder.indexOf(normalizeUsageProviderId(a.provider)) - providerOrder.indexOf(normalizeUsageProviderId(b.provider)));
+  const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
-  const showTerminalButton = Boolean(onNewTerminal || onShowTerminal);
-  const terminalLabel = projectTerminalActive
-    ? "Terminal"
-    : `New Terminal (${MOD}\`)`;
-  const onTerminalClick = projectTerminalActive
-    ? (onShowTerminal ?? onNewTerminal)
-    : (onNewTerminal ?? onShowTerminal);
+  const showRight = showUsage || showTerminals;
   const ariaLabel = showUsage
     ? "Provider usage"
-    : showTerminals || showTerminalButton
+    : showTerminals
       ? "Terminals"
       : session
         ? "Session"
@@ -170,38 +223,24 @@ export function UsageFooter({
   return (
     <footer
       aria-label={ariaLabel}
-      className="flex h-7 shrink-0 items-center gap-1.5 overflow-x-auto border-t border-stroke px-3 text-[11px] text-content/55"
+      className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-content/10 px-3 text-[11px] text-content/55"
     >
       {showUsage ? (
         <>
-          {wantClaude ? <UsageProviderChip limits={claude} now={now} /> : null}
-          {wantCodex ? (
-            <UsageProviderChip
-              limits={codex}
+          {usage.map((limits) => (
+            <ProviderChip
+              key={limits.provider}
+              limits={limits}
               now={now}
-              project={project}
-              onConsumeReset={consumeCodexReset}
+              displayMode={displayMode}
+              windowVisibility={windowVisibility}
             />
-          ) : null}
-          <button
-            type="button"
-            className="grid size-4.5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50"
-            aria-label="Refresh usage"
-            title="Refresh usage"
-            disabled={refreshing}
-            onClick={() => void refresh(true)}
-          >
-            <RefreshCw
-              className={`size-2.5 ${refreshing ? "animate-spin" : ""}`}
-              strokeWidth={1.75}
-              aria-hidden
-            />
-          </button>
+          ))}
         </>
       ) : session ? (
         <SessionChip session={session} />
       ) : null}
-      {showTerminals || showTerminalButton ? (
+      {showRight ? (
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {showTerminals ? (
             <RunningTerminalChip
@@ -209,21 +248,21 @@ export function UsageFooter({
               open={terminalOpen}
               onToggle={onToggleTerminal}
             />
-          ) : showTerminalButton ? (
+          ) : null}
+          {showUsage ? (
             <button
               type="button"
-              className={`inline-flex h-5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1.5 hover:bg-content/10 ${
-                projectTerminalActive
-                  ? "text-accent"
-                  : "text-content/40 hover:text-content"
-              }`}
-              aria-label={terminalLabel}
-              aria-pressed={projectTerminalActive}
-              title={terminalLabel}
-              onClick={onTerminalClick}
+              className="grid size-5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50"
+              aria-label="Refresh usage"
+              title="Refresh usage"
+              disabled={refreshing}
+              onClick={() => void refresh(true)}
             >
-              <Terminal className="size-3.5" strokeWidth={1.75} aria-hidden />
-              <span>Terminal</span>
+              <RefreshCw
+                className={`size-3 ${refreshing ? "animate-spin" : ""}`}
+                strokeWidth={1.75}
+                aria-hidden
+              />
             </button>
           ) : null}
         </div>
@@ -246,10 +285,10 @@ function SessionChip({ session }: { session: UsageFooterSession }) {
   return (
     <span
       className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-      title={HARNESS_TITLE[session.harness]}
+      title={harnessTitle(session.harness)}
     >
       <HarnessIcon harness={session.harness} className="size-3 shrink-0" />
-      <span>{HARNESS_LABEL[session.harness]}</span>
+      <span>{harnessLabel(session.harness)}</span>
     </span>
   );
 }
@@ -341,4 +380,201 @@ function RunningTerminalChip({
       ) : null}
     </>
   );
+}
+
+function ProviderChip({
+  limits,
+  now,
+  displayMode,
+  windowVisibility,
+}: {
+  limits: ProviderRateLimits;
+  now: number;
+  displayMode: UsageDisplayMode;
+  windowVisibility: UsageWindowVisibility;
+}) {
+  const root = useRef<HTMLButtonElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const loading =
+    limits.status === "idle" ||
+    (limits.status === "fetching" && !limits.session && !limits.weekly);
+  const disconnected = limits.status === "unavailable";
+  const allWindows = [
+    limits.session ? { key: "session", window: limits.session } : null,
+    limits.weekly ? { key: "weekly", window: limits.weekly } : null,
+    limits.monthly ? { key: "monthly", window: limits.monthly } : null,
+  ].filter((entry): entry is { key: string; window: RateLimitWindow } => {
+    return entry != null;
+  });
+  const windows = allWindows.filter((entry) =>
+    windowVisibility === "all" || entry.key === windowVisibility,
+  );
+  const tightest = windows.reduce<RateLimitWindow | null>((best, entry) => {
+    if (!best || entry.window.usedPercent > best.usedPercent) {
+      return entry.window;
+    }
+    return best;
+  }, null);
+  const tooltip = allWindows
+    .map((entry) => `${usageWindowLabel(entry.key)}: ${rateLimitWindowTooltip(entry.window, now)}`)
+    .join("\n");
+
+  return (
+    <>
+    <button
+      ref={root}
+      type="button"
+      className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded px-1 -mx-1 hover:bg-content/10 hover:text-content"
+      aria-label={`${providerDisplayLabel(limits.provider)} quota details`}
+      aria-expanded={detailsOpen}
+      onClick={() => setDetailsOpen((open) => !open)}
+    >
+      <ProviderMark provider={limits.provider} />
+      {loading ? (
+        <span className="animate-pulse text-content/35">···</span>
+      ) : disconnected ? (
+        <span className="text-content/35">not connected</span>
+      ) : windows.length === 0 ? (
+        <span className="text-content/35">{emptyUsageLabel(limits)}</span>
+      ) : (
+        <>
+          {tightest ? <MiniBar usedPct={tightest.usedPercent} /> : null}
+          <span className="flex min-w-0 items-center gap-1 tabular-nums">
+            {windows.map((entry, index) => (
+              <span key={entry.key} className="inline-flex items-center gap-1">
+                {index > 0 ? <span className="text-content/25">·</span> : null}
+                <span>
+                  {formatDisplayedUsagePercent(
+                    entry.window.usedPercent,
+                    displayMode,
+                  )}{" "}
+                  {formatRateLimitWindowChipLabel(entry.window, now)}
+                </span>
+              </span>
+            ))}
+          </span>
+        </>
+      )}
+    </button>
+    {detailsOpen && tooltip && !loading && !disconnected ? (
+      <Popover
+        anchor={root}
+        side="top"
+        align="start"
+        onDismiss={() => setDetailsOpen(false)}
+        className="w-64 p-3"
+      >
+        <div className="mb-2 text-[11px] font-semibold text-content">
+          {providerDisplayLabel(limits.provider)}
+        </div>
+        <div className="grid gap-1.5">
+          {allWindows.map((entry) => (
+            <div key={entry.key} className="grid grid-cols-[4.5rem_1fr] gap-2 text-[11px]">
+              <span className="text-content/45">{usageWindowLabel(entry.key)}</span>
+              <span className="text-right tabular-nums">
+                {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)} remaining
+                <span className="block text-content/45">
+                  {rateLimitWindowTooltip(entry.window, now).split(" · ").slice(-1)[0]}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </Popover>
+    ) : null}
+    </>
+  );
+}
+
+function usageWindowLabel(key: string): string {
+  if (key === "session") return "5 hours";
+  if (key === "weekly") return "Weekly";
+  if (key === "monthly") return "Monthly";
+  return key;
+}
+
+function providerDisplayLabel(provider: string): string {
+  return provider === "opencodego"
+    ? "OpenCode Go"
+    : provider === "mimo"
+      ? "Xiaomi MiMo"
+      : provider.charAt(0).toUpperCase() + provider.slice(1);
+}
+
+const KNOWN_HARNESSES = new Set<HarnessId>([
+  "claude",
+  "codex",
+  "cursor",
+  "grok",
+  "opencode",
+  "zai",
+  "mimo",
+  "openrouter",
+  "nvidia",
+  "gemini",
+  "antigravity",
+  "pi",
+  "omp",
+  "fx",
+]);
+
+/** CodexBar names some providers differently from the app's harness ids. */
+const USAGE_PROVIDER_ALIASES: Record<string, string[]> = {
+  opencode: ["opencode", "opencodego"],
+};
+
+function usageProviderMatches(provider: string, providers: string[]): boolean {
+  for (const harness of providers) {
+    if (entryMatchesHarness(provider, harness)) return true;
+  }
+  return false;
+}
+
+function entryMatchesHarness(provider: string, harness: string): boolean {
+  if (normalizeUsageProviderId(provider) === normalizeUsageProviderId(harness)) return true;
+  return (USAGE_PROVIDER_ALIASES[harness] ?? []).includes(provider);
+}
+
+function ProviderMark({ provider }: { provider: string }) {
+  if (KNOWN_HARNESSES.has(provider as HarnessId)) {
+    return (
+      <HarnessIcon
+        harness={provider as HarnessId}
+        className="size-3 shrink-0"
+      />
+    );
+  }
+  return (
+    <span className="grid size-3 shrink-0 place-items-center rounded-sm bg-content/20 text-[8px] font-semibold uppercase">
+      {provider.slice(0, 1)}
+    </span>
+  );
+}
+
+function emptyUsageLabel(limits: ProviderRateLimits): string {
+  if (limits.status !== "error") return "—";
+  const text = limits.error?.toLowerCase() ?? "";
+  if (text.includes("expired") || text.includes("sign-in")) return "expired";
+  return "—";
+}
+
+function MiniBar({ usedPct }: { usedPct: number }) {
+  const pct = clampUsedPercent(usedPct);
+  return (
+    <span
+      className="h-1 w-8 shrink-0 overflow-hidden rounded-full bg-content/10"
+      aria-hidden
+    >
+      <span
+        className={`block h-full rounded-full ${barClass(pct)}`}
+        style={{ width: `${pct}%` }}
+      />
+    </span>
+  );
+}
+
+function barClass(pct: number): string {
+  if (pct >= 90) return "bg-red-400";
+  if (pct >= 80) return "bg-amber-400";
+  return "bg-content/45";
 }

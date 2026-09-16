@@ -8,9 +8,9 @@ import type { ApprovalDecision } from "../lib/harness";
 import type { PendingApprovalNotice } from "../lib/approvalToast";
 import { LAYER } from "../lib/layers";
 import {
-  HARNESS_TITLE,
   sessionDisplayTitle,
   type Session,
+  harnessTitle,
 } from "../lib/session";
 import { HarnessIcon } from "./HarnessIcon";
 
@@ -89,7 +89,7 @@ function ApprovalToastCard({
 }) {
   const { session, label, requestId } = notice;
   const title = sessionDisplayTitle(session.title, session.harness);
-  const harness = HARNESS_TITLE[session.harness];
+  const harness = harnessTitle(session.harness);
 
   const openSession = () => onFocusSession(session.id);
 

@@ -493,6 +493,8 @@ pub struct GitDiffStats {
     pub files: i64,
     pub additions: i64,
     pub deletions: i64,
+    pub ahead: i64,
+    pub behind: i64,
 }
 
 /// Uncommitted line counts for the opened folder: staged + unstaged vs HEAD,
@@ -524,6 +526,7 @@ pub struct GitDiffIndex {
     pub additions: i64,
     pub deletions: i64,
     pub remote: Option<String>,
+    pub remote_url: Option<String>,
     pub upstream: Option<String>,
     pub default_branch: Option<String>,
     pub ahead: i64,
@@ -1193,10 +1196,13 @@ fn git_diff_stats_for(root: &Path) -> GitDiffStats {
         additions += acc.additions;
         deletions += acc.deletions;
     }
+    let sync = git_sync_for(root);
     GitDiffStats {
         files: files.len() as i64,
         additions,
         deletions,
+        ahead: sync.ahead,
+        behind: sync.behind,
     }
 }
 
@@ -1320,6 +1326,7 @@ fn git_diff_index_with(root: &Path, include_sync: bool) -> GitDiffIndex {
         additions,
         deletions,
         remote: sync.remote,
+        remote_url: sync.remote_url,
         upstream: sync.upstream,
         default_branch: sync.default_branch,
         ahead: sync.ahead,
@@ -3673,6 +3680,7 @@ fn git_origin_repo(root: &Path) -> Option<String> {
 #[derive(Default)]
 struct GitSync {
     remote: Option<String>,
+    remote_url: Option<String>,
     upstream: Option<String>,
     default_branch: Option<String>,
     ahead: i64,
@@ -3682,6 +3690,9 @@ struct GitSync {
 
 fn git_sync_for(root: &Path) -> GitSync {
     let remote = git_remote_name(root);
+    let remote_url = remote
+        .as_deref()
+        .and_then(|name| git_stdout(root, &["remote", "get-url", name]));
     let upstream = git_stdout(root, &["rev-parse", "--abbrev-ref", "@{upstream}"]);
     let default_branch = git_default_branch(root, remote.as_deref());
     let default_ref = match (&remote, &default_branch) {
@@ -3702,6 +3713,7 @@ fn git_sync_for(root: &Path) -> GitSync {
     };
     GitSync {
         remote,
+        remote_url,
         upstream,
         default_branch,
         ahead,
@@ -4690,13 +4702,26 @@ pub fn reveal_path(path: String) -> Result<(), String> {
     if !path.exists() {
         return Err(format!("{}: No such file or directory", path.display()));
     }
+    let target = if path.is_dir() {
+        git_stdout(&path, &["rev-parse", "--show-toplevel"])
+            .map(PathBuf::from)
+            .filter(|candidate| candidate.is_dir())
+            .unwrap_or_else(|| path.clone())
+    } else {
+        path.clone()
+    };
     #[cfg(target_os = "macos")]
     {
-        let path_str = path.to_str().ok_or_else(|| "Invalid path".to_string())?;
-        let status = Command::new("open")
-            .args(["-R", path_str])
-            .status()
-            .map_err(|e| e.to_string())?;
+        let target_str = target
+            .to_str()
+            .ok_or_else(|| "Invalid path".to_string())?;
+        let mut command = Command::new("open");
+        if target.is_dir() {
+            command.arg(target_str);
+        } else {
+            command.args(["-R", target_str]);
+        }
+        let status = command.status().map_err(|e| e.to_string())?;
         if !status.success() {
             return Err("Could not reveal in Finder.".into());
         }
@@ -4705,26 +4730,87 @@ pub fn reveal_path(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // explorer.exe returns 1 even when it opened the folder.
-        let path_str = path.to_string_lossy().replace('/', "\\");
-        Command::new("explorer")
-            .arg(format!("/select,{path_str}"))
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        let target_str = target.to_string_lossy();
+        let mut command = Command::new("explorer");
+        if target.is_dir() {
+            command.arg(target_str.as_ref());
+        } else {
+            command.arg(format!("/select,{target_str}"));
+        }
+        command.spawn().map_err(|e| e.to_string())?;
         Ok(())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let parent = path
-            .parent()
-            .ok_or_else(|| "File has no parent directory.".to_string())?;
+        let folder = if target.is_dir() {
+            target
+        } else {
+            target
+                .parent()
+                .ok_or_else(|| "File has no parent directory.".to_path_buf())?
+                .to_path_buf()
+        };
         let status = Command::new("xdg-open")
-            .arg(parent)
+            .arg(folder)
             .status()
             .map_err(|e| e.to_string())?;
         if !status.success() {
             return Err("Could not open the containing folder.".into());
+        }
+        Ok(())
+    }
+}
+
+/// Opens the repository root itself instead of selecting it in its parent.
+/// `reveal_path` keeps file-selection semantics, while Explorer's workspace
+/// action needs the folder containing `.git` opened.
+#[tauri::command]
+pub fn open_project_path(path: String) -> Result<(), String> {
+    let requested = expand_home(&path);
+    let start = if requested.is_dir() {
+        requested
+    } else {
+        requested
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| format!("{}: No containing directory", requested.display()))?
+    };
+    if !start.exists() {
+        return Err(format!("{}: No such file or directory", start.display()));
+    }
+    let root = git_stdout(&start, &["rev-parse", "--show-toplevel"])
+        .map(PathBuf::from)
+        .filter(|candidate| candidate.is_dir())
+        .unwrap_or(start);
+    #[cfg(target_os = "macos")]
+    {
+        let root_str = root.to_str().ok_or_else(|| "Invalid path".to_string())?;
+        let status = Command::new("open")
+            .arg(root_str)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Could not open the project in Finder.".into());
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(root.to_string_lossy().as_ref())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let status = Command::new("xdg-open")
+            .arg(&root)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("Could not open the project folder.".into());
         }
         Ok(())
     }
@@ -5247,7 +5333,9 @@ mod tests {
             GitDiffStats {
                 files: 0,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                ahead: 0,
+                behind: 0,
             }
         );
     }
@@ -5281,7 +5369,9 @@ mod tests {
             GitDiffStats {
                 files: 0,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                ahead: 0,
+                behind: 0,
             }
         );
     }

@@ -1,26 +1,21 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { isHexColor } from "./colorUtils";
 import { HAS_NATIVE_GLASS, IS_MAC } from "./platform";
 import { applyUiScale, loadUiScale } from "./uiScale";
 
-const ACCENT_COLOR_KEY = "monocode.accentColor";
 const THEME_HUE_KEY = "monocode.themeHue";
 const THEME_SATURATION_KEY = "monocode.themeSaturation";
-const THEME_DARK_LIGHTNESS_KEY = "monocode.themeDarkLightness";
 const OPACITY_KEY = "monocode.sidebarOpacity";
 const BLUR_KEY = "monocode.sidebarBlur";
 const PROJECT_RAIL_OPEN_KEY = "monocode.projectRailOpen";
 const BODY_KEY = "monocode.bodyGlass";
 const SCHEME_KEY = "monocode.colorScheme";
+const THEME_PRESET_KEY = "monocode.themePreset";
 const SIDEBAR_TAB_ORDER_KEY = "monocode.sidebarTabOrder";
 const PROJECT_RAIL_WIDTH_KEY = "monocode.projectRailWidth";
 const TRANSCRIPT_LAYOUT_KEY = "monocode.transcriptLayout";
 const TRANSCRIPT_ANCHOR_KEY = "monocode.transcriptAnchor";
 const CHAT_BACKGROUND_PATH_KEY = "monocode.chatBackgroundPath";
 const CHAT_BACKGROUND_OPACITY_KEY = "monocode.chatBackgroundOpacity";
-const CHAT_BACKGROUND_EMPTY_OPACITY_KEY = "monocode.chatBackgroundEmptyOpacity";
-const CHAT_BACKGROUND_SESSION_OPACITY_KEY =
-  "monocode.chatBackgroundSessionOpacity";
 const CHAT_BACKGROUND_SCOPE_KEY = "monocode.chatBackgroundScope";
 const CHANGES_VIEW_KEY = "monocode.changesView";
 let chatBackgroundRevision = Date.now();
@@ -31,13 +26,19 @@ export const CHAT_BACKGROUND_PATH_CHANGE_EVENT =
 
 export type ColorScheme = "dark" | "light";
 export type ThemePreference = ColorScheme | "system";
+export type ThemePreset =
+  | "default"
+  | "dracula"
+  | "catppuccin-frappe"
+  | "catppuccin-latte"
+  | "catppuccin-macchiato"
+  | "catppuccin-mocha";
 export type TranscriptLayout = "full" | "chat";
 export type ChatBackgroundScope = "empty" | "all";
 export type ChangesView = "list" | "tree";
 
 export const THEME_PREFERENCE_DEFAULT: ThemePreference = "dark";
-
-export const ACCENT_COLOR_DEFAULT = null;
+export const THEME_PRESET_DEFAULT: ThemePreset = "catppuccin-frappe";
 
 /** Fired on `window` whenever the color scheme flips (detail: ColorScheme). */
 export const SCHEME_CHANGE_EVENT = "monocode:schemechange";
@@ -54,13 +55,14 @@ export const TRANSCRIPT_ANCHOR_CHANGE_EVENT = "monocode:transcriptanchorchange";
 /** Fired on `window` whenever the transcript layout flips (detail: TranscriptLayout). */
 export const TRANSCRIPT_LAYOUT_CHANGE_EVENT = "monocode:transcriptlayoutchange";
 
-export type SidebarTabId = "files" | "sessions" | "changes" | "inbox";
+export type SidebarTabId = "files" | "sessions" | "changes" | "notes" | "inbox";
 
 const DEFAULT_SIDEBAR_TAB_ORDER: SidebarTabId[] = [
   "sessions",
   "inbox",
   "files",
   "changes",
+  "notes",
 ];
 
 export const THEME_HUE_MIN = 0;
@@ -70,10 +72,6 @@ export const THEME_HUE_DEFAULT = 240;
 export const THEME_SATURATION_MIN = 0;
 export const THEME_SATURATION_MAX = 100;
 export const THEME_SATURATION_DEFAULT = 0;
-
-export const THEME_DARK_LIGHTNESS_MIN = 0;
-export const THEME_DARK_LIGHTNESS_MAX = 30;
-export const THEME_DARK_LIGHTNESS_DEFAULT = 9;
 
 export const SIDEBAR_OPACITY_MIN = 0.15;
 export const SIDEBAR_OPACITY_MAX = 1;
@@ -92,10 +90,6 @@ export const BODY_GLASS_DEFAULT = true;
 export const CHAT_BACKGROUND_OPACITY_MIN = 0.05;
 export const CHAT_BACKGROUND_OPACITY_MAX = 0.65;
 export const CHAT_BACKGROUND_OPACITY_DEFAULT = 0.24;
-export const CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT =
-  CHAT_BACKGROUND_OPACITY_DEFAULT;
-export const CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT =
-  CHAT_BACKGROUND_OPACITY_DEFAULT;
 export const CHAT_BACKGROUND_SCOPE_DEFAULT: ChatBackgroundScope = "all";
 
 function clamp(value: number, min: number, max: number) {
@@ -139,58 +133,6 @@ function writeFlag(key: string, value: boolean) {
   }
 }
 
-function normalizeAccentColor(value: unknown): string | null {
-  return typeof value === "string" && isHexColor(value)
-    ? value.toLowerCase()
-    : ACCENT_COLOR_DEFAULT;
-}
-
-function accentForeground(color: string): "#000000" | "#ffffff" {
-  const channels = [1, 3, 5].map((offset) => {
-    const value = Number.parseInt(color.slice(offset, offset + 2), 16) / 255;
-    return value <= 0.04045
-      ? value / 12.92
-      : Math.pow((value + 0.055) / 1.055, 2.4);
-  });
-  const luminance =
-    0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-  return luminance > 0.179 ? "#000000" : "#ffffff";
-}
-
-export function loadAccentColor(): string | null {
-  try {
-    return normalizeAccentColor(localStorage.getItem(ACCENT_COLOR_KEY));
-  } catch {
-    return ACCENT_COLOR_DEFAULT;
-  }
-}
-
-export function saveAccentColor(value: string | null) {
-  try {
-    const next = normalizeAccentColor(value);
-    if (next == null) localStorage.removeItem(ACCENT_COLOR_KEY);
-    else localStorage.setItem(ACCENT_COLOR_KEY, next);
-  } catch {
-    // private mode / quota
-  }
-}
-
-export function applyAccentColor(value: string | null) {
-  const next = normalizeAccentColor(value);
-  document.documentElement.classList.toggle("has-user-accent", next != null);
-  if (next == null) {
-    document.documentElement.style.removeProperty("--user-accent-color");
-    document.documentElement.style.removeProperty("--user-accent-foreground");
-    return next;
-  }
-  document.documentElement.style.setProperty("--user-accent-color", next);
-  document.documentElement.style.setProperty(
-    "--user-accent-foreground",
-    accentForeground(next),
-  );
-  return next;
-}
-
 export function loadThemeHue(): number {
   return Math.round(
     clamp(
@@ -225,36 +167,6 @@ export function saveThemeSaturation(value: number) {
   );
 }
 
-export function loadThemeDarkLightness(): number {
-  return Math.round(
-    clamp(
-      readNumber(THEME_DARK_LIGHTNESS_KEY) ?? THEME_DARK_LIGHTNESS_DEFAULT,
-      THEME_DARK_LIGHTNESS_MIN,
-      THEME_DARK_LIGHTNESS_MAX,
-    ),
-  );
-}
-
-export function saveThemeDarkLightness(value: number) {
-  writeNumber(
-    THEME_DARK_LIGHTNESS_KEY,
-    Math.round(
-      clamp(value, THEME_DARK_LIGHTNESS_MIN, THEME_DARK_LIGHTNESS_MAX),
-    ),
-  );
-}
-
-export function applyThemeDarkLightness(value: number) {
-  const next = Math.round(
-    clamp(value, THEME_DARK_LIGHTNESS_MIN, THEME_DARK_LIGHTNESS_MAX),
-  );
-  document.documentElement.style.setProperty(
-    "--theme-dark-lightness",
-    `${next}%`,
-  );
-  return next;
-}
-
 export function applyThemeTint(hue: number, saturation: number) {
   const nextHue = Math.round(clamp(hue, THEME_HUE_MIN, THEME_HUE_MAX));
   const nextSaturation = Math.round(
@@ -270,23 +182,72 @@ export function applyThemeTint(hue: number, saturation: number) {
 
 export function initAppearance() {
   document.documentElement.classList.toggle("is-mac", IS_MAC);
+  applyThemePreset(loadThemePreset());
   document.documentElement.classList.toggle(
     "has-native-glass",
     HAS_NATIVE_GLASS,
   );
-  applyAccentColor(loadAccentColor());
   applyThemeTint(loadThemeHue(), loadThemeSaturation());
-  applyThemeDarkLightness(loadThemeDarkLightness());
   applyThemePreference(loadThemePreference());
   watchSystemColorScheme();
   applySidebarOpacity(loadSidebarOpacity());
   applySidebarBlur(loadSidebarBlur());
   applyBodyGlass(loadBodyGlass());
   applyChatBackground(loadChatBackgroundPath());
-  applyChatBackgroundEmptyOpacity(loadChatBackgroundEmptyOpacity());
-  applyChatBackgroundSessionOpacity(loadChatBackgroundSessionOpacity());
+  applyChatBackgroundOpacity(loadChatBackgroundOpacity());
   applyChatBackgroundScope(loadChatBackgroundScope());
   void applyUiScale(loadUiScale());
+  applyBackgroundPanels(loadBackgroundPanels());
+}
+
+function isThemePreset(value: unknown): value is ThemePreset {
+  return (
+    value === "default" ||
+    value === "dracula" ||
+    value === "catppuccin-frappe" ||
+    value === "catppuccin-latte" ||
+    value === "catppuccin-macchiato" ||
+    value === "catppuccin-mocha"
+  );
+}
+
+export function loadThemePreset(): ThemePreset {
+  try {
+    const raw = localStorage.getItem(THEME_PRESET_KEY);
+    // Migrate the old MonoCode neutral default to PKmod's Frappe default.
+    if (raw === "default") return THEME_PRESET_DEFAULT;
+    return isThemePreset(raw) ? raw : THEME_PRESET_DEFAULT;
+  } catch {
+    return THEME_PRESET_DEFAULT;
+  }
+}
+
+export function saveThemePreset(value: ThemePreset) {
+  try {
+    localStorage.setItem(THEME_PRESET_KEY, value);
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function applyThemePreset(value: ThemePreset) {
+  const root = document.documentElement;
+  root.classList.remove(
+    "theme-preset-dracula",
+    "theme-preset-catppuccin-frappe",
+    "theme-preset-catppuccin-latte",
+    "theme-preset-catppuccin-macchiato",
+    "theme-preset-catppuccin-mocha",
+  );
+  // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
+  // literal `default` remains the explicit neutral option in Settings.
+  if (value !== "default") root.classList.add(`theme-preset-${value}`);
+  window.dispatchEvent(
+    new CustomEvent<ThemePreset>("monocode:themepresetchange", {
+      detail: value,
+    }),
+  );
+  return value;
 }
 
 function isThemePreference(value: unknown): value is ThemePreference {
@@ -464,82 +425,79 @@ export function chatBackgroundSrc(path: string | null): string | null {
 }
 
 export function loadChatBackgroundOpacity(): number {
-  return loadChatBackgroundEmptyOpacity();
+  return clamp(
+    readNumber(CHAT_BACKGROUND_OPACITY_KEY) ?? CHAT_BACKGROUND_OPACITY_DEFAULT,
+    CHAT_BACKGROUND_OPACITY_MIN,
+    CHAT_BACKGROUND_OPACITY_MAX,
+  );
 }
 
 export function saveChatBackgroundOpacity(value: number) {
-  const next = clamp(
-    value,
-    CHAT_BACKGROUND_OPACITY_MIN,
-    CHAT_BACKGROUND_OPACITY_MAX,
-  );
-  saveChatBackgroundEmptyOpacity(next);
-  saveChatBackgroundSessionOpacity(next);
-  writeNumber(CHAT_BACKGROUND_OPACITY_KEY, next);
-}
-
-export function applyChatBackgroundOpacity(value: number) {
-  const next = applyChatBackgroundEmptyOpacity(value);
-  applyChatBackgroundSessionOpacity(next);
-  return next;
-}
-
-function loadChatBackgroundOpacityValue(key: string): number {
-  const next = clamp(
-    readNumber(key) ??
-      readNumber(CHAT_BACKGROUND_OPACITY_KEY) ??
-      CHAT_BACKGROUND_OPACITY_DEFAULT,
-    CHAT_BACKGROUND_OPACITY_MIN,
-    CHAT_BACKGROUND_OPACITY_MAX,
-  );
-  return next;
-}
-
-function saveChatBackgroundOpacityValue(key: string, value: number) {
   writeNumber(
-    key,
+    CHAT_BACKGROUND_OPACITY_KEY,
     clamp(value, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_OPACITY_MAX),
   );
 }
 
-function applyChatBackgroundOpacityValue(variable: string, value: number) {
+export function applyChatBackgroundOpacity(value: number) {
   const next = clamp(
     value,
     CHAT_BACKGROUND_OPACITY_MIN,
     CHAT_BACKGROUND_OPACITY_MAX,
   );
-  document.documentElement.style.setProperty(variable, String(next));
+  document.documentElement.style.setProperty(
+    "--chat-background-opacity",
+    String(next),
+  );
   return next;
 }
 
-export function loadChatBackgroundEmptyOpacity(): number {
-  return loadChatBackgroundOpacityValue(CHAT_BACKGROUND_EMPTY_OPACITY_KEY);
+const BACKGROUND_PANELS_KEY = "monocode.backgroundPanels";
+export const BACKGROUND_PANELS_CHANGE_EVENT =
+  "monocode:background-panels-change";
+
+export const BACKGROUND_PANELS_DEFAULT: Record<BackgroundPanel, boolean> = {
+  chat: true,
+  workspace: false,
+  terminal: false,
+};
+
+export type BackgroundPanel = "chat" | "workspace" | "terminal";
+
+/** Which app panes receive the background image (chat is on by default). */
+export function loadBackgroundPanels(): Record<BackgroundPanel, boolean> {
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(BACKGROUND_PANELS_KEY) ?? "{}",
+    ) as Record<string, unknown>;
+    return {
+      chat: typeof raw.chat === "boolean" ? raw.chat : true,
+      workspace: raw.workspace === true,
+      terminal: raw.terminal === true,
+    };
+  } catch {
+    return { ...BACKGROUND_PANELS_DEFAULT };
+  }
 }
 
-export function saveChatBackgroundEmptyOpacity(value: number) {
-  saveChatBackgroundOpacityValue(CHAT_BACKGROUND_EMPTY_OPACITY_KEY, value);
+export function saveBackgroundPanels(
+  value: Record<BackgroundPanel, boolean>,
+): void {
+  try {
+    localStorage.setItem(BACKGROUND_PANELS_KEY, JSON.stringify(value));
+  } catch {
+    // private mode / quota
+  }
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(BACKGROUND_PANELS_CHANGE_EVENT));
 }
 
-export function applyChatBackgroundEmptyOpacity(value: number) {
-  return applyChatBackgroundOpacityValue(
-    "--chat-background-empty-opacity",
-    value,
-  );
-}
-
-export function loadChatBackgroundSessionOpacity(): number {
-  return loadChatBackgroundOpacityValue(CHAT_BACKGROUND_SESSION_OPACITY_KEY);
-}
-
-export function saveChatBackgroundSessionOpacity(value: number) {
-  saveChatBackgroundOpacityValue(CHAT_BACKGROUND_SESSION_OPACITY_KEY, value);
-}
-
-export function applyChatBackgroundSessionOpacity(value: number) {
-  return applyChatBackgroundOpacityValue(
-    "--chat-background-session-opacity",
-    value,
-  );
+export function applyBackgroundPanels(value: Record<BackgroundPanel, boolean>) {
+  const root = document.documentElement;
+  root.classList.toggle("background-workspace", !!value.workspace);
+  root.classList.toggle("background-terminal", !!value.terminal);
+  root.classList.toggle("no-background-chat", !value.chat);
+  return value;
 }
 
 function isChatBackgroundScope(value: unknown): value is ChatBackgroundScope {
@@ -576,6 +534,7 @@ function isSidebarTabId(value: unknown): value is SidebarTabId {
     value === "files" ||
     value === "sessions" ||
     value === "changes" ||
+    value === "notes" ||
     value === "inbox"
   );
 }

@@ -42,7 +42,7 @@ import { IconButton, OverlayNav } from "../chrome/TitleBar";
 import { WindowControls } from "../chrome/WindowControls";
 import { useDragResize } from "../hooks/useDragResize";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
-import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
+import { useTabGroupLogos, type TabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   githubStatus,
   githubPrDiff,
@@ -187,7 +187,7 @@ type InboxProjectOption = {
 
 function inboxProjectOptions(
   projects: RecentProject[],
-  logos: ReturnType<typeof useTabGroupLogos>,
+  logos: TabGroupLogos,
 ): InboxProjectOption[] {
   const mascots = loadTabGroupMascots();
   const colors = loadTabGroupColors();
