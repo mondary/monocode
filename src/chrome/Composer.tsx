@@ -707,7 +707,7 @@ export function Composer({
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   };
 
   useEffect(() => {
@@ -1355,7 +1355,7 @@ export function Composer({
             <div
               ref={highlightRef}
               aria-hidden
-              className={`composer-highlight pointer-events-none absolute inset-0 max-h-40 overflow-hidden whitespace-pre-wrap break-words px-3 text-sm leading-5.5 text-content font-sans ${
+              className={`composer-highlight pointer-events-none absolute inset-0 max-h-60 overflow-hidden whitespace-pre-wrap break-words px-3 text-sm leading-5.5 text-content font-sans ${
                 shell ? "py-4" : "py-3"
               }`}
             >
@@ -1382,7 +1382,7 @@ export function Composer({
                         ? "Ask, build, / for commands, @ for references... "
                         : "Ask, build, / for commands, @ for references... "
               }
-              className={`composer-field scrollbar-none relative max-h-40 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
+              className={`composer-field scrollbar-none relative max-h-60 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
                 shell ? "py-4" : "py-3"
               }`}
               onFocus={onFocus}
