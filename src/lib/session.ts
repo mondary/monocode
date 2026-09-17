@@ -5,6 +5,8 @@ import { loadCustomProviders } from "./customProviders";
 import type { InboxComposerCard } from "./githubTasks";
 import type { InboxAskContext } from "./inboxAsk";
 import type { NoteCardMeta, NoteComposerCard } from "./notes";
+import type { OrchestrationProposal } from "./orchestrationPlan";
+import type { LinkedWorkItemUpdateCard } from "./linkedWorkItemActivity";
 import {
   defaultSessionChoice,
   preferredModelId,
@@ -26,7 +28,8 @@ export type BuiltinHarnessId =
   | "antigravity"
   | "pi"
   | "omp"
-  | "fx";
+  | "fx"
+  | "hermes";
 
 /** Custom providers managed from Settings; ids are `pk-custom-<slug>`. */
 export type CustomHarnessId = `pk-custom-${string}`;
@@ -52,6 +55,7 @@ export const HARNESSES: BuiltinHarnessId[] = [
   "pi",
   "omp",
   "fx",
+  "hermes",
 ];
 
 export type BlockRole =
@@ -83,7 +87,8 @@ export type TaskListMeta = {
 };
 
 /** One-shot behavior selected in the composer for the next harness turn. */
-export type TurnIntent = "default" | "plan" | "build";
+export type TurnIntent = "default" | "plan" | "build" | "orchestrate";
+export type ComposerTurnOptions = { intent?: TurnIntent };
 
 export type PlanStatus = "streaming" | "ready" | "building" | "built";
 
@@ -98,10 +103,13 @@ export type PlanBlockMeta = {
   edited?: boolean;
 };
 
-export type PlanBuildTarget = {
+export type ModelTarget = {
   harness: HarnessId;
   model: string;
+  modelSettings: Record<string, string>;
 };
+
+export type PlanBuildTarget = ModelTarget;
 
 export type HandoffStatus = "preparing" | "ready";
 
@@ -121,6 +129,15 @@ export type SecondOpinionMeta = {
   files?: number;
   /** Split-pane continue. Default is a second-opinion review. */
   kind?: "handoff";
+};
+
+/** A mid-turn interjection the harness asked to surface, e.g. OMP advisor notes. */
+export type InterjectionSeverity = "nit" | "concern" | "blocker";
+
+export type InterjectionMeta = {
+  customType: string;
+  /** Highest severity among this interjection's retained notes, when any is known. */
+  severity?: InterjectionSeverity;
 };
 
 export type ToolPreviewKind = "read" | "write" | "shell" | "search";
@@ -146,6 +163,35 @@ export type ToolPreview = {
   query?: string;
   lines?: ToolPreviewLine[];
   output?: string;
+};
+
+/** One thing a subagent did, mirrored into the parent transcript. */
+export type AgentStepKind = "tool" | "message" | "reasoning";
+
+export type AgentStep = {
+  /** Provider step identity, so repeats merge instead of stacking up. */
+  id: string;
+  kind: AgentStepKind;
+  /** Tool label, or the prose the subagent wrote. */
+  text: string;
+  toolKind?: string;
+  status?: string;
+  preview?: ToolPreview;
+};
+
+/**
+ * The inside of a delegated run: what the subagent is called, and the trail it
+ * left. Held on the parent Agent tool block so the transcript can open it
+ * without a second session.
+ */
+export type AgentRunMeta = {
+  /** What the subagent is called, e.g. "Correctness review". */
+  name: string;
+  /** Provider agent type, e.g. "code-reviewer". */
+  agentType?: string;
+  /** Model reported for the child, which may differ from its parent. */
+  model?: string;
+  steps: AgentStep[];
 };
 
 export type AttachmentKind = "image" | "audio" | "file";
@@ -182,6 +228,16 @@ export type TurnModel = {
   name: string;
 };
 
+/** Provider-reported token accounting for one user turn. */
+export type TurnMetrics = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  /** Provider-normalized share of input served from cache, as a percentage. */
+  cacheHitPercent?: number;
+};
+
 export type Block = {
   id: string;
   role: BlockRole;
@@ -194,6 +250,8 @@ export type Block = {
   durationMs?: number;
   /** Stable model label for this turn. Present on newly created user blocks. */
   turnModel?: TurnModel;
+  /** Provider-reported token metrics for this user turn, when available. */
+  turnMetrics?: TurnMetrics;
   tool?: {
     callId?: string;
     title?: string;
@@ -206,12 +264,30 @@ export type Block = {
     requestId: number;
     decided?: "allow" | "deny" | "cancelled";
   };
+  /** Inner activity of a delegated run. Present on Agent/Task tool blocks. */
+  agentRun?: AgentRunMeta;
   taskList?: TaskListMeta;
   plan?: PlanBlockMeta;
+  orchestration?: OrchestrationProposal;
+  /** Parent conversation for an internal orchestration worker. */
+  orchestrationLeadId?: string;
+  /**
+   * A turn the app wrote on the user's behalf to keep an orchestration moving.
+   * The harness needs it; the transcript hides it, so a run reads as one
+   * conversation rather than the user narrating their own agents.
+   */
+  internal?: boolean;
   handoff?: HandoffMeta;
   secondOpinion?: SecondOpinionMeta;
   /** Note chip shown on this user turn. Body is not stored; the harness already received it. */
   noteCard?: NoteCardMeta;
+  /** Mid-turn interjection chrome; system blocks only. Body lives in text. */
+  interjection?: InterjectionMeta;
+  /**
+   * A system row the reader must not miss — an error or an interruption —
+   * rather than turn chrome like a status ping. Never folds into the trail.
+   */
+  notice?: "error" | "interrupt";
 };
 
 export type RuntimeMode =
@@ -249,6 +325,8 @@ export const RUNTIME_MODE_HINT: Record<RuntimeMode, string> = {
 };
 
 export type Session = {
+  /** Internal worker: displayed in its lead's panel rather than a workspace tab. */
+  orchestrationLeadId?: string;
   /** Temporary Inbox conversation: shares the runtime, never saved as a session. */
   inboxAsk?: InboxAskContext;
   id: string;
@@ -270,6 +348,8 @@ export type Session = {
   editingQueuedMessageId?: string;
   /** Provider-side conversation id (Cursor ACP session id). */
   providerSessionId?: string;
+  /** Named local credential profile used by Claude or Codex. */
+  providerAccountId?: string;
   /** Context-window level reported by the harness. Absent until it reports. */
   context?: ContextUsage;
   /**
@@ -290,6 +370,8 @@ export type Session = {
   inboxCard?: InboxComposerCard;
   /** GitHub issue or pull request shown on the persisted session card. */
   linkedWorkItem?: LinkedWorkItem;
+  /** New linked-item activity shown above the composer. In-memory, one-shot. */
+  linkedWorkItemUpdateCard?: LinkedWorkItemUpdateCard;
   /** Note chip shown above the composer. In-memory, one-shot. */
   noteCard?: NoteComposerCard;
   /** Handoff chip shown above the composer. In-memory, one-shot. */
@@ -306,9 +388,10 @@ export type PendingHarnessSwitch = {
   fromModel: string;
   fromSettings: Record<string, string>;
   fromProviderSessionId?: string;
+  fromProviderAccountId?: string;
 };
 
-export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
+export const HARNESS_LABEL: Record<string, string> = {
   claude: "claude",
   codex: "codex",
   cursor: "cursor",
@@ -323,9 +406,10 @@ export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
   pi: "pi",
   omp: "omp",
   fx: "fx",
+  hermes: "hermes",
 };
 
-export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
+export const HARNESS_TITLE: Record<string, string> = {
   claude: "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
@@ -340,6 +424,7 @@ export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
   pi: "Pi",
   omp: "omp",
   fx: "fx",
+  hermes: "Hermes Agent",
 };
 
 /**

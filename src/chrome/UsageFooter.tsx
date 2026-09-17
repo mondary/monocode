@@ -58,9 +58,14 @@ export function UsageFooter({
 }: {
   providers: RateLimitProvider[];
   session?: UsageFooterSession;
+  project?: string;
+  onSelectAccount?: (provider: RateLimitProvider, accountId: string) => void;
   terminals?: RunningTerminal[];
   terminalOpen?: boolean;
   onToggleTerminal?: (fileId: string) => void;
+  onNewTerminal?: () => void;
+  onShowTerminal?: () => void;
+  projectTerminalActive?: boolean;
 }) {
   const [claude, setClaude] = useState<ProviderRateLimits>(() =>
     idleRateLimits("claude"),

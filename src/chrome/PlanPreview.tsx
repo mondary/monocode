@@ -10,6 +10,7 @@ type Props = {
   plan?: PlanBlockMeta;
   harness?: HarnessId;
   model?: string;
+  modelSettings?: Record<string, string>;
   onOpen?: () => void;
   onBuild?: (target?: PlanBuildTarget) => void;
 };
@@ -21,6 +22,7 @@ export function PlanPreview({
   plan,
   harness,
   model,
+  modelSettings,
   onOpen,
   onBuild,
 }: Props) {
@@ -114,6 +116,7 @@ export function PlanPreview({
                         onBuild({
                           harness: targetHarness,
                           model: targetModel,
+                          modelSettings: modelSettings ?? {},
                         })
                       }
                     />

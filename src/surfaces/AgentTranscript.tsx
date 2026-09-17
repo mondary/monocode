@@ -38,6 +38,10 @@ import { NoteMiniCard } from "../chrome/NoteMiniCard";
 import { TerminalSpinner } from "../chrome/TerminalSpinner";
 import type { ApprovalDecision } from "../lib/harness";
 import {
+  isHarnessAuthError,
+  supportsHarnessLogin,
+} from "../lib/harness/authSupport";
+import {
   isEditTool,
   isReadTool,
   isSearchTool,
@@ -85,7 +89,6 @@ import {
   needsApproval,
   nestedScrollAbsorbsWheel,
   proseSummary,
-  subagentFailureSummary,
   toolCallLabel,
   toolCallState,
   turnCopyText,
@@ -111,7 +114,6 @@ type Props = {
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onAddToChat?: (text: string) => void;
   onSaveNote?: (text: string) => void;
-  onSaveSelectionNote?: (text: string) => void;
   onOpenFile?: (path: string) => void;
   onOpenDiff?: (path: string) => void;
   onOpenPlan?: (blockId: string) => void;
@@ -129,7 +131,7 @@ type Props = {
 };
 
 function AgentTranscriptComponent({
-  blocks,
+  blocks: sourceBlocks,
   busy,
   cwd,
   harness,
@@ -138,7 +140,6 @@ function AgentTranscriptComponent({
   onApproval,
   onAddToChat,
   onSaveNote,
-  onSaveSelectionNote,
   onOpenFile,
   onOpenDiff,
   onOpenPlan,
@@ -151,6 +152,20 @@ function AgentTranscriptComponent({
   latestTurnAccessory,
   visible = true,
 }: Props) {
+  const blocks = useMemo(() => {
+    if (!harness || !supportsHarnessLogin(harness)) return sourceBlocks;
+    const visibleBlocks = sourceBlocks.filter(
+      (block) =>
+        !(
+          block.role === "system" &&
+          block.notice === "error" &&
+          isHarnessAuthError(block.text)
+        ),
+    );
+    return visibleBlocks.length === sourceBlocks.length
+      ? sourceBlocks
+      : visibleBlocks;
+  }, [harness, sourceBlocks]);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -162,8 +177,8 @@ function AgentTranscriptComponent({
   const [visibleTurnCount, setVisibleTurnCount] = useState(INITIAL_TURNS);
   // Turns whose folded work the reader has opened, by turn id.
   const [openWork, setOpenWork] = useState<Record<string, boolean>>({});
-  const toggleWork = useCallback((turnId: string, currentlyOpen: boolean) => {
-    setOpenWork((open) => ({ ...open, [turnId]: !currentlyOpen }));
+  const toggleWork = useCallback((turnId: string) => {
+    setOpenWork((open) => ({ ...open, [turnId]: !open[turnId] }));
   }, []);
   // Stretch the last turn after a send while this tab stays open. Closing
   // the tab is a new visit: the remount uses the true transcript height so
@@ -171,7 +186,7 @@ function AgentTranscriptComponent({
   const [anchorTurn, setAnchorTurn] = useState(!!busy);
   const { selection, dismissSelection } = useTranscriptSelection(
     scrollerEl,
-    onAddToChat !== undefined || onSaveSelectionNote !== undefined,
+    onAddToChat !== undefined,
   );
   const transcriptLayout = useTranscriptLayout();
   const promptAnchor = useTranscriptAnchor();
@@ -181,9 +196,7 @@ function AgentTranscriptComponent({
     seenUserId.current = lastUserId;
     if (lastUserId && !anchorTurn) setAnchorTurn(true);
   }
-  const currentModelName = harness
-    ? resolveModel(harness, model).name
-    : undefined;
+  const modelName = harness ? resolveModel(harness, model).name : undefined;
   const waitingForApproval = hasPendingApproval(blocks) || pendingQuestion;
   const preparingHandoff = blocks.some(
     (block) =>
@@ -394,39 +407,29 @@ function AgentTranscriptComponent({
                 (item) => item.type === "block" && isProseBlock(item.block),
               );
           const workStillRunning = activityStillRunning(turn);
-          // New turns carry immutable model provenance. Legacy turns do not,
-          // so omit their model instead of rewriting history from the picker.
-          const turnModel = userBlock?.turnModel;
           const turnHarness = harness
-            ? (turnModel?.harness ?? harnessForTurn(blocks, turn, harness))
+            ? harnessForTurn(blocks, turn, harness)
             : undefined;
           // Work the turn has already answered for folds away behind one line,
           // leaving the prompt and the answer to it.
           const turnId = turn[0].id;
           const fold = foldableWork(items);
+          const workOpen = !!openWork[turnId];
           const folded = fold ? foldedBlocks(items, fold) : [];
-          const subagentFailure = subagentFailureSummary(turn);
-          // Failures open once by default so their provider detail is not
-          // buried. An explicit click still lets the reader fold them away.
-          const workOpen = openWork[turnId] ?? !!subagentFailure;
           // The fold line is the turn's status line from the first token to
           // the last: the mark, and the clock beside it. It never moves, so a
           // turn settling does not shuffle the layout around the answer.
           const live = visible && !settled && !preparingHandoff;
-          const turnModelName =
-            turnModel?.name ?? (live ? currentModelName : undefined);
-          const foldTitle: ReactNode = subagentFailure ? (
-            subagentFailure
-          ) : live ? (
+          const foldTitle: ReactNode = live ? (
             <LiveFoldTitle
               startedAt={startedAt}
               paused={waitingForApproval}
               waitingLabel={pendingQuestion ? "Waiting for answers" : undefined}
               subagent={hasRunningSubagent(turn)}
-              modelName={turnModelName}
+              modelName={modelName}
             />
           ) : durationMs != null ? (
-            formatWorkingDuration(durationMs, true, false, turnModelName)
+            formatWorkingDuration(durationMs, true, false, modelName)
           ) : (
             workSummaryLine(folded)
           );
@@ -495,10 +498,9 @@ function AgentTranscriptComponent({
                 kind={workKind(folded)}
                 harness={turnHarness}
                 live={live}
-                failed={!!subagentFailure}
                 expandable={!!fold}
                 open={workOpen && !!fold}
-                onToggle={() => toggleWork(turnId, workOpen)}
+                onToggle={() => toggleWork(turnId)}
               />
             </TurnRow>
           );
@@ -554,7 +556,7 @@ function AgentTranscriptComponent({
                 <TurnDuration
                   elapsedMs={durationMs}
                   labelHidden={showFoldLine}
-                  modelName={turnModelName}
+                  modelName={modelName}
                   completedAt={
                     startedAt != null ? startedAt + durationMs : undefined
                   }
@@ -578,11 +580,10 @@ function AgentTranscriptComponent({
           );
         })}
       </div>
-      {onAddToChat || onSaveSelectionNote ? (
+      {onAddToChat ? (
         <TranscriptSelectionMenu
           selection={selection}
           onAddToChat={onAddToChat}
-          onAddToNotes={onSaveSelectionNote}
           onDismiss={dismissSelection}
         />
       ) : null}
@@ -1133,7 +1134,6 @@ function WorkFoldLine({
   kind,
   harness,
   live = false,
-  failed = false,
   expandable,
   open,
   onToggle,
@@ -1142,16 +1142,13 @@ function WorkFoldLine({
   kind: ActivityPhaseKind;
   harness?: HarnessId;
   live?: boolean;
-  failed?: boolean;
   expandable: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
   const icon = (
     <span className="relative flex size-3.5 shrink-0 items-center justify-center">
-      {failed ? (
-        <X className="size-3.5 shrink-0 text-red-400" strokeWidth={2} />
-      ) : open ? (
+      {open ? (
         // Open, the chevron stays put: it is the way back, and hunting for it
         // under the cursor is no way to close what you opened.
         <ChevronRight
@@ -1183,11 +1180,7 @@ function WorkFoldLine({
   );
   // While the agent runs, the clock shimmers here rather than at the bottom,
   // which is now bare.
-  const label = failed ? (
-    <span className="min-w-0 flex-1 truncate font-sans text-sm text-red-400">
-      {title}
-    </span>
-  ) : live ? (
+  const label = live ? (
     title
   ) : (
     <span className="min-w-0 flex-1 truncate font-sans text-sm text-content/50 transition-colors duration-200 group-hover:text-content/80">
@@ -1364,8 +1357,7 @@ function ActivityPhaseGroup({
 }) {
   const [override, setOverride] = useState<boolean | null>(null);
   const waiting = phase.steps.some(needsApproval);
-  const failed = !!subagentFailureSummary(phase.steps);
-  const open = waiting || (override ?? (active || failed));
+  const open = waiting || (override ?? active);
   const [liveScroller, setLiveScroller] = useState<HTMLDivElement | null>(null);
   useLivePhaseScroll(liveScroller, active && open, phase.steps);
   const title = activityPhaseTitle(phase, active);
@@ -1735,72 +1727,30 @@ function ActivityToolRow({
   onOpenFile?: (path: string) => void;
   onOpenDiff?: (path: string) => void;
 }) {
-  const [errorOpen, setErrorOpen] = useState(false);
   const label = toolCallLabel(block, cwd);
   const state = toolCallState(block);
   const pending = needsApproval(block);
-  const errorDetail =
-    !pending && state === "rejected" ? block.tool?.detail?.trim() : undefined;
-  const summary = (
-    <ToolCallSummary
-      label={label}
-      preview={block.tool?.preview}
-      cwd={cwd}
-      chip={bare}
-      failed={state === "rejected"}
-      status={state}
-      onOpenFile={onOpenFile}
-      onOpenDiff={onOpenDiff}
-    />
-  );
-
   return (
     <div className="flex min-w-0 flex-col">
-      {errorDetail ? (
-        <div
-          aria-label={`Failed tool call: ${label}`}
-          className="group flex min-w-0 items-center gap-1.5 py-1"
-        >
-          {bare ? null : <ActivityToolIcon state={state} live={live} />}
-          <div
-            className="flex min-w-0 flex-1 cursor-pointer"
-            onClick={() => setErrorOpen((value) => !value)}
-          >
-            {summary}
-          </div>
-          <ToolCallStatusIcon state={state} />
-          <button
-            type="button"
-            aria-expanded={errorOpen}
-            aria-label={`${errorOpen ? "Hide" : "Show"} error details for ${label}`}
-            onClick={() => setErrorOpen((value) => !value)}
-            className="-m-1 shrink-0 rounded p-1"
-          >
-            <ChevronRight
-              className={`size-3.5 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
-              strokeWidth={1.75}
-            />
-          </button>
-        </div>
-      ) : (
-        <div
-          aria-label={`Tool call: ${label}`}
-          className="flex min-w-0 items-center gap-1.5 py-1"
-        >
-          {bare ? null : <ActivityToolIcon state={state} live={live} />}
-          {summary}
-          {pending ? null : <ToolCallStatusIcon state={state} />}
-        </div>
-      )}
+      <div
+        aria-label={`Tool call: ${label}`}
+        className="flex min-w-0 items-center gap-1.5 py-1"
+      >
+        {bare ? null : <ActivityToolIcon state={state} live={live} />}
+        <ToolCallSummary
+          label={label}
+          preview={block.tool?.preview}
+          cwd={cwd}
+          chip={bare}
+          failed={state === "rejected"}
+          status={state}
+          onOpenFile={onOpenFile}
+          onOpenDiff={onOpenDiff}
+        />
+        {pending ? null : <ToolCallStatusIcon state={state} />}
+      </div>
       {pending ? (
         <ApprovalControls block={block} onApproval={onApproval} />
-      ) : null}
-      {errorOpen && errorDetail ? (
-        <pre
-          className={`min-w-0 whitespace-pre-wrap break-words py-1 font-mono text-[12px] leading-5 text-red-400/80 ${bare ? "" : "pl-5"}`}
-        >
-          {errorDetail}
-        </pre>
       ) : null}
     </div>
   );

@@ -15,7 +15,10 @@ import antigravity from "../assets/providers/antigravity.svg";
 import pi from "../assets/providers/pi.svg";
 import type { HarnessId } from "../lib/session";
 
-export const HARNESS_ICONS: Record<HarnessId, string> = {
+import hermes from "../assets/providers/hermes.svg";
+
+const HARNESS_ICONS: Record<HarnessId, string> = {
+  hermes,
   claude,
   codex,
   cursor,
