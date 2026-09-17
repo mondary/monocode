@@ -98,8 +98,8 @@ const COMPOSER_RUNNER_KEY = "monocode.composerRunner";
 export type ProjectTitleMode = "workspace" | "project";
 export const PROJECT_TITLE_MODE_CHANGE_EVENT = "monocode:project-title-mode-change";
 export function loadProjectTitleMode(): ProjectTitleMode {
-  try { return localStorage.getItem("monocode.projectTitleMode") === "project" ? "project" : "workspace"; }
-  catch { return "workspace"; }
+  try { return localStorage.getItem("monocode.projectTitleMode") === "workspace" ? "workspace" : "project"; }
+  catch { return "project"; }
 }
 export function saveProjectTitleMode(value: ProjectTitleMode): void {
   try { localStorage.setItem("monocode.projectTitleMode", value); } catch {}
