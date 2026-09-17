@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use serde_json::Value;
 use std::process::Command;
 use serde_json::Value;
 #[cfg(target_os = "macos")]
@@ -440,8 +441,8 @@ pub async fn codexbar_provider_list() -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let home = dirs_home().ok_or("Could not resolve the home directory")?;
         let path = Path::new(&home).join(".codexbar").join("config.json");
-        let raw =
-            std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|error| format!("{}: {error}", path.display()))?;
         let config: serde_json::Value =
             serde_json::from_str(&raw).map_err(|error| error.to_string())?;
         let providers = config
