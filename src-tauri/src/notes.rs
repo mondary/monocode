@@ -744,6 +744,7 @@ mod tests {
             tags: vec!["ideas".into()],
             source_session_id: Some("original-session".into()),
             source_cwd: Some("/work/Edefyn".into()),
+            auto_export: false,
         };
         let original = upsert_note(&conn, &input).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -756,6 +757,7 @@ mod tests {
                 tags: vec![],
                 source_session_id: None,
                 source_cwd: None,
+                auto_export: false,
             },
         )
         .unwrap();

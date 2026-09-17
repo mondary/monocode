@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from "react";
 import { FileTypeIcon } from "./FileTypeIcon";
+import { ExplorerMenu } from "./ExplorerMenu";
 import {
   GitHistoryGraph,
   GraphResizeSash,
@@ -39,6 +40,7 @@ import {
 import { GithubMark, GitlabMark } from "./InboxProviderMark";
 import {
   basename,
+  gitAddToGitignore,
   gitCommit,
   gitDiffIndex,
   gitDiscardAll,
@@ -52,6 +54,7 @@ import {
   gitUnstageAll,
   gitUnstageFile,
   notifyGitChanged,
+  revealPath,
   subscribeGitChanged,
   type GitChangedFile,
   type GitDiffIndex,
@@ -68,11 +71,17 @@ import {
 } from "../lib/appearance";
 import { generateCommitMessage, generatePrContent } from "../lib/harness";
 import { invalidateWatchedFiles } from "../lib/fileWatch";
-import { MOD } from "../lib/platform";
+import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
+import { joinPath } from "../lib/paths";
 import { applyProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 
 const GIT_POLL_MS = 2000;
+const REVEAL_LABEL = IS_MAC
+  ? "Reveal in Finder"
+  : IS_WIN
+    ? "Reveal in File Explorer"
+    : "Open Containing Folder";
 
 function confirmNative(message: string, okLabel?: string): Promise<boolean> {
   return ask(message, {
@@ -369,6 +378,24 @@ function ChangedFiles({
 
   const fail = (error: unknown) => {
     window.alert(error instanceof Error ? error.message : String(error));
+  };
+
+  const addToGitignore = async (file: GitChangedFile) => {
+    if (busy) return;
+    setBusy(file.relative);
+    try {
+      const result = await gitAddToGitignore(cwd, file.relative);
+      if (result.tracked) {
+        window.alert(
+          `${basename(file.relative)} is already tracked by Git. It was added to .gitignore, but Git will continue to include changes to this file until it is untracked.`,
+        );
+      }
+      onMutated([file.path, joinPath(cwd, ".gitignore")]);
+    } catch (error) {
+      fail(error);
+    } finally {
+      setBusy(null);
+    }
   };
 
   const recordPrActivity = (number = pr?.number) => {
@@ -684,6 +711,7 @@ function ChangedFiles({
                 ]}
               >
                 <ChangeList
+                  cwd={cwd}
                   files={staged}
                   view={view}
                   kind="staged"
@@ -692,6 +720,7 @@ function ChangedFiles({
                   busy={busy}
                   onOpenFile={onOpenFile}
                   onAction={run}
+                  onAddToGitignore={addToGitignore}
                 />
               </FileSection>
             ) : null}
@@ -725,6 +754,7 @@ function ChangedFiles({
                 ]}
               >
                 <ChangeList
+                  cwd={cwd}
                   files={unstaged}
                   view={view}
                   kind="unstaged"
@@ -733,6 +763,7 @@ function ChangedFiles({
                   busy={busy}
                   onOpenFile={onOpenFile}
                   onAction={run}
+                  onAddToGitignore={addToGitignore}
                 />
               </FileSection>
             ) : null}
@@ -1027,6 +1058,7 @@ type ChangeDir = {
 };
 
 type ChangeRowProps = {
+  cwd: string;
   files: GitChangedFile[];
   view: ChangesView;
   kind: GitFileDiffKind;
@@ -1038,6 +1070,7 @@ type ChangeRowProps = {
     file: GitChangedFile,
     action: "stage" | "unstage" | "discard",
   ) => void;
+  onAddToGitignore: (file: GitChangedFile) => Promise<void>;
 };
 
 function ChangeList({ files, view, ...rest }: ChangeRowProps) {
@@ -1056,6 +1089,7 @@ function ChangeList({ files, view, ...rest }: ChangeRowProps) {
           kind={rest.kind}
           onOpenFile={rest.onOpenFile}
           onAction={rest.onAction}
+          onAddToGitignore={rest.onAddToGitignore}
         />
       ))}
     </>
@@ -1066,11 +1100,13 @@ function ChangeDirChildren({
   dir,
   depth,
   kind,
+  cwd,
   selected,
   selectedKind,
   busy,
   onOpenFile,
   onAction,
+  onAddToGitignore,
 }: Omit<ChangeRowProps, "files" | "view"> & {
   dir: ChangeDir;
   depth: number;
@@ -1086,8 +1122,10 @@ function ChangeDirChildren({
           selected={selected}
           selectedKind={selectedKind}
           busy={busy}
+          cwd={cwd}
           onOpenFile={onOpenFile}
           onAction={onAction}
+          onAddToGitignore={onAddToGitignore}
         />
       ))}
       {dir.files.map((file) => (
@@ -1100,6 +1138,7 @@ function ChangeDirChildren({
           depth={depth}
           onOpenFile={onOpenFile}
           onAction={onAction}
+          onAddToGitignore={onAddToGitignore}
         />
       ))}
     </>
@@ -1229,6 +1268,7 @@ function ChangeRow({
   depth,
   onOpenFile,
   onAction,
+  onAddToGitignore,
 }: {
   file: GitChangedFile;
   active: boolean;
@@ -1241,15 +1281,22 @@ function ChangeRow({
     file: GitChangedFile,
     action: "stage" | "unstage" | "discard",
   ) => void;
+  onAddToGitignore: (file: GitChangedFile) => Promise<void>;
 }) {
   const name = basename(file.relative);
   const tree = depth !== undefined;
   const dir = tree ? "" : dirname(file.relative);
   const canOpen = file.status !== "deleted";
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   return (
     <li>
       <div
         style={tree ? { paddingLeft: 8 + depth * 12 } : undefined}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
         className={`group flex h-7 w-full items-center gap-1 pr-2 leading-none ${
           tree ? "" : "pl-2"
         } ${
@@ -1313,6 +1360,43 @@ function ChangeRow({
           {statusLetter(file.status)}
         </span>
       </div>
+      {menu ? (
+        <ExplorerMenu
+          x={menu.x}
+          y={menu.y}
+          ariaLabel={`${name} file actions`}
+          items={[
+            {
+              kind: "item",
+              id: "reveal",
+              label: REVEAL_LABEL,
+              disabled: !canOpen,
+            },
+            { kind: "sep" },
+            {
+              kind: "item",
+              id: "gitignore",
+              label: "Add to .gitignore",
+              description:
+                file.status === "untracked"
+                  ? "Hide this file from future changes"
+                  : "Does not hide an already tracked file",
+              disabled: file.status === "deleted" || busy,
+            },
+          ]}
+          onPick={(id) => {
+            setMenu(null);
+            if (id === "reveal") {
+              void revealPath(file.path).catch((error: unknown) => {
+                window.alert(error instanceof Error ? error.message : String(error));
+              });
+            } else if (id === "gitignore") {
+              void onAddToGitignore(file);
+            }
+          }}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </li>
   );
 }

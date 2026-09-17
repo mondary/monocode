@@ -15,7 +15,7 @@ case "$variant" in
     ;;
 esac
 
-project_dir="$(cd "$(dirname "$0")/.." && pwd)"
+project_dir="${PK_UPDATE_PROJECT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 log_file="${PK_RUNTIME_DIR:-$project_dir/runtime}/pk-update.log"
 mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
@@ -57,11 +57,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-# Commits PK poussés depuis une autre machine: les intégrer avant le build.
-# L'amont officiel n'est pas fusionné automatiquement : le fork diverge sur
-# des fichiers structurants, et un merge non compilé ne doit jamais remplacer
-# l'application quotidienne. L'intégration upstream se fait dans perso/pk,
-# puis le build stable ne consomme que cette branche validée.
+# Commits PK poussés depuis une autre machine: les intégrer avant l'amont.
 source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
 git fetch -q origin "$source_branch" 2>/dev/null || true
 if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
@@ -69,6 +65,31 @@ if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0
     echo "La branche stable n'est pas un descendant de origin/$source_branch: synchronisation refusée." >&2
     notify "Branche stable divergente: mise à jour PKmod annulée, voir pk-update.log"
     exit 1
+  fi
+fi
+
+# The stable checkout already contains the validated PK changes. Pull the
+# official branch into that checkout as well, then rebuild the combined tree.
+# Any real source conflict aborts and restores the checkout instead of
+# producing a half-updated application.
+git fetch -q upstream main
+if [ "$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo 0)" -gt 0 ]; then
+  if ! git merge --no-edit upstream/main; then
+    while IFS= read -r conflict; do
+      case "$conflict" in
+        Cargo.lock|package-lock.json)
+          git checkout --theirs -- "$conflict"
+          git add -- "$conflict"
+          ;;
+      esac
+    done < <(git diff --name-only --diff-filter=U)
+    if test -n "$(git diff --name-only --diff-filter=U)"; then
+      echo "Conflits irrésolubles sur: $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >&2
+      git merge --abort
+      notify "Conflit upstream: mise à jour PKmod annulée, voir pk-update.log"
+      exit 1
+    fi
+    git commit --no-edit
   fi
 fi
 

@@ -77,7 +77,8 @@ import { SettingsNav } from "./SettingsRail";
 import { Shimmer } from "../surfaces/Shimmer";
 import { TabGroupMenu, type TabGroupMenuExtraItem } from "./TabGroupMenu";
 import { TerminalSpinner } from "./TerminalSpinner";
-import type { SettingsSectionId } from "../lib/settings";
+import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
+import type { ProjectSortMode, SettingsSectionId } from "../lib/settings";
 import {
   DONE_CHECK_SIDE_CHANGE_EVENT,
   loadDoneCheckSide,
@@ -86,6 +87,7 @@ import {
   PROJECT_ACTIVITY_CHANGE_EVENT,
   loadProjectSort,
   PROJECT_SORT_CHANGE_EVENT,
+  saveProjectSort,
 } from "../lib/settings";
 import {
   BUSY_GLOW_CHANGE_EVENT,
@@ -98,6 +100,27 @@ const REVEAL_LABEL = IS_MAC
   : IS_WIN
     ? "Reveal in File Explorer"
     : "Open Containing Folder";
+
+const PROJECT_SORT_OPTIONS: {
+  id: ProjectSortMode;
+  label: string;
+  description: string;
+}[] = [
+  { id: "manual", label: "Manual order", description: "Keep the drag order" },
+  { id: "recent", label: "Recent", description: "Most recently opened" },
+  { id: "alphabetical", label: "A–Z", description: "Sort by project name" },
+  { id: "unpushed", label: "Unpushed", description: "Most unpushed commits" },
+];
+
+function projectSortItems(value: ProjectSortMode): ExplorerMenuItem[] {
+  return PROJECT_SORT_OPTIONS.map((option) => ({
+    kind: "item" as const,
+    id: option.id,
+    label: option.label,
+    description: option.description,
+    checked: option.id === value,
+  }));
+}
 
 function remoteWebUrl(remote: string): string | null {
   const value = remote.trim();
@@ -238,6 +261,10 @@ export function ProjectRail({
     path: string;
     projectKey: string;
     remoteUrl: string | null;
+  } | null>(null);
+  const [projectSortMenu, setProjectSortMenu] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
   const [removing, setRemoving] = useState<{
     path: string;
@@ -399,12 +426,15 @@ export function ProjectRail({
   }, [allProjects]);
 
   useEffect(() => {
-    if (!projectMenu) return;
-    const onScroll = () => setProjectMenu(null);
+    if (!projectMenu && !projectSortMenu) return;
+    const onScroll = () => {
+      setProjectMenu(null);
+      setProjectSortMenu(null);
+    };
     const scrollParent = scrollRef.current ?? window;
     scrollParent.addEventListener("scroll", onScroll, true);
     return () => scrollParent.removeEventListener("scroll", onScroll, true);
-  }, [projectMenu]);
+  }, [projectMenu, projectSortMenu]);
 
   const openProjectMenu = (path: string, x: number, y: number) => {
     setProjectMenu({
@@ -430,6 +460,21 @@ export function ProjectRail({
     event.preventDefault();
     event.stopPropagation();
     openProjectMenu(path, event.clientX, event.clientY);
+  };
+
+  const onProjectSortContextMenu = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setProjectMenu(null);
+    setProjectSortMenu({ x: event.clientX, y: event.clientY });
+  };
+
+  const onProjectSortPick = (id: string) => {
+    if (!PROJECT_SORT_OPTIONS.some((option) => option.id === id)) return;
+    const next = id as ProjectSortMode;
+    saveProjectSort(next);
+    setProjectSort(next);
+    setProjectSortMenu(null);
   };
 
   const onProjectRename = (projectKey: string, label: string) => {
@@ -681,6 +726,7 @@ export function ProjectRail({
               onSelect={onSelectProject}
               onTogglePin={onTogglePin}
               onContextMenu={onProjectContextMenu}
+              onHeaderContextMenu={onProjectSortContextMenu}
               onOpenMenu={openProjectMenu}
               groupLabels={groupLabels}
               groupColors={groupColors}
@@ -763,6 +809,16 @@ export function ProjectRail({
             projectMenu.remoteUrl,
           )}
           onExtraPick={onProjectMenuPick}
+        />
+      ) : null}
+      {projectSortMenu ? (
+        <ExplorerMenu
+          x={projectSortMenu.x}
+          y={projectSortMenu.y}
+          items={projectSortItems(projectSort)}
+          ariaLabel="Project list order"
+          onPick={onProjectSortPick}
+          onClose={() => setProjectSortMenu(null)}
         />
       ) : null}
       {removing ? (
@@ -1013,6 +1069,7 @@ function ProjectSection({
   onSelect,
   onTogglePin,
   onContextMenu,
+  onHeaderContextMenu,
   onOpenMenu,
   groupLabels,
   groupColors,
@@ -1036,6 +1093,7 @@ function ProjectSection({
   onSelect: (path: string) => void;
   onTogglePin: (path: string) => void;
   onContextMenu: (path: string, event: MouseEvent<HTMLElement>) => void;
+  onHeaderContextMenu?: (event: MouseEvent<HTMLElement>) => void;
   onOpenMenu: (path: string, x: number, y: number) => void;
   groupLabels: Record<string, string>;
   groupColors: Record<string, number>;
@@ -1046,7 +1104,10 @@ function ProjectSection({
 }) {
   return (
     <div className="shrink-0 mb-2">
-      <div className="flex items-center gap-1 px-3 pb-1.5 pt-1">
+      <div
+        className="flex items-center gap-1 px-3 pb-1.5 pt-1"
+        onContextMenu={onHeaderContextMenu}
+      >
         <span className="min-w-0 flex-1 truncate px-1 text-xs text-content/50">
           {label}
         </span>

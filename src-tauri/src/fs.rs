@@ -646,6 +646,30 @@ pub async fn git_stage_file(cwd: String, relative: String) -> Result<(), String>
         .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIgnoreResult {
+    pub relative: String,
+    pub added: bool,
+    pub tracked: bool,
+}
+
+/// Add one repository-relative path to the root .gitignore without duplicating
+/// an existing exact entry. Tracked files remain tracked by Git; callers can
+/// surface that distinction instead of implying that .gitignore rewrites the
+/// repository index.
+#[tauri::command]
+pub async fn git_add_to_gitignore(
+    cwd: String,
+    relative: String,
+) -> Result<GitIgnoreResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        git_add_to_gitignore_for(&expand_home(&cwd), &relative)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Write `contents` into the index for one path, leaving the working tree alone.
 #[tauri::command]
 pub async fn git_stage_contents(
@@ -1804,6 +1828,42 @@ fn git_commit_file_diff_for(root: &Path, sha: &str, relative: &str) -> Result<Gi
 fn git_stage_file_for(root: &Path, relative: &str) -> Result<(), String> {
     let relative = resolve_repo_path(root, relative)?;
     git_checked(root, &["add", "--", &relative])
+}
+
+fn git_add_to_gitignore_for(root: &Path, relative: &str) -> Result<GitIgnoreResult, String> {
+    if !git_is_work_tree(root) {
+        return Err("Not a git repository".into());
+    }
+    let relative = resolve_repo_path(root, relative)?;
+    let tracked = git_checked(root, &["ls-files", "--error-unmatch", "--", &relative]).is_ok();
+    let ignore_path = root.join(".gitignore");
+    let mut contents = if ignore_path.exists() {
+        std::fs::read_to_string(&ignore_path).map_err(|e| e.to_string())?
+    } else {
+        String::new()
+    };
+    let entry = format!("/{relative}");
+    let already_present = contents.lines().any(|line| {
+        let line = line.trim();
+        line == entry || line == relative
+    });
+    let added = !already_present;
+    if added {
+        if !contents.is_empty() && !contents.ends_with('\n') {
+            contents.push('\n');
+        }
+        contents.push_str(&entry);
+        contents.push('\n');
+        let path = ignore_path
+            .to_str()
+            .ok_or_else(|| "Invalid .gitignore path".to_string())?;
+        write_text_file_sync(path, &contents)?;
+    }
+    Ok(GitIgnoreResult {
+        relative,
+        added,
+        tracked,
+    })
 }
 
 fn git_stage_contents_for(root: &Path, relative: &str, contents: &[u8]) -> Result<(), String> {
@@ -5322,6 +5382,52 @@ mod tests {
             }
         }
         git(dir, &["add", "."]) && git(dir, &["commit", "-m", "init"])
+    }
+
+    #[test]
+    fn git_add_to_gitignore_appends_an_anchored_entry_once() {
+        let dir = tmp("gitignore-entry");
+        if !init_git_commit(&dir.0, &[("tracked.txt", "tracked\n")]) {
+            return;
+        }
+        std::fs::write(dir.0.join("generated.txt"), "generated\n").unwrap();
+
+        let first = git_add_to_gitignore_for(&dir.0, "generated.txt").unwrap();
+        assert_eq!(
+            first,
+            GitIgnoreResult {
+                relative: "generated.txt".into(),
+                added: true,
+                tracked: false,
+            }
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.0.join(".gitignore")).unwrap(),
+            "/generated.txt\n"
+        );
+
+        let second = git_add_to_gitignore_for(&dir.0, "generated.txt").unwrap();
+        assert!(!second.added);
+        assert_eq!(
+            std::fs::read_to_string(dir.0.join(".gitignore")).unwrap(),
+            "/generated.txt\n"
+        );
+    }
+
+    #[test]
+    fn git_add_to_gitignore_reports_tracked_files() {
+        let dir = tmp("gitignore-tracked");
+        if !init_git_commit(&dir.0, &[("tracked.txt", "tracked\n")]) {
+            return;
+        }
+
+        let result = git_add_to_gitignore_for(&dir.0, "tracked.txt").unwrap();
+        assert!(result.added);
+        assert!(result.tracked);
+        assert_eq!(
+            std::fs::read_to_string(dir.0.join(".gitignore")).unwrap(),
+            "/tracked.txt\n"
+        );
     }
 
     #[test]

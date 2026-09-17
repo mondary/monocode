@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use tauri::Manager;
 
 mod chat_background;
@@ -215,8 +217,8 @@ fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn pk_upstream_info() -> Result<String, String> {
-    let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+fn pk_upstream_info(app: tauri::AppHandle) -> Result<String, String> {
+    let project_dir = pk_update_project_dir(&app);
     // Reports both update axes of the PK fork in one shot:
     //   - upstream: official release version not yet represented by the fork
     //   - origin:   PK commits pushed from another machine (pkbehind) and
@@ -226,7 +228,11 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 source_branch=perso/pk
 ahead=0
 if [ "$branch" != "stable/pk" ]; then
-  ahead=$(git rev-list --count "origin/$source_branch..HEAD" 2>/dev/null || echo 0)
+  # Exclude official commits from the local PK count. A development checkout
+  # is normally based on upstream as well as the PK branch, so counting the
+  # raw ancestry made upstream releases look like hundreds of unpushed PK
+  # commits.
+  ahead=$(git rev-list --count "origin/$source_branch..HEAD" --not upstream/main 2>/dev/null || echo 0)
 fi
 git fetch -q upstream
 git fetch -q origin "$source_branch" 2>/dev/null || true
@@ -244,7 +250,7 @@ git log --oneline -12 "HEAD..origin/$source_branch" 2>/dev/null || true
     let output = std::process::Command::new("bash")
         .arg("-c")
         .arg(script)
-        .current_dir(project_dir)
+        .current_dir(&project_dir)
         .output()
         .map_err(|error| error.to_string())?;
     if !output.status.success() {
@@ -265,6 +271,7 @@ fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
     std::process::Command::new("bash")
         .arg(script)
         .arg(variant)
+        .env("PK_UPDATE_PROJECT_DIR", pk_update_project_dir(&app))
         .spawn()
         .map(|_| {
             // Keep the in-app "update launched" dialog visible long enough to be read.
@@ -272,6 +279,29 @@ fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
             app.exit(0);
         })
         .map_err(|error| error.to_string())
+}
+
+/// A stable app can be built from the development checkout while iterating,
+/// but its update operation must target the sibling stable worktree. The
+/// bundle therefore carries the source path at compile time and resolves the
+/// correct checkout from the app variant at runtime.
+fn pk_update_project_dir(app: &tauri::AppHandle) -> PathBuf {
+    let source = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+    if app.config().identifier.ends_with(".dev") {
+        return source;
+    }
+    let stable = source.with_file_name(format!(
+        "{}-stable",
+        source
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("monocodePK")
+    ));
+    if stable.join(".git").exists() {
+        stable
+    } else {
+        source
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -350,6 +380,7 @@ pub fn run() {
             fs::git_commit_files,
             fs::git_commit_file_diff,
             fs::git_stage_file,
+            fs::git_add_to_gitignore,
             fs::git_stage_contents,
             fs::git_unstage_file,
             fs::git_discard_file,
