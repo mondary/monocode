@@ -38,9 +38,11 @@ mkdir -p "$build_dir"
 # Prefere un certificat reel du trousseau; fallback ad-hoc sinon.
 sign_identity="${PK_SIGN_IDENTITY:-}"
 if [[ -z "$sign_identity" ]]; then
+  # Pas de certificat sur la machine (CI) : le pipeline echoue, on retombe
+  # sur la signature ad-hoc definie plus bas.
   sign_identity=$(
-    security find-identity -v -p codesigning 2>/dev/null |
-      grep -E '"(Apple Development|Developer ID Application|monocodePK)' |
+    (security find-identity -v -p codesigning 2>/dev/null || true) |
+      (grep -E '"(Apple Development|Developer ID Application|monocodePK)' || true) |
       head -1 | sed 's/.*"\(.*\)".*/\1/'
   )
 fi
