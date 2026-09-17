@@ -55,8 +55,6 @@ jobs:
         run: npm run build:pk
 
       - name: Package styled DMG
-        env:
-          PK_RELEASE_DIR: ${{ github.workspace }}/releases
         run: npm run package:pk:dmg
 
       - name: Verify DMG contents
