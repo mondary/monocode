@@ -62,6 +62,20 @@ MonoCode PK garde **tout MonoCode officiel** (intégration validée de l'amont, 
 ## ⚙️ Réglages
 - Tout se règle dans Settings : thème, raccourcis, position du dock terminal, footer usage (*Current chat* / *Choose*), glow des projets en travail, options Explorer, initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.
 
+## 📦 Installation
+
+**Homebrew** (Apple Silicon) :
+
+```bash
+brew install --cask mondary/tap/monocode-pk
+```
+
+Mise à jour : `brew upgrade --cask mondary/tap/monocode-pk`
+
+**DMG signé** : télécharger [MonoCodePK_2026.09.39_aarch64.dmg](https://github.com/mondary/monocode/releases/latest), ouvrir et glisser MonoCode PK dans Applications. Chaque release PK publie son DMG sur [GitHub Releases](https://github.com/mondary/monocode/releases) (tag `pk-<version>`).
+
+**Depuis les sources** : `npm run build:pk` installe `/Applications/MonoCodePK.app`.
+
 ## 📦 Build & Package
 
 - `npm run build:pk` — build release avec overlay de branding PK (`tauri.conf.json` identique à l'amont, zéro conflit de merge), installe `/Applications/MonoCodePK.app` (identifiant dédié `com.monocode.pk`, signature Apple Development stable).
