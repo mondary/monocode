@@ -51,12 +51,6 @@ notify() {
 cd "$project_dir"
 echo "--- sync variant=$variant $(date) ---"
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Arbre de travail non propre: mise à jour abandonnée (commiter ou stasher d'abord)." >&2
-  notify "Arbre non propre: mise à jour PKmod annulée, voir pk-update.log"
-  exit 1
-fi
-
 # Commits PK poussés depuis une autre machine: les intégrer avant le build.
 # L'amont officiel n'est pas fusionné automatiquement : le fork diverge sur
 # des fichiers structurants, et un merge non compilé ne doit jamais remplacer
@@ -64,6 +58,31 @@ fi
 # puis le build stable ne consomme que cette branche validée.
 source_branch="${PK_UPDATE_BRANCH:-perso/pk}"
 git fetch -q origin "$source_branch" 2>/dev/null || true
+
+# Un arbre sale (WIP en cours) ne doit plus bloquer l'update : on stash
+# tout (y compris les non-suivis), on met à jour, puis on restaure. Un
+# stash non restaurable est signalé mais n'annule pas la mise à jour.
+stashed=0
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then
+  if git stash push --include-untracked -m "pk-update auto-stash $(date '+%d/%m %H:%M')"; then
+    stashed=1
+    echo "Arbre sale: WIP mis de côté (stash), restauration après update."
+  else
+    echo "Stash impossible: mise à jour abandonnée." >&2
+    notify "Arbre non propre: mise à jour PKmod annulée, voir pk-update.log"
+    exit 1
+  fi
+fi
+restore_stash() {
+  if [ "$stashed" = 1 ]; then
+    if ! git stash pop; then
+      echo "Conflits en restaurant le WIP (git stash pop): résoudre manuellement." >&2
+      notify "WIP en conflit après update: résous avec git stash pop"
+    fi
+  fi
+}
+trap restore_stash EXIT
+
 if [ "$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0)" -gt 0 ]; then
   if ! git merge --ff-only "origin/$source_branch"; then
     echo "La branche stable n'est pas un descendant de origin/$source_branch: synchronisation refusée." >&2
