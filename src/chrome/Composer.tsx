@@ -107,9 +107,7 @@ import { consumeQuoteRequest, type QuoteRequest } from "../lib/quoteDraft";
 import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   COMPOSER_RUNNER_CHANGE_EVENT,
-  FOLLOW_UP_BEHAVIOR_CHANGE_EVENT,
   loadComposerRunner,
-  loadFollowUpBehavior,
   loadNotesEnabled,
   subscribeNotesEnabled,
   type FollowUpBehavior,
@@ -491,8 +489,6 @@ export function Composer({
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [runnerEnabled, setRunnerEnabled] = useState(loadComposerRunner);
-  const [followUpChoice, setFollowUpChoice] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [runnerLive, setRunnerLive] = useState(
     () => busy && loadComposerRunner(),
   );
@@ -632,13 +628,6 @@ export function Composer({
     window.addEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
     return () =>
       window.removeEventListener(COMPOSER_RUNNER_CHANGE_EVENT, refresh);
-  }, []);
-
-  useEffect(() => {
-    const refresh = () => setFollowUpChoice(loadFollowUpBehavior());
-    window.addEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
-    return () =>
-      window.removeEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
   }, []);
 
   useEffect(() => {
@@ -1537,7 +1526,6 @@ export function Composer({
               <ComposerAction
                 busy={busy}
                 hasValue={hasValue}
-                choice={followUpChoice === "choice"}
                 onSend={(behavior) =>
                   submit(ref.current?.value ?? "", behavior)
                 }
@@ -1630,18 +1618,18 @@ function MentionRuns({
 function ComposerAction({
   busy,
   hasValue,
-  choice,
   onSend,
   onStop,
 }: {
   busy: boolean;
   hasValue: boolean;
-  choice: boolean;
   onSend: (behavior?: FollowUpBehavior) => void;
   onStop: () => void;
 }) {
   if (busy) {
-    if (hasValue && choice) {
+    if (hasValue) {
+      // Deux envois toujours visibles : steer coupe le tour en cours, queue
+      // met a la suite. Entree suit le comportement par defaut des reglages.
       return (
         <>
           <button
