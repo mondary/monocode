@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.40] - 2026-09-17
+
+### Changed
+
+- L'onglet sélectionné porte une barre d'accent en haut : le glow de travail (bas) ne masque plus la sélection.
+- Le nom du projet s'affiche par défaut dans le header au lieu de « Workspace ».
+- Le composeur grandit ligne par ligne jusqu'à ~10 lignes puis défile, avec le texte rendu synchronisé.
+- Les instructions d'installation (Homebrew, DMG) sont documentées dans le README.
+
+### Fixed
+
+- L'update in-app stash et restaure le WIP au lieu d'abandonner sur un arbre de travail non propre.
+
 ## [0.1.46] - 2026-09-15
 
 ### Changed
