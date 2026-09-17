@@ -533,6 +533,63 @@ export function parseOpencodeGoUsage(result: unknown): ProviderRateLimits {
   };
 }
 
+export function parseCodexBarUsage(body: string): ProviderRateLimits[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return [];
+  }
+  const records = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(asRecord(parsed)?.providers)
+      ? (asRecord(parsed)?.providers as unknown[])
+      : [parsed];
+  return records.flatMap((value) => {
+    const record = asRecord(value);
+    const usage = asRecord(record?.usage) ?? record;
+    const provider =
+      stringField(record, "provider") ??
+      stringField(record, "providerId") ??
+      stringField(record, "id");
+    if (!provider || !usage) return [];
+    const windows = [
+      mapCodexBarWindow(usage.primary),
+      mapCodexBarWindow(usage.secondary),
+      mapCodexBarWindow(usage.tertiary),
+    ].filter((window): window is RateLimitWindow => window != null);
+    if (windows.length === 0) return [];
+    return [{
+      provider,
+      session: windows[0] ?? null,
+      weekly: windows[1] ?? null,
+      monthly: windows[2] ?? null,
+      resetCredits: null,
+      updatedAt: Date.now(),
+      error: null,
+      status: "ok",
+    }];
+  });
+}
+function mapCodexBarWindow(value: unknown): RateLimitWindow | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const used =
+    numberField(record, "usedPercent") ??
+    numberField(record, "used_percentage") ??
+    numberField(record, "utilization");
+  if (used == null) return null;
+  const duration =
+    numberField(record, "windowMinutes") ??
+    numberField(record, "windowDurationMins") ??
+    SESSION_WINDOW_MINUTES;
+  return {
+    usedPercent: clampUsedPercent(used),
+    windowMinutes: duration,
+    resetsAt: parseResetTimestamp(record.resetsAt ?? record.resets_at),
+  };
+}
+
 function mapOpencodeGoWindow(
   raw: unknown,
   windowMinutes: number,

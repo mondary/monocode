@@ -1,4 +1,4 @@
-import { ALT, IS_MAC, IS_WIN, MOD, SHIFT } from "./platform";
+import { ALT, IS_WIN, MOD } from "./platform";
 
 const SECTION_KEY = "monocode.settingsSection";
 
@@ -514,7 +514,7 @@ export const FOLLOW_UP_BEHAVIOR_CHANGE_EVENT =
 export function loadFollowUpBehavior(): FollowUpBehavior {
   try {
     const raw = localStorage.getItem(FOLLOW_UP_BEHAVIOR_KEY);
-    return raw === "queue" || raw === "steer" || raw === "choice"
+    return raw === "queue" || raw === "steer"
       ? raw
       : FOLLOW_UP_BEHAVIOR_DEFAULT;
   } catch {

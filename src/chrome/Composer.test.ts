@@ -23,13 +23,14 @@ function renderAction(busy: boolean, hasValue: boolean) {
 }
 
 describe("ComposerAction", () => {
-  it("replaces Stop with Send when typing during a running turn", () => {
+  it("shows Steer and Queue when typing during a running turn", () => {
     const empty = renderAction(true, false);
     expect(empty).toContain('aria-label="Stop"');
-    expect(empty).not.toContain('aria-label="Send"');
+    expect(empty).not.toContain('aria-label="Steer"');
 
     const typed = renderAction(true, true);
-    expect(typed).toContain('aria-label="Send"');
+    expect(typed).toContain('aria-label="Steer"');
+    expect(typed).toContain('aria-label="Queue"');
     expect(typed).toContain("composer-send");
     expect(typed).toContain("primary-action");
     expect(typed).not.toContain('aria-label="Stop"');

@@ -17,7 +17,7 @@ import type { HarnessId } from "../lib/session";
 
 import hermes from "../assets/providers/hermes.svg";
 
-const HARNESS_ICONS: Record<HarnessId, string> = {
+export const HARNESS_ICONS: Record<HarnessId, string> = {
   hermes,
   claude,
   codex,
@@ -121,7 +121,30 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
-  const icon = HARNESS_ICONS[harness];
+
+  if (harness === "hermes") {
+    return (
+      <span
+        aria-hidden
+        className={`inline-flex items-center justify-center ${className}`}
+      >
+        <span
+          className="block size-[72%] bg-current"
+          style={{
+            maskImage: `url(${hermes})`,
+            maskPosition: "center",
+            maskRepeat: "no-repeat",
+            maskSize: "contain",
+            WebkitMaskImage: `url(${hermes})`,
+            WebkitMaskPosition: "center",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskSize: "contain",
+          }}
+        />
+      </span>
+    );
+  }
+   const icon = HARNESS_ICONS[harness];
   if (!icon) {
     // Custom providers have no brand asset: initial letter chip.
     const letter = harness

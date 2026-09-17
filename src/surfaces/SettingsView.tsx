@@ -36,10 +36,6 @@ import {
   type ReactNode,
 } from "react";
 import { HarnessIcon } from "../chrome/HarnessIcon";
-import {
-  ColorPickerPopover,
-  ColorSwatchRow,
-} from "../chrome/ColorPickerPopover";
 import { Popover } from "../chrome/Popover";
 import { SecondaryButton } from "../chrome/SecondaryButton";
 import { InboxProviderMark } from "../chrome/InboxProviderMark";
@@ -61,7 +57,6 @@ import {
   applyThemeDarkLightness,
   applyThemeTint,
   BODY_GLASS_DEFAULT,
-  ACCENT_COLOR_DEFAULT,
   CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT,
   CHAT_BACKGROUND_OPACITY_MAX,
   CHAT_BACKGROUND_OPACITY_MIN,
@@ -86,7 +81,6 @@ import {
   loadTranscriptLayout,
   loadTranscriptAnchor,
   saveBodyGlass,
-  saveAccentColor,
   saveChatBackgroundEmptyOpacity,
   saveChatBackgroundPath,
   saveChatBackgroundSessionOpacity,
@@ -231,8 +225,6 @@ import {
   buildKeybindingRows,
   filterKeybindings,
   loadClaudeHooks,
-  loadCloseToTray,
-  loadComposerEffortVisible,
   loadComposerRunner,
   loadDiffViewer,
   loadFollowUpBehavior,
@@ -254,8 +246,6 @@ import {
   loadNotesEnabled,
   loadNotesAutoExport,
   saveClaudeHooks,
-  saveCloseToTray,
-  saveComposerEffortVisible,
   saveComposerRunner,
   saveDiffViewer,
   saveFollowUpBehavior,
@@ -269,6 +259,7 @@ import {
   type FollowUpBehavior,
   type SettingsSearchResult,
   type SettingsSectionId,
+  searchSettings,
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
 import {
@@ -300,6 +291,12 @@ import {
 
 import { SkillsPage } from "./SkillsPage";
 import { PK_VERSION } from "../lib/pkVersion";
+import {
+  loadThemeDarkLightness,
+  saveAccentColor,
+  saveThemeDarkLightness,
+  applyAccentColor,
+} from "../lib/appearance";
 import { usePkVariant } from "../lib/pkVariant";
 
 /**
@@ -342,7 +339,7 @@ export function SettingsView({
   anchor = null,
   notificationProjectPath = null,
   notificationSettingsRequest = 0,
-  recents,
+  // recents,
   cwd,
   projectCwd,
   sessions,
@@ -464,7 +461,9 @@ export function SettingsView({
           ) : null}
           {section === "keybindings" ? <KeybindingsPage /> : null}
           {section === "providers" ? <ProvidersPage /> : null}
-          {section === "inbox" ? <InboxPage /> : null}
+          {section === "inbox" ? (
+            <InboxPage />
+          ) : null}
           {section === "skills" ? (
             <SkillsPage key={projectCwd ?? cwd} cwd={projectCwd ?? cwd} />
           ) : null}
@@ -643,6 +642,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [usageProviderList, setUsageProviderList] = useState<string[] | null>(
     null,
   );
+  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [notesAutoExport, setNotesAutoExport] = useState(loadNotesAutoExport);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
@@ -654,11 +654,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   );
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission>(cachedNotificationPermission);
-  const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
-  const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
-    loadLiveAgentsEnabled,
-  );
-  const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
 
   const [explorerShowChanges, setExplorerShowChanges] = useState(
     loadExplorerShowChanges,
@@ -679,131 +674,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     return () => window.removeEventListener("focus", refresh);
   }, [notificationsEnabled]);
 
-  const onSoundsEnabled = (next: boolean) => {
-    saveSoundsEnabled(next);
-    setSoundsEnabled(next);
-  };
-
-  const onNotificationsEnabled = (next: boolean) => {
-    saveNotificationsEnabled(next);
-    setNotificationsEnabled(next);
-    if (!next) return;
-    void requestNotificationPermission().then(setNotificationPermission);
-  };
-
-  const onNotesEnabled = (next: boolean) => {
-    saveNotesEnabled(next);
-    setNotesEnabled(next);
-  };
-
-  const onLiveAgentsEnabled = (next: boolean) => {
-    saveLiveAgentsEnabled(next);
-    setLiveAgentsEnabled(next);
-  };
-
-  const onCloseToTray = (next: boolean) => {
-    saveCloseToTray(next);
-    setCloseToTray(next);
-  };
-
-  return (
-    <>
-      <Group
-        title="Alerts"
-        description="How MonoCode reaches you while you are looking somewhere else."
-      >
-        <Row
-          id="sounds"
-          label="Sounds"
-          description="Short cues for project activity, finished turns, and available updates. Choose project notification categories in Inbox settings. Switches and Copy on a finished turn also play."
-        >
-          <Toggle
-            label="Sounds"
-            on={soundsEnabled}
-            onChange={onSoundsEnabled}
-          />
-        </Row>
-        <Row
-          id="notifications"
-          label="Notifications"
-          description="Notify when a reminder is due, or when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
-        >
-          {notificationsEnabled && notificationPermission === "denied" ? (
-            <NotificationsBlocked />
-          ) : null}
-          {notificationsEnabled && notificationPermission === "unsupported" ? (
-            <span className="text-[12px] text-content/45">
-              Not available on this platform
-            </span>
-          ) : null}
-          <Toggle
-            label="Notifications"
-            on={notificationsEnabled}
-            onChange={onNotificationsEnabled}
-          />
-        </Row>
-      </Group>
-
-      <Group
-        title="Workspace"
-        description="Panels the project rail can carry. Turning one off hides it everywhere."
-      >
-        <Row
-          id="notes"
-          label="Notes"
-          description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat."
-        >
-          <Toggle label="Notes" on={notesEnabled} onChange={onNotesEnabled} />
-        </Row>
-        <Row
-          id="working-agents"
-          label="Working agents"
-          description="When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session."
-        >
-          <Toggle
-            label="Working agents"
-            on={liveAgentsEnabled}
-            onChange={onLiveAgentsEnabled}
-          />
-        </Row>
-        {IS_WIN && (
-          <Row
-            id="close-to-tray"
-            label="Close to tray"
-            description="Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window."
-          >
-            <Toggle
-              label="Close to tray"
-              on={closeToTray}
-              onChange={onCloseToTray}
-            />
-          </Row>
-        )}
-      </Group>
-
-      <Group title="About">
-        <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
-      </Group>
-    </>
-  );
-}
-
-function ChatPage() {
-  const [transcriptLayout, setTranscriptLayout] =
-    useState<TranscriptLayout>(loadTranscriptLayout);
-  const [transcriptAnchor, setTranscriptAnchor] =
-    useState(loadTranscriptAnchor);
-  const [followUpBehavior, setFollowUpBehavior] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
-  const [composerEffortVisible, setComposerEffortVisible] = useState(
-    loadComposerEffortVisible,
-  );
-  const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
-  const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
-  const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
-    loadGridArcadeEnabled,
-  );
-
   useEffect(() => {
     const onAnchor = (event: Event) => {
       setTranscriptAnchor((event as CustomEvent<boolean>).detail === true);
@@ -822,6 +692,11 @@ function ChatPage() {
   const onTranscriptAnchor = (next: boolean) => {
     saveTranscriptAnchor(next);
     setTranscriptAnchor(next);
+  };
+
+  const onDiffViewer = (next: DiffViewer) => {
+    saveDiffViewer(next);
+    setDiffViewer(next);
   };
 
   const onFollowUpBehavior = (next: FollowUpBehavior) => {
@@ -895,7 +770,6 @@ function ChatPage() {
     if (!next) return;
     void requestNotificationPermission().then(setNotificationPermission);
   };
-
   const onClaudeHooks = (next: boolean) => {
     saveClaudeHooks(next);
     setClaudeHooks(next);
@@ -975,8 +849,7 @@ function ChatPage() {
         label="Transcript layout"
         description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
       >
-        <Row
-          id="transcript-layout"
+        <Segmented
           label="Transcript layout"
           value={transcriptLayout}
           options={[
@@ -1354,31 +1227,20 @@ function ChatPage() {
   );
 }
 
-function InboxPage({
-  cwd,
-  recents,
-  notificationProjectPath,
-  notificationSettingsRequest,
-}: {
-  cwd: string;
-  recents?: RecentProject[];
-  notificationProjectPath?: string | null;
-  notificationSettingsRequest?: number;
-}) {
-  const revealed = useContext(RevealedSetting);
+function InboxPage() {
   return (
     <>
       <div
         id={settingDomId("project-notifications")}
         data-setting-id="project-notifications"
       >
-        <ProjectNotificationSettings
-          cwd={cwd}
-          recents={recents}
-          notificationProjectPath={notificationProjectPath}
-          notificationSettingsRequest={notificationSettingsRequest}
-          highlighted={revealed === "project-notifications"}
-        />
+        <button
+          type="button"
+          onClick={() => void openNotificationSettings()}
+          className="rounded-md border border-content/15 px-3 py-1.5 text-[12px] text-content hover:bg-content/5"
+        >
+          Open notification settings
+        </button>
       </div>
       <Group
         id="github"
@@ -2055,7 +1917,6 @@ function useAppearanceSettings() {
     onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onClearChatBackground,
-    onAccentColor,
     onThemePreference,
     onThemePreset,
     onOpacity,
@@ -2076,6 +1937,15 @@ function useAppearanceSettings() {
     chatBackgroundPath,
     chatBackgroundEmptyOpacity,
     chatBackgroundSessionOpacity,
+    chatBackgroundOpacity: chatBackgroundEmptyOpacity,
+    onChatBackgroundOpacity: onChatBackgroundEmptyOpacity,
+    accentColor,
+    onAccentColor: (value: string | null) => {
+      const next = applyAccentColor(value);
+      saveAccentColor(next);
+      setAccentColor(next);
+      return next;
+    },
     chatBackgroundScope,
     backgroundPanels,
     chatBackgroundBusy,
@@ -2288,6 +2158,7 @@ function ChatBackgroundCard({
   const sessionVisibility = Math.round(
     appearance.chatBackgroundSessionOpacity * 100,
   );
+  const visibility = emptyVisibility;
   const busy = appearance.chatBackgroundBusy;
 
   return (
@@ -2357,7 +2228,7 @@ function ChatBackgroundCard({
               alt=""
               draggable={false}
               className="size-full object-cover"
-              style={{ opacity: appearance.chatBackgroundOpacity }}
+              style={{ opacity: appearance.chatBackgroundEmptyOpacity }}
             />
             <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
               Preview at {visibility}%
@@ -2847,16 +2718,11 @@ function ProvidersPage() {
   );
   const [choice, setChoice] = useState(loadLastModelChoice);
   const [defaultModels, setDefaultModels] = useState(loadDefaultModels);
-  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
 
   useEffect(() => {
     void probeHarnessAvailability();
   }, []);
 
-  const onClaudeHooks = (next: boolean) => {
-    saveClaudeHooks(next);
-    setClaudeHooks(next);
-  };
 
   const onModelChange = (harness: HarnessId, model: string) => {
     saveDefaultModel(harness, model);
@@ -3404,67 +3270,6 @@ function Slider({
   );
 }
 
-const ACCENT_COLOR_PRESETS = [
-  "#4da3f5",
-  "#8b5cf6",
-  "#ec4899",
-  "#ef4444",
-  "#f59e0b",
-  "#10b981",
-] as const;
-
-function AccentColorPicker({
-  value,
-  onChange,
-}: {
-  value: string | null;
-  onChange: (value: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const colorIndex = value
-    ? ACCENT_COLOR_PRESETS.indexOf(
-        value as (typeof ACCENT_COLOR_PRESETS)[number],
-      )
-    : -1;
-  const presetIndex = value == null ? 0 : colorIndex >= 0 ? colorIndex + 1 : -1;
-
-  return (
-    <div ref={root} className="w-48">
-      <ColorSwatchRow
-        colors={["var(--color-content)", ...ACCENT_COLOR_PRESETS]}
-        labels={["Default", "Blue", "Violet", "Pink", "Red", "Orange", "Green"]}
-        colorIndex={presetIndex >= 0 ? presetIndex : undefined}
-        customColor={presetIndex < 0 ? (value ?? undefined) : undefined}
-        customPickerOpen={open}
-        onPickIndex={(index) => {
-          setOpen(false);
-          onChange(
-            index === 0
-              ? ACCENT_COLOR_DEFAULT
-              : (ACCENT_COLOR_PRESETS[index - 1] ?? ACCENT_COLOR_PRESETS[0]),
-          );
-        }}
-        onToggleCustom={() => setOpen((current) => !current)}
-      />
-      {open ? (
-        <Popover
-          anchor={root}
-          side="bottom"
-          align="end"
-          width={248}
-          onDismiss={() => setOpen(false)}
-          className="px-2 pb-2"
-        >
-          <ColorPickerPopover
-            value={value ?? ACCENT_COLOR_PRESETS[0]}
-            onChange={onChange}
-          />
-        </Popover>
-      ) : null}
-    </div>
-  );
-}
 
 /** macOS keeps the decision after the first prompt; only System Settings can flip it. Windows toasts are governed by Settings > Notifications. */
 function NotificationsBlocked() {
@@ -3675,3 +3480,25 @@ function Select({
     </div>
   );
 }
+
+function Heading({
+  title,
+  first = false,
+  id,
+}: {
+  title: string;
+  first?: boolean;
+  id?: string;
+}) {
+  return (
+    <h2
+      id={id}
+      className={`pb-1 text-[15px] font-semibold text-content ${
+        first ? "" : "pt-8"
+      }`}
+    >
+      {title}
+    </h2>
+  );
+}
+

@@ -6925,6 +6925,7 @@ export default function App({
           run("new-terminal-tab", a.onNewTerminalTab);
         else if (cmd === "toggle-terminal")
           run("toggle-terminal", a.onToggleProjectTerminal);
+        else if (cmd === "close-all") run("close-all", a.onCloseAllTabs);
         else if (cmd === "prev-session")
           run("prev-session", () => a.onNavigateSessionList(-1));
         else if (cmd === "next-session")
@@ -7246,13 +7247,13 @@ export default function App({
             onToggleProjectRail={onToggleProjectRail}
             unseenFinishedIds={unseenFinishedIds}
             inboxUnseen={inboxUnseen}
-            linkedSessionUpdateIds={linkedSessionUpdateIds}
+            linkedSessionUpdateIds={[...linkedSessionUpdateIds]}
             settingsOpen={settingsOpen}
             settingsSection={settingsSection}
             onOpenSettings={onOpenSettings}
-            onOpenNotificationSettings={onOpenNotificationSettings}
             onSelectSettingsSection={onSelectSettingsSection}
             onCloseSettings={onCloseSettings}
+            onOpenNotificationSettings={() => onOpenNotificationSettings()}
             updateNotice={updateNotice}
             onOpenWhatsNew={onOpenWhatsNew}
             onDismissUpdate={() => setUpdateNotice(null)}

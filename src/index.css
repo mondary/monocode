@@ -1561,3 +1561,234 @@ html.theme-light .popover-backdrop {
     opacity: 0.6;
   }
 }
+
+/* agent-markdown spacing (0.1.50) */
+
+.inbox-comment-md.agent-markdown p:first-child,
+.inbox-comment-md.agent-markdown li:first-child,
+.inbox-comment-md.agent-markdown blockquote:first-child {
+  margin-top: 0;
+}
+
+
+.inbox-comment-md.agent-markdown p:last-child,
+.inbox-comment-md.agent-markdown li:last-child,
+.inbox-comment-md.agent-markdown blockquote:last-child {
+  margin-bottom: 0;
+}
+
+
+.agent-markdown [data-streamdown="ordered-list"],
+.agent-markdown [data-streamdown="unordered-list"] {
+  list-style-position: outside;
+  padding-left: 0;
+  padding-inline-start: 1.5rem;
+}
+
+
+.agent-markdown li > [data-streamdown="ordered-list"],
+.agent-markdown li > [data-streamdown="unordered-list"] {
+  padding-left: 0;
+  padding-inline-start: 1.5rem;
+}
+
+
+.agent-markdown [data-streamdown="code-block"],
+.agent-markdown [data-streamdown="table-wrapper"] {
+  gap: 0;
+  padding: 0;
+  border-color: color-mix(in srgb, var(--color-content) 10%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-content) 6%, transparent);
+}
+
+
+.agent-markdown a[dir],
+.agent-markdown code[dir] {
+  unicode-bidi: isolate;
+}
+
+
+.agent-markdown .markdown-code-copy-pages,
+.agent-markdown .markdown-code-copy-check {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+
+.agent-markdown
+  .markdown-code-shell:has(.markdown-code-copy)
+  .markdown-code-path {
+  right: 42px;
+}
+
+
+.agent-markdown
+  .markdown-code-shell:has(.markdown-code-path)
+  [data-streamdown="code-block-header"]
+  > span {
+  visibility: hidden;
+}
+
+
+.agent-markdown
+  .markdown-code-shell:has(.markdown-code-copy)
+  [data-streamdown="code-block-header"]:has(span:empty) {
+  display: flex;
+}
+
+  .agent-markdown .markdown-code-copy-pages,
+  .agent-markdown .markdown-code-copy-check {
+    transition: none;
+  }
+
+
+.agent-markdown
+  [data-streamdown="code-block-header"]:has(span:empty)
+  + [data-streamdown="code-block-body"] {
+  border-top: 0;
+}
+
+
+.agent-markdown [data-streamdown="table"] > :not(:last-child),
+.agent-markdown [data-streamdown="table-body"] > :not(:last-child) {
+  border-color: color-mix(in srgb, var(--color-content) 5%, transparent);
+}
+
+
+.agent-markdown [data-streamdown="table-header-cell"],
+.agent-markdown [data-streamdown="table-cell"] {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+
+.agent-markdown p,
+.agent-markdown li {
+  color: color-mix(in srgb, var(--color-content) 78%, transparent);
+}
+
+
+/* AgentMarkdown passes dir="auto", so Streamdown puts every block in its own
+   <div dir="..." style="display: contents"> wrapper. A display:contents box
+   drops its own margins, so Streamdown's `space-y-4` on the root (it targets
+   those wrappers) paints no gap at all. Headings, blockquotes and rules keep
+   their spacing because their margin sits on the element itself (mt-6/mb-2,
+   my-4, my-6); paragraphs and lists carry none, so every "\n\n" started a new
+   <p> with no visible gap and the reply read as one dense block (#218).
+   Put the gap back on the block inside the wrapper, top side only, so a reply
+   never ends with a trailing gap. Ignore empty wrappers before the first
+   visible block, and keep lists closer to the paragraph that introduces them. */
+.agent-markdown > div:not(:empty) ~ div > p {
+  margin-top: 1rem;
+}
+
+
+.agent-markdown > div:not(:empty) ~ div > [data-streamdown="unordered-list"],
+.agent-markdown > div:not(:empty) ~ div > [data-streamdown="ordered-list"] {
+  margin-top: 0.5rem;
+}
+
+
+.agent-markdown p strong,
+.agent-markdown p em,
+.agent-markdown p [data-streamdown="strong"] {
+  color: var(--color-content) !important;
+  opacity: 1;
+}
+
+
+.agent-markdown li strong,
+.agent-markdown li em,
+.agent-markdown li [data-streamdown="strong"] {
+  color: var(--color-content) !important;
+  opacity: 1;
+}
+
+
+.agent-reasoning.agent-markdown p,
+.agent-reasoning.agent-markdown li {
+  color: color-mix(in srgb, var(--color-content) 48%, transparent);
+}
+
+
+.agent-reasoning.agent-markdown p strong,
+.agent-reasoning.agent-markdown p em,
+.agent-reasoning.agent-markdown p [data-streamdown="strong"],
+.agent-reasoning.agent-markdown li strong,
+.agent-reasoning.agent-markdown li em,
+.agent-reasoning.agent-markdown li [data-streamdown="strong"] {
+  color: color-mix(in srgb, var(--color-content) 62%, transparent) !important;
+}
+
+
+.agent-markdown .inbox-media img,
+.agent-markdown .inbox-media video {
+  vertical-align: middle;
+}
+
+
+/*
+ * Prose the fold holds is the agent talking while it works — process, not
+ * result. It stays readable at one notch quieter: muted ink, headings
+ * demoted to bold lines, and tighter spacing, so a mid-run note never poses
+ * as the answer it led to.
+ */
+.zen-fold-prose .agent-markdown > :not(:last-child) {
+  margin-block-end: 0.5rem;
+}
+
+
+.zen-fold-prose .agent-markdown p,
+.zen-fold-prose .agent-markdown li {
+  color: color-mix(in srgb, var(--color-content) 65%, transparent);
+}
+
+
+.zen-fold-prose .agent-markdown p strong,
+.zen-fold-prose .agent-markdown p em,
+.zen-fold-prose .agent-markdown p [data-streamdown="strong"],
+.zen-fold-prose .agent-markdown li strong,
+.zen-fold-prose .agent-markdown li em,
+.zen-fold-prose .agent-markdown li [data-streamdown="strong"] {
+  color: color-mix(in srgb, var(--color-content) 80%, transparent) !important;
+}
+
+
+/* A heading in a work note is a bold line, not a display size. */
+.zen-fold-prose .agent-markdown [data-streamdown="heading-1"],
+.zen-fold-prose .agent-markdown [data-streamdown="heading-2"],
+.zen-fold-prose .agent-markdown [data-streamdown="heading-3"],
+.zen-fold-prose .agent-markdown [data-streamdown="heading-4"],
+.zen-fold-prose .agent-markdown [data-streamdown="heading-5"],
+.zen-fold-prose .agent-markdown [data-streamdown="heading-6"] {
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--color-content) 80%, transparent);
+}
+
+
+.zen-fold-prose .agent-markdown [data-streamdown="blockquote"],
+.zen-fold-prose .agent-markdown .markdown-code-shell {
+  margin-block: 0.5rem;
+}
+
+
+.zen-fold-prose .agent-markdown [data-streamdown="code-block"],
+.zen-fold-prose .agent-markdown [data-streamdown="table-wrapper"] {
+  border-color: color-mix(in srgb, var(--color-content) 8%, transparent);
+  background: color-mix(in srgb, var(--color-content) 4%, transparent);
+}
+
+
+.zen-fold-prose .agent-markdown [data-streamdown="table-header-cell"],
+.zen-fold-prose .agent-markdown [data-streamdown="table-cell"] {
+  color: color-mix(in srgb, var(--color-content) 65%, transparent);
+}
+
+
+.zen-fold-prose .agent-markdown [data-streamdown="horizontal-rule"] {
+  margin-block: 0.75rem;
+}

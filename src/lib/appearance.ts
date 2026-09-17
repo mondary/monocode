@@ -572,7 +572,7 @@ function saveChatBackgroundOpacityValue(key: string, value: number) {
   );
 }
 
-function applyChatBackgroundOpacityValue(variable: string, value: number) {
+function applyChatBackgroundOpacityValue(_variable: string, value: number) {
   const next = clamp(
     value,
     CHAT_BACKGROUND_OPACITY_MIN,

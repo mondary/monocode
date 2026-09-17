@@ -267,6 +267,7 @@ type Props = {
   updateNotice?: InstalledUpdate | null;
   onOpenWhatsNew?: (version: string) => void;
   inboxUnseen?: boolean;
+  onOpenNotificationSettings?: () => void;
   linkedSessionUpdateIds?: string[];
   onDismissUpdate?: () => void;
 };

@@ -1,3 +1,4 @@
+import type { HarnessId } from "../lib/session";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   clampUsedPercent,
@@ -181,7 +182,7 @@ export function UsageProviderChip({
         }
         onClick={() => setOpen((value) => !value)}
       >
-        <HarnessIcon harness={limits.provider} className="size-3 shrink-0" />
+        <HarnessIcon harness={limits.provider as HarnessId} className="size-3 shrink-0" />
         {loading ? (
           <span className="animate-pulse text-content/35">···</span>
         ) : disconnected ? (
@@ -258,7 +259,7 @@ export function UsageProviderChip({
                 />
               ) : null}
               <ProviderSignInPanel
-                harness={limits.provider}
+                harness={limits.provider as HarnessId}
                 state={reconnectState}
                 error={reconnectError}
                 onSignIn={() => void reconnect()}
@@ -268,7 +269,7 @@ export function UsageProviderChip({
             <>
               <div className="flex items-start gap-2.5 px-1 pb-2.5 pt-0.5">
                 <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.06] ring-1 ring-inset ring-content/[0.07]">
-                  <HarnessIcon harness={limits.provider} className="size-4" />
+                  <HarnessIcon harness={limits.provider as HarnessId} className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-[13px] font-medium leading-4">

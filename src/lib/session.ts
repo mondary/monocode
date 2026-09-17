@@ -106,7 +106,7 @@ export type PlanBlockMeta = {
 export type ModelTarget = {
   harness: HarnessId;
   model: string;
-  modelSettings: Record<string, string>;
+  modelSettings?: Record<string, string>;
 };
 
 export type PlanBuildTarget = ModelTarget;

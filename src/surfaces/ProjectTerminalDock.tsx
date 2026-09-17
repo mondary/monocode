@@ -92,7 +92,7 @@ export function ProjectTerminalDock({
   );
   // PKmod: the little pac only chomps while a runtime in this dock
   // produces output; a 300ms poll is enough for a 1.2s decay.
-  const [busy, setBusy] = useState(false);
+  const [, setBusy] = useState(false);
   useEffect(() => {
     const update = () => setBusy(activeTerminalIds(terminalIds).length > 0);
     update();

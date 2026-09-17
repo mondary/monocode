@@ -18,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 vi.mock("../hooks/useProjectDiffStats", () => ({
   useProjectDiffStats: () => null,
+  useProjectDiffStatsMap: () => new Map(),
 }));
 
 let container: HTMLDivElement;
