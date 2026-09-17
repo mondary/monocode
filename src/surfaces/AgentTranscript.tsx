@@ -38,6 +38,10 @@ import { NoteMiniCard } from "../chrome/NoteMiniCard";
 import { TerminalSpinner } from "../chrome/TerminalSpinner";
 import type { ApprovalDecision } from "../lib/harness";
 import {
+  isHarnessAuthError,
+  supportsHarnessLogin,
+} from "../lib/harness/authSupport";
+import {
   isEditTool,
   isReadTool,
   isSearchTool,
@@ -129,7 +133,7 @@ type Props = {
 };
 
 function AgentTranscriptComponent({
-  blocks,
+  blocks: sourceBlocks,
   busy,
   cwd,
   harness,
@@ -151,6 +155,20 @@ function AgentTranscriptComponent({
   latestTurnAccessory,
   visible = true,
 }: Props) {
+  const blocks = useMemo(() => {
+    if (!harness || !supportsHarnessLogin(harness)) return sourceBlocks;
+    const visibleBlocks = sourceBlocks.filter(
+      (block) =>
+        !(
+          block.role === "system" &&
+          block.notice === "error" &&
+          isHarnessAuthError(block.text)
+        ),
+    );
+    return visibleBlocks.length === sourceBlocks.length
+      ? sourceBlocks
+      : visibleBlocks;
+  }, [harness, sourceBlocks]);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const scroller = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);

@@ -24,6 +24,8 @@ type Props = {
   title: string;
   description?: string;
   size?: ModalSize;
+  /** Keeps the accessible title while letting focused content own the visual hierarchy. */
+  minimalHeader?: boolean;
   /** Extra classes on the panel (fixed height, etc). */
   className?: string;
   children: ReactNode;
@@ -34,6 +36,7 @@ export function ModalPanel({
   title,
   description,
   size = "md",
+  minimalHeader = false,
   className,
   children,
 }: Props) {
@@ -44,8 +47,8 @@ export function ModalPanel({
   const descriptionId = description ? `${uid}-desc` : undefined;
 
   useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
+    if (!minimalHeader) closeRef.current?.focus();
+  }, [minimalHeader]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -72,8 +75,16 @@ export function ModalPanel({
       >
         <GlassBackdrop className="bg-background-base/55" />
         <div className="modal-panel relative z-[1] flex min-h-0 flex-1 flex-col">
-          <header className="flex shrink-0 items-start gap-2 px-4 pt-3">
-            <div className="min-w-0 flex-1 pt-0.5">
+          <header
+            className={
+              minimalHeader
+                ? "absolute top-3 right-3 z-[2]"
+                : "flex shrink-0 items-start gap-2 px-4 pt-3"
+            }
+          >
+            <div
+              className={minimalHeader ? "sr-only" : "min-w-0 flex-1 pt-0.5"}
+            >
               <h2
                 id={titleId}
                 className="text-2xl font-semibold leading-tight text-content"
