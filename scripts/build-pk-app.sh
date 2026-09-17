@@ -138,7 +138,9 @@ if [[ "$install_app" == "0" ]]; then
 fi
 
 if [[ -e "$target_app" ]]; then
-  rm -rf "$target_app"
+  previous_app="/tmp/$(basename "$target_app").previous.$$.app"
+  mv "$target_app" "$previous_app"
+  echo "Previous app moved to $previous_app"
 fi
 
 ditto "$source_app" "$target_app"
