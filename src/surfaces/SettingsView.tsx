@@ -289,6 +289,10 @@ import {
   type UpdaterSnapshot,
 } from "../lib/updater";
 
+import { ProjectNotificationSettings } from "./ProjectNotificationSettings";
+import { loadComposerEffortVisible, saveComposerEffortVisible, loadCloseToTray, saveCloseToTray } from "../lib/settings";
+import { ColorSwatchRow, ColorPickerPopover } from "../chrome/ColorPickerPopover";
+import { ACCENT_COLOR_DEFAULT } from "../lib/appearance";
 import { SkillsPage } from "./SkillsPage";
 import { PK_VERSION } from "../lib/pkVersion";
 import {
@@ -339,7 +343,7 @@ export function SettingsView({
   anchor = null,
   notificationProjectPath = null,
   notificationSettingsRequest = 0,
-  // recents,
+  recents,
   cwd,
   projectCwd,
   sessions,
@@ -440,6 +444,7 @@ export function SettingsView({
         className="settings-body min-h-0 flex-1 overflow-y-auto overscroll-none"
       >
         <div className="mx-auto w-full max-w-5xl px-8 py-8">
+          <RevealedSetting.Provider value={revealed}>
           <PageHeader
             title={
               section === "keybindings" ? (
@@ -460,9 +465,10 @@ export function SettingsView({
             <AppearancePage appearance={appearance} />
           ) : null}
           {section === "keybindings" ? <KeybindingsPage /> : null}
+          {section === "chat" ? <ChatPage /> : null}
           {section === "providers" ? <ProvidersPage /> : null}
           {section === "inbox" ? (
-            <InboxPage />
+            <InboxPage cwd={cwd} recents={recents} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest} />
           ) : null}
           {section === "skills" ? (
             <SkillsPage key={projectCwd ?? cwd} cwd={projectCwd ?? cwd} />
@@ -478,6 +484,7 @@ export function SettingsView({
               onDeleteProject={onDeleteProject}
             />
           ) : null}
+          </RevealedSetting.Provider>
         </div>
       </div>
     </div>
@@ -607,13 +614,6 @@ function SettingsSearch({
 }
 
 function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
-  const [transcriptLayout, setTranscriptLayout] =
-    useState<TranscriptLayout>(loadTranscriptLayout);
-  const [transcriptAnchor, setTranscriptAnchor] =
-    useState(loadTranscriptAnchor);
-  const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
-  const [followUpBehavior, setFollowUpBehavior] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
     loadDoneCheckSide,
   );
@@ -623,10 +623,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [projectActivity, setProjectActivity] = useState(loadProjectActivity);
   const [projectReviewHighlight, setProjectReviewHighlight] = useState(loadProjectReviewHighlight);
   const [projectTitleMode, setProjectTitleMode] = useState<ProjectTitleMode>(loadProjectTitleMode);
-  const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
-  const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
-    loadGridArcadeEnabled,
-  );
   const [dockSide, setDockSide] = useState<TerminalPlacement>(
     loadDefaultTerminalPlacement,
   );
@@ -642,13 +638,14 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [usageProviderList, setUsageProviderList] = useState<string[] | null>(
     null,
   );
-  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
   const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
   const [notesAutoExport, setNotesAutoExport] = useState(loadNotesAutoExport);
   const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(
     loadLiveAgentsEnabled,
   );
   const [soundsEnabled, setSoundsEnabled] = useState(loadSoundsEnabled);
+  const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
+  const onCloseToTray = (next: boolean) => { saveCloseToTray(next); setCloseToTray(next); };
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     loadNotificationsEnabled,
   );
@@ -674,35 +671,10 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     return () => window.removeEventListener("focus", refresh);
   }, [notificationsEnabled]);
 
-  useEffect(() => {
-    const onAnchor = (event: Event) => {
-      setTranscriptAnchor((event as CustomEvent<boolean>).detail === true);
-    };
-    window.addEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
-    return () => {
-      window.removeEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
-    };
-  }, []);
 
-  const onTranscriptLayout = (next: TranscriptLayout) => {
-    saveTranscriptLayout(next);
-    setTranscriptLayout(next);
-  };
 
-  const onTranscriptAnchor = (next: boolean) => {
-    saveTranscriptAnchor(next);
-    setTranscriptAnchor(next);
-  };
 
-  const onDiffViewer = (next: DiffViewer) => {
-    saveDiffViewer(next);
-    setDiffViewer(next);
-  };
 
-  const onFollowUpBehavior = (next: FollowUpBehavior) => {
-    saveFollowUpBehavior(next);
-    setFollowUpBehavior(next);
-  };
 
   const onDoneCheckSide = (next: DoneCheckSide) => {
     saveDoneCheckSide(next);
@@ -729,15 +701,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setProjectTitleMode(next);
   };
 
-  const onComposerRunner = (next: boolean) => {
-    saveComposerRunner(next);
-    setComposerRunner(next);
-  };
 
-  const onGridArcadeEnabled = (next: boolean) => {
-    saveGridArcadeEnabled(next);
-    setGridArcadeEnabled(next);
-  };
 
   const onNotesEnabled = (next: boolean) => {
     saveNotesEnabled(next);
@@ -769,10 +733,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setNotificationsEnabled(next);
     if (!next) return;
     void requestNotificationPermission().then(setNotificationPermission);
-  };
-  const onClaudeHooks = (next: boolean) => {
-    saveClaudeHooks(next);
-    setClaudeHooks(next);
   };
 
   const onExplorerShowChanges = (next: boolean) => {
@@ -845,34 +805,19 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       <Heading title="About" />
       <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
 
-      <Row
-        label="Transcript layout"
-        description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
-      >
-        <Segmented
-          label="Transcript layout"
-          value={transcriptLayout}
-          options={[
-            { value: "full", label: "Full width" },
-            { value: "chat", label: "Chat" },
-          ]}
-          onChange={onTranscriptLayout}
-        />
-      </Row>
-      <Row
-        label="Diff view"
-        description="Editor keeps working-tree changes in the file. Unified stacks every changed file in one review, with sticky headers and collapsed unchanged lines."
-      >
-        <Segmented
-          label="Diff view"
-          value={diffViewer}
-          options={[
-            { value: "editor", label: "Editor" },
-            { value: "unified", label: "Unified" },
-          ]}
-          onChange={onDiffViewer}
-        />
-      </Row>
+        {IS_WIN && (
+          <Row
+            id="close-to-tray"
+            label="Close to tray"
+            description="Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window."
+          >
+            <Toggle
+              label="Close to tray"
+              on={closeToTray}
+              onChange={onCloseToTray}
+            />
+          </Row>
+        )}
       <Row
         label="Terminal dock position"
         pk
@@ -1002,20 +947,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Follow-up behavior"
-        description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
-      >
-        <Segmented
-          label="Follow-up behavior"
-          value={followUpBehavior}
-          options={[
-            { value: "queue", label: "Queue" },
-            { value: "steer", label: "Steer" },
-          ]}
-          onChange={onFollowUpBehavior}
-        />
-      </Row>
-      <Row
         label="Finished check position"
         description="Where the green check sits on a project row when its agent finishes: over the project icon, or over the changes counter on the right."
       >
@@ -1072,36 +1003,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Anchor prompts to top"
-        description="When you send, the new prompt sits at the top of the transcript and the reply grows into the space below. Turn this off to keep the classic layout, with the latest message resting on the composer."
-      >
-        <Toggle
-          label="Anchor prompts to top"
-          on={transcriptAnchor}
-          onChange={onTranscriptAnchor}
-        />
-      </Row>
-      <Row
-        label="Composer mascot"
-        description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
-      >
-        <Toggle
-          label="Composer mascot"
-          on={composerRunner}
-          onChange={onComposerRunner}
-        />
-      </Row>
-      <Row
-        label="Empty session games"
-        description="Pac-man and snake idle on the empty-session grid. Hover the band to take control of whichever is on screen. Turn this off to keep the pane still."
-      >
-        <Toggle
-          label="Empty session games"
-          on={gridArcadeEnabled}
-          onChange={onGridArcadeEnabled}
-        />
-      </Row>
-      <Row
+        id="notes"
         label="Notes"
         description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat. Turn this off to hide Notes from the UI."
       >
@@ -1119,6 +1021,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
+        id="working-agents"
         label="Working agents"
         description="When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session. Turn this off to hide the card."
       >
@@ -1166,12 +1069,14 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         </div>
       </Row>
       <Row
+        id="sounds"
         label="Sounds"
         description="Short cues when a turn finishes, the agent asks a question or approval, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
       >
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>
       <Row
+        id="notifications"
         label="Notifications"
         description="Notify when a reminder is due, or when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
       >
@@ -1187,16 +1092,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           label="Notifications"
           on={notificationsEnabled}
           onChange={onNotificationsEnabled}
-        />
-      </Row>
-      <Row
-        label="Claude Code hooks"
-        description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
-      >
-        <Toggle
-          label="Claude Code hooks"
-          on={claudeHooks}
-          onChange={onClaudeHooks}
         />
       </Row>
 
@@ -1227,20 +1122,210 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   );
 }
 
-function InboxPage() {
+function ChatPage() {
+  const [transcriptLayout, setTranscriptLayout] =
+    useState<TranscriptLayout>(loadTranscriptLayout);
+  const [transcriptAnchor, setTranscriptAnchor] =
+    useState(loadTranscriptAnchor);
+  const [followUpBehavior, setFollowUpBehavior] =
+    useState<FollowUpBehavior>(loadFollowUpBehavior);
+  const [composerEffortVisible, setComposerEffortVisible] = useState(
+    loadComposerEffortVisible,
+  );
+  const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
+  const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
+  const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
+    loadGridArcadeEnabled,
+  );
+
+  useEffect(() => {
+    const onAnchor = (event: Event) => {
+      setTranscriptAnchor((event as CustomEvent<boolean>).detail === true);
+    };
+    window.addEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
+    return () => {
+      window.removeEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
+    };
+  }, []);
+
+  const onTranscriptLayout = (next: TranscriptLayout) => {
+    saveTranscriptLayout(next);
+    setTranscriptLayout(next);
+  };
+
+  const onTranscriptAnchor = (next: boolean) => {
+    saveTranscriptAnchor(next);
+    setTranscriptAnchor(next);
+  };
+
+  const onFollowUpBehavior = (next: FollowUpBehavior) => {
+    saveFollowUpBehavior(next);
+    setFollowUpBehavior(next);
+  };
+
+  const onComposerEffortVisible = (next: boolean) => {
+    saveComposerEffortVisible(next);
+    setComposerEffortVisible(next);
+  };
+
+  const onDiffViewer = (next: DiffViewer) => {
+    saveDiffViewer(next);
+    setDiffViewer(next);
+  };
+
+  const onComposerRunner = (next: boolean) => {
+    saveComposerRunner(next);
+    setComposerRunner(next);
+  };
+
+  const onGridArcadeEnabled = (next: boolean) => {
+    saveGridArcadeEnabled(next);
+    setGridArcadeEnabled(next);
+  };
+
+  return (
+    <>
+      <Group
+        title="Transcript"
+        description="How a conversation reads as it grows."
+      >
+        <Row
+          id="transcript-layout"
+          label="Transcript layout"
+          description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
+        >
+          <Segmented
+            label="Transcript layout"
+            value={transcriptLayout}
+            options={[
+              { value: "full", label: "Full width" },
+              { value: "chat", label: "Chat" },
+            ]}
+            onChange={onTranscriptLayout}
+          />
+        </Row>
+        <Row
+          id="anchor-prompts"
+          label="Anchor prompts to top"
+          description="When you send, the new prompt sits at the top of the transcript and the reply grows into the space below. Turn this off to keep the classic layout, with the latest message resting on the composer."
+        >
+          <Toggle
+            label="Anchor prompts to top"
+            on={transcriptAnchor}
+            onChange={onTranscriptAnchor}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Composer"
+        description="What the composer does with what you type."
+      >
+        <Row
+          id="follow-up"
+          label="Follow-up behavior"
+          description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
+        >
+          <Segmented
+            label="Follow-up behavior"
+            value={followUpBehavior}
+            options={[
+              { value: "queue", label: "Queue" },
+              { value: "steer", label: "Steer" },
+            ]}
+            onChange={onFollowUpBehavior}
+          />
+        </Row>
+        <Row
+          id="effort-control"
+          label="Effort control"
+          description="Show the current effort as a separate control beside the model picker for quicker changes. When off, effort stays inside the model menu."
+        >
+          <Toggle
+            label="Show effort beside model picker"
+            on={composerEffortVisible}
+            onChange={onComposerEffortVisible}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Code review"
+        description="Where a turn's changes open when you go to read them."
+      >
+        <Row
+          id="diff-view"
+          label="Diff view"
+          description="Editor keeps working-tree changes in the file. Unified stacks every changed file in one review, with sticky headers and collapsed unchanged lines."
+        >
+          <Segmented
+            label="Diff view"
+            value={diffViewer}
+            options={[
+              { value: "editor", label: "Editor" },
+              { value: "unified", label: "Unified" },
+            ]}
+            onChange={onDiffViewer}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Extras"
+        description="Idle animation, and nothing else. Turn both off for a still workspace."
+      >
+        <Row
+          id="composer-mascot"
+          label="Composer mascot"
+          description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
+        >
+          <Toggle
+            label="Composer mascot"
+            on={composerRunner}
+            onChange={onComposerRunner}
+          />
+        </Row>
+        <Row
+          id="empty-session-games"
+          label="Empty session games"
+          description="Pac-man and snake idle on the empty-session grid. Hover the band to take control of whichever is on screen. Turn this off to keep the pane still."
+        >
+          <Toggle
+            label="Empty session games"
+            on={gridArcadeEnabled}
+            onChange={onGridArcadeEnabled}
+          />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function InboxPage({
+  cwd,
+  recents,
+  notificationProjectPath,
+  notificationSettingsRequest,
+}: {
+  cwd: string;
+  recents?: RecentProject[];
+  notificationProjectPath?: string | null;
+  notificationSettingsRequest?: number;
+}) {
+  const revealed = useContext(RevealedSetting);
   return (
     <>
       <div
         id={settingDomId("project-notifications")}
         data-setting-id="project-notifications"
       >
-        <button
-          type="button"
-          onClick={() => void openNotificationSettings()}
-          className="rounded-md border border-content/15 px-3 py-1.5 text-[12px] text-content hover:bg-content/5"
-        >
-          Open notification settings
-        </button>
+        <ProjectNotificationSettings
+          cwd={cwd}
+          recents={recents}
+          notificationProjectPath={notificationProjectPath}
+          notificationSettingsRequest={notificationSettingsRequest}
+          highlighted={revealed === "project-notifications"}
+        />
       </div>
       <Group
         id="github"
@@ -1683,6 +1768,7 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 
   return (
     <Row
+      id="update"
       pk
       label={
         <span className="flex flex-col gap-0.5">
@@ -1975,6 +2061,16 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
 
   return (
     <>
+        <Row
+          id="accent-color"
+          label="Accent color"
+          description="Used for the composer send button and your message bubbles."
+        >
+          <AccentColorPicker
+            value={appearance.accentColor}
+            onChange={appearance.onAccentColor}
+          />
+        </Row>
       <Group
         title="Theme"
         description="Dark and light share the same tint, so the color settings below apply to both."
@@ -2710,6 +2806,8 @@ function KeybindingsPage() {
 }
 
 function ProvidersPage() {
+  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
+  const onClaudeHooks = (next: boolean) => { saveClaudeHooks(next); setClaudeHooks(next); };
   useSyncExternalStore(subscribeModels, getModelSnapshot, getModelSnapshot);
   useSyncExternalStore(
     subscribeHarnessAvailability,
@@ -2741,6 +2839,17 @@ function ProvidersPage() {
 
   return (
     <>
+        <Row
+          id="claude-hooks"
+          label="Claude Code hooks"
+          description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
+        >
+          <Toggle
+            label="Claude Code hooks"
+            on={claudeHooks}
+            onChange={onClaudeHooks}
+          />
+        </Row>
       <p className="pb-2 text-[12px] leading-relaxed text-content/45">
         A provider is listed as installed once its CLI is found on your PATH.
         Uninstalled CLIs stay listed here but are omitted from the model picker.
@@ -3271,6 +3380,63 @@ function Slider({
 }
 
 
+const ACCENT_COLOR_PRESETS = [
+  "#4da3f5", "#8b5cf6", "#ec4899", "#ef4444", "#f59e0b", "#10b981",
+] as const;
+
+function AccentColorPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const colorIndex = value
+    ? ACCENT_COLOR_PRESETS.indexOf(
+        value as (typeof ACCENT_COLOR_PRESETS)[number],
+      )
+    : -1;
+  const presetIndex = value == null ? 0 : colorIndex >= 0 ? colorIndex + 1 : -1;
+
+  return (
+    <div ref={root} className="w-48">
+      <ColorSwatchRow
+        colors={["var(--color-content)", ...ACCENT_COLOR_PRESETS]}
+        labels={["Default", "Blue", "Violet", "Pink", "Red", "Orange", "Green"]}
+        colorIndex={presetIndex >= 0 ? presetIndex : undefined}
+        customColor={presetIndex < 0 ? (value ?? undefined) : undefined}
+        customPickerOpen={open}
+        onPickIndex={(index) => {
+          setOpen(false);
+          onChange(
+            index === 0
+              ? ACCENT_COLOR_DEFAULT
+              : (ACCENT_COLOR_PRESETS[index - 1] ?? ACCENT_COLOR_PRESETS[0]),
+          );
+        }}
+        onToggleCustom={() => setOpen((current) => !current)}
+      />
+      {open ? (
+        <Popover
+          anchor={root}
+          side="bottom"
+          align="end"
+          width={248}
+          onDismiss={() => setOpen(false)}
+          className="px-2 pb-2"
+        >
+          <ColorPickerPopover
+            value={value ?? ACCENT_COLOR_PRESETS[0]}
+            onChange={onChange}
+          />
+        </Popover>
+      ) : null}
+    </div>
+  );
+}
+
 /** macOS keeps the decision after the first prompt; only System Settings can flip it. Windows toasts are governed by Settings > Notifications. */
 function NotificationsBlocked() {
   return (
@@ -3501,4 +3667,3 @@ function Heading({
     </h2>
   );
 }
-

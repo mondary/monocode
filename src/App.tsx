@@ -7247,7 +7247,7 @@ export default function App({
             onToggleProjectRail={onToggleProjectRail}
             unseenFinishedIds={unseenFinishedIds}
             inboxUnseen={inboxUnseen}
-            linkedSessionUpdateIds={[...linkedSessionUpdateIds]}
+            linkedSessionUpdateIds={linkedSessionUpdateIds}
             settingsOpen={settingsOpen}
             settingsSection={settingsSection}
             onOpenSettings={onOpenSettings}
@@ -7510,6 +7510,7 @@ export default function App({
             {notesViewOpen ? (
               <NotesView
                 cwd={projectCwd}
+                recents={recents}
                 onClose={onLeaveNotes}
               />
             ) : null}

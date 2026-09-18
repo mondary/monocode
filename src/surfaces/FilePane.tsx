@@ -328,14 +328,9 @@ function PlanSurface({
               <BuildTargetButton
                 from={session.harness}
                 model={session.model}
+                settings={session.modelSettings}
                 disabled={buildDisabled}
-                onPick={(harness, model) =>
-                  onBuildPlan(plan.sessionId, block.id, {
-                    harness,
-                    model,
-                    modelSettings: session.modelSettings,
-                  })
-                }
+                onPick={(target) => onBuildPlan(plan.sessionId, block.id, target)}
               />
             ) : null}
           </div>

@@ -1,9 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use std::process::Command;
-use serde_json::{json, Value};
 use serde_json::Value;
 #[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};

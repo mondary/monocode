@@ -15,12 +15,14 @@ import {
   Pin,
   Plus,
   Search,
+  Share,
   Settings,
   StickyNote,
 } from "./icons";
 import {
   memo,
   useEffect,
+  useId,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -34,13 +36,12 @@ import {
   type SidebarTabId,
 } from "../lib/appearance";
 import {
-  basename,
   type GitFileDiffKind,
   type GitHistoryCommit,
 } from "../lib/fs";
 import { IS_MAC, MOD } from "../lib/platform";
 import { resolveModel } from "../lib/models";
-import { prettyParent, projectKey, projectName } from "../lib/paths";
+import { projectName } from "../lib/paths";
 import { sessionDisplayTitle } from "../lib/session";
 import { nextUnseenFinishedSessions } from "../lib/sessionDone";
 import {
@@ -106,14 +107,6 @@ import {
 } from "../lib/settings";
 import type { InstalledUpdate } from "../lib/updateNotice";
 import {
-  loadTabGroupColors,
-  loadTabGroupCustomColors,
-  loadTabGroupLabels,
-  loadTabGroupMascots,
-  resolveTabGroupColor,
-  resolveTabGroupLabel,
-  resolveTabGroupLogo,
-  resolveTabGroupMascot,
   TAB_GROUP_COLORS,
 } from "../lib/tabGroups";
 import { useDragResize } from "../hooks/useDragResize";
@@ -122,11 +115,10 @@ import { useInboxUnseen } from "../hooks/useInboxUnseen";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
 import { useSortable } from "../hooks/useSortable";
-import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import { normalizeHex } from "../lib/colorUtils";
 import {
   looksLikeProject,
-  projectRailItems,
+  collectRailProjects,
   sameProjectPath,
   type RecentProject,
 } from "../lib/recents";
@@ -140,14 +132,17 @@ import { RailAction } from "./RailAction";
 import { TerminalSpinner } from "./TerminalSpinner";
 import { DevModeSlot, IconButton, TabVisitNav } from "./TitleBar";
 import { ProjectSearch } from "./ProjectSearch";
-import { ProjectLogoIcon } from "./ProjectLogoIcon";
-import { ProjectMascot } from "./ProjectMascot";
 import { Popover } from "./Popover";
 import { SessionFiltersMenu } from "./SessionFiltersMenu";
 import { sessionReminderPresets } from "./sessionReminderPresets";
-import { reminderTime, type SessionReminder } from "../lib/sessionReminders";
+import { formatReminderTime, reminderTime, type SessionReminder } from "../lib/sessionReminders";
 import { SessionsEmpty } from "./SessionsEmpty";
 import { SidebarUpdateFooter } from "./SidebarUpdate";
+import { SearchableProjectPicker } from "./SearchableProjectPicker";
+import { InboxNotificationMenu } from "./InboxNotificationMenu";
+import { LiveAgentsPreview } from "./LiveAgentsPreview";
+import { orchestrationTaskLabel } from "../lib/orchestrationSummary";
+import { OrchestrationSidebarAgents } from "./OrchestrationSidebarAgents";
 import { SourceControl } from "./SourceControl";
 
 const MIN_WIDTH = 260;
@@ -268,7 +263,7 @@ type Props = {
   onOpenWhatsNew?: (version: string) => void;
   inboxUnseen?: boolean;
   onOpenNotificationSettings?: () => void;
-  linkedSessionUpdateIds?: string[];
+  linkedSessionUpdateIds?: ReadonlySet<string>;
   onDismissUpdate?: () => void;
 };
 
@@ -341,6 +336,9 @@ function SidebarComponent({
   onToggleProjectRail,
   projectRailOpen = true,
   unseenFinishedIds: unseenFinishedIdsProp,
+  linkedSessionUpdateIds = new Set(),
+  onOpenNotificationSettings,
+  inboxUnseen: inboxUnseenProp,
   settingsOpen = false,
   settingsSection = "general",
   onOpenSettings,
@@ -351,7 +349,8 @@ function SidebarComponent({
   onDismissUpdate,
 }: Props) {
   const gitRoot = gitCwd || cwd;
-  const inboxUnseen = useInboxUnseen(recents, cwd);
+  const detectedInboxUnseen = useInboxUnseen(recents, cwd);
+  const inboxUnseen = inboxUnseenProp ?? detectedInboxUnseen;
   const resize = useDragResize({
     min: MIN_WIDTH,
     max: () => Math.min(MAX_WIDTH, Math.floor(window.innerWidth * 0.5)),
@@ -432,7 +431,7 @@ function SidebarComponent({
     sessions,
     openSessions,
     sessionFolders,
-  );
+  ).filter((session) => !session.orchestrationLeadId);
   const visibleSessions = [
     ...filterSessionsByQuery(
       filterSessionsByStatus(
@@ -713,6 +712,7 @@ function SidebarComponent({
     const session = listedSessions.find((entry) => entry.id === sessionId);
     return session ? [session] : [];
   });
+  const menuReminderTimes = [...new Set(reminders.filter((reminder) => menuSessionIds.includes(reminder.sessionId)).map((reminder) => reminder.dueAt))];
   const multipleMenuSessions = menuSessionIds.length > 1;
   const allMenuSessionsPinned =
     menuSessions.length > 0 && menuSessions.every((session) => session.pinned);
@@ -744,6 +744,7 @@ function SidebarComponent({
             kind: "item" as const,
             id: "reminder:cancel",
             label: "Cancel reminder",
+            description: menuReminderTimes.length === 1 ? formatReminderTime(menuReminderTimes[0]) : "Multiple reminder times",
           },
           { kind: "sep" as const },
         ]
@@ -1045,6 +1046,7 @@ function SidebarComponent({
         isSelected={selectedSessionIds.has(session.id)}
         busy={busySessionIds.has(session.id)}
         done={unseenFinishedIds.has(session.id)}
+        linkedUpdate={linkedSessionUpdateIds.has(session.id)}
         needsApproval={approvalSessionIds.has(session.id)}
         dropTarget={isSessionDrop("session", session.id)}
         compact={compact}
@@ -1141,7 +1143,7 @@ function SidebarComponent({
         ref={(el) => sortable.setItemRef(itemId, el)}
         className={`relative flex min-w-0 flex-1 touch-none items-stretch ${
           draggingTab ? "opacity-40" : ""
-        } ${canDragTabs ? "cursor-grab active:cursor-grabbing" : ""}`}
+        } ${canDragTabs ? "cursor-default" : ""}`}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           onTabPick(itemId);
@@ -1180,7 +1182,7 @@ function SidebarComponent({
             active
               ? "bg-content/10 text-content"
               : "text-content/50 hover:bg-content/5 hover:text-content"
-          } ${canDragTabs ? "cursor-grab active:cursor-grabbing" : ""}`}
+          } ${canDragTabs ? "cursor-default" : ""}`}
         >
           {isChangesTab && hasChangeStats ? (
             <DiffStat additions={changeAdditions} deletions={changeDeletions} />
@@ -1245,6 +1247,7 @@ function SidebarComponent({
               onNew={onNew}
               onSearch={onSearch}
               onOpenInbox={onOpenInbox}
+              onOpenNotificationSettings={onOpenNotificationSettings}
               onOpenNotes={notesEnabled ? onOpenNotes : undefined}
               searchActive={searchActive}
               inboxActive={inboxActive}
@@ -1619,6 +1622,7 @@ function SidebarComponent({
         ) : null}
         {showSidebarFooter ? (
           <>
+            <LiveAgentsPreview agents={liveAgents} activeSessionId={activeSessionId} onSelect={onSelectAgent} />
             <SidebarUpdateFooter
               update={updateNotice}
               onOpenWhatsNew={onOpenWhatsNew}
@@ -1729,6 +1733,7 @@ function SidebarComponent({
           settingsOpen={settingsOpen}
           settingsSection={settingsSection}
           onOpenSettings={onOpenSettings}
+          onOpenNotificationSettings={onOpenNotificationSettings}
           onSelectSettingsSection={onSelectSettingsSection}
           onCloseSettings={onCloseSettings}
           updateNotice={updateNotice}
@@ -1752,6 +1757,7 @@ function SidebarProjectPicker({
   onNew,
   onSearch,
   onOpenInbox,
+  onOpenNotificationSettings,
   onOpenNotes,
   searchActive = false,
   inboxActive = false,
@@ -1766,248 +1772,28 @@ function SidebarProjectPicker({
   onNew?: () => void;
   onSearch?: () => void;
   onOpenInbox?: () => void;
+  onOpenNotificationSettings?: () => void;
   onOpenNotes?: () => void;
   searchActive?: boolean;
   inboxActive?: boolean;
   notesActive?: boolean;
   inboxUnseen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const [groupLabels] = useState(loadTabGroupLabels);
-  const [groupColors] = useState(loadTabGroupColors);
-  const [groupCustomColors] = useState(loadTabGroupCustomColors);
-  const [groupMascots] = useState(loadTabGroupMascots);
-  const groupLogos = useTabGroupLogos();
-  const seed = projectName(cwd);
-  const key = projectKey(cwd);
-  const label = resolveTabGroupLabel(key, groupLabels, basename(cwd) || seed);
-  const logoPath = resolveTabGroupLogo(key, groupLogos);
-  const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
-  const projects = projectRailItems(recents, cwd);
-  const orderedProjects = [
-    ...projects.filter((item) => sameProjectPath(item.path, cwd)),
-    ...projects.filter((item) => !sameProjectPath(item.path, cwd)),
-  ];
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filteredProjects = normalizedQuery
-    ? orderedProjects.filter((item) => {
-        const itemKey = projectKey(item.path);
-        const itemLabel = resolveTabGroupLabel(
-          itemKey,
-          groupLabels,
-          basename(item.path) || projectName(item.path),
-        );
-        return `${itemLabel}\n${item.path}`
-          .toLocaleLowerCase()
-          .includes(normalizedQuery);
-      })
-    : orderedProjects;
-
-  const closePicker = () => {
-    setOpen(false);
-    setQuery("");
-    setActive(0);
-  };
-
-  const openPicker = () => {
-    setOpen(true);
-    setQuery("");
-    setActive(0);
-  };
-
-  const pickProject = (path: string) => {
-    closePicker();
-    if (!sameProjectPath(path, cwd)) onSelectProject(path);
-  };
-
-  const onPickerKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (!(event.target instanceof HTMLInputElement)) return;
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      if (filteredProjects.length === 0) return;
-      setActive((index) => Math.min(filteredProjects.length - 1, index + 1));
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActive((index) => Math.max(0, index - 1));
-      return;
-    }
-    if (event.key === "Enter") {
-      const project = filteredProjects[active];
-      if (!project) return;
-      event.preventDefault();
-      pickProject(project.path);
-    }
-  };
-
+  const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(null);
+  const inboxTrigger = useRef<HTMLElement | null>(null);
   return (
     <div
-      className="flex h-9 items-center gap-0.5 border-b border-content/10 px-2"
+      className="flex h-9 items-center gap-0.5 border-b border-stroke px-2"
       data-tauri-drag-region="deep"
     >
-      <div
-        ref={pickerRef}
-        className="relative flex h-full min-w-0 flex-1 items-center"
-      >
-        <button
-          type="button"
-          title={cwd}
-          aria-label={`Switch project, current project ${label}`}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          data-tauri-drag-region="false"
-          onClick={() => (open ? closePicker() : openPicker())}
-          onKeyDown={(event) => {
-            if (open) return;
-            if (event.key !== "ArrowDown") return;
-            event.preventDefault();
-            openPicker();
-          }}
-          className={`flex h-6.5 min-w-0 items-center gap-1.5 rounded-md px-2 text-[12px] leading-none hover:text-content ${
-            open
-              ? "bg-content/10 text-content"
-              : "text-content/50 hover:bg-content/5"
-          }`}
-        >
-          {logoPath ? (
-            <ProjectLogoIcon
-              path={logoPath}
-              className="size-3.5 shrink-0 rounded-sm"
-              imageClassName="size-3.5"
-            />
-          ) : (
-            <ProjectMascot
-              project={seed}
-              color={color}
-              name={resolveTabGroupMascot(key, groupMascots)}
-              className="size-3 shrink-0"
-              active={busy}
-            />
-          )}
-          <span className="min-w-0 truncate font-medium text-content/90">
-            {label}
-          </span>
-          <ChevronDown
-            className={`size-3 shrink-0 text-content/45 transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-            strokeWidth={1.75}
-          />
-        </button>
-        {open ? (
-          <Popover
-            anchor={pickerRef}
-            side="bottom"
-            align="start"
-            gap={4}
-            width={286}
-            maxHeight={380}
-            role="dialog"
-            aria-label="Project picker"
-            onDismiss={() => closePicker()}
-            onKeyDown={onPickerKeyDown}
-            className="flex flex-col overflow-hidden"
-          >
-            <label className="flex h-11 shrink-0 items-center gap-2.5 border-b border-content/10 px-3 text-content/45 focus-within:text-content/70">
-              <Search className="size-4 shrink-0" strokeWidth={1.75} />
-              <span className="sr-only">Search projects</span>
-              <input
-                autoFocus
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setActive(0);
-                }}
-                placeholder="Search projects..."
-                className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none placeholder:text-content/35"
-              />
-            </label>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-none p-1.5">
-              {filteredProjects.length > 0 ? (
-                filteredProjects.map((item, index) => {
-                  const current = sameProjectPath(item.path, cwd);
-                  const itemKey = projectKey(item.path);
-                  const itemSeed = projectName(item.path);
-                  const itemLabel = resolveTabGroupLabel(
-                    itemKey,
-                    groupLabels,
-                    basename(item.path) || itemSeed,
-                  );
-                  const itemLogo = resolveTabGroupLogo(itemKey, groupLogos);
-                  const itemColor = resolveTabGroupColor(
-                    itemKey,
-                    groupColors,
-                    groupCustomColors,
-                    itemSeed,
-                  );
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      title={item.path}
-                      onMouseEnter={() => setActive(index)}
-                      onClick={() => pickProject(item.path)}
-                      className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left ${
-                        active === index
-                          ? "bg-content/10 text-content"
-                          : "text-content/75 hover:bg-content/5 hover:text-content"
-                      }`}
-                    >
-                      <span className="grid size-4 shrink-0 place-items-center">
-                        {current ? (
-                          <Check className="size-3.5" strokeWidth={2} />
-                        ) : itemLogo ? (
-                          <ProjectLogoIcon
-                            path={itemLogo}
-                            className="size-4 rounded-sm"
-                            imageClassName="size-4"
-                          />
-                        ) : (
-                          <ProjectMascot
-                            project={itemSeed}
-                            color={itemColor}
-                            name={resolveTabGroupMascot(itemKey, groupMascots)}
-                            className="size-3.5"
-                          />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                        {itemLabel}
-                      </span>
-                      <span className="max-w-44 shrink truncate font-mono text-[11px] text-content/40">
-                        {prettyParent(item.path)}
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="px-2.5 py-5 text-center text-[12px] text-content/45">
-                  No projects found
-                </p>
-              )}
-            </div>
-            {onOpenProject ? (
-              <div className="shrink-0 border-t border-content/10 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    closePicker();
-                    onOpenProject();
-                  }}
-                  className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-content/75 hover:bg-content/8 hover:text-content"
-                >
-                  <Plus className="size-4 shrink-0" strokeWidth={1.75} />
-                  <span>New project</span>
-                </button>
-              </div>
-            ) : null}
-          </Popover>
-        ) : null}
-      </div>
+      <SearchableProjectPicker
+        cwd={cwd}
+        recents={recents}
+        busy={busy}
+        className="flex-1"
+        onSelectProject={onSelectProject}
+        onOpenProject={onOpenProject}
+      />
       <div className="flex items-center ml-auto">
         {onNew ? (
           <IconButton label={`New tab (${MOD}T)`} onClick={onNew}>
@@ -2028,6 +1814,11 @@ function SidebarProjectPicker({
             label={inboxUnseen ? "Inbox, new items" : "Inbox"}
             active={inboxActive}
             onClick={onOpenInbox}
+            onOpenContextMenu={(x, y) => {
+              inboxTrigger.current = document.activeElement instanceof HTMLElement
+                ? document.activeElement : null;
+              setInboxMenu({ x, y });
+            }}
           >
             <span className="relative">
               <Inbox className="size-3.5" strokeWidth={1.75} />
@@ -2046,6 +1837,17 @@ function SidebarProjectPicker({
           </IconButton>
         ) : null}
       </div>
+      {inboxMenu ? (
+        <InboxNotificationMenu
+          {...inboxMenu}
+          projectPaths={[...collectRailProjects(recents, cwd).keys()]}
+          onOpenSettings={onOpenNotificationSettings}
+          onClose={() => {
+            setInboxMenu(null);
+            inboxTrigger.current?.focus();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -2209,7 +2011,7 @@ function FolderRow({
       }}
       className={`group relative flex w-full touch-none items-center gap-1.5 px-2 h-8 text-left ${
         expanded ? "rounded-md" : ""
-      } ${canReorder ? "cursor-grab active:cursor-grabbing" : ""} ${
+      } ${canReorder ? "cursor-default" : ""} ${
         dropTarget
           ? "text-content"
           : expanded
@@ -2348,12 +2150,15 @@ function FolderRenameRow({
   );
 }
 
+const SESSION_PREFETCH_DELAY_MS = 120;
+
 function SessionCard({
   session,
   isActive,
   isSelected,
   busy,
   done,
+  linkedUpdate,
   needsApproval,
   dropTarget,
   compact = false,
@@ -2374,11 +2179,15 @@ function SessionCard({
   isSelected: boolean;
   busy: boolean;
   done: boolean;
+  linkedUpdate: boolean;
   needsApproval: boolean;
   dropTarget?: boolean;
   compact?: boolean;
   now: number;
-  onSelect: (sessionId: string, event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
+  onSelect: (
+    sessionId: string,
+    event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  ) => void;
   onOpenWorkItem?: (item: LinkedWorkItem, sessionId: string) => void;
   onPrefetch?: (sessionId: string) => void;
   onPlaceOnPane?: (sessionId: string, targetId: string, edge: PaneEdge) => void;
@@ -2390,13 +2199,25 @@ function SessionCard({
   onDelete?: () => void;
 }) {
   const skipClickUntil = useRef(0);
+  const prefetchTimer = useRef<number | null>(null);
+  const orchestrationTooltipRootRef = useRef<HTMLDivElement>(null);
+  const orchestrationTooltipId = useId();
   const [dragging, setDragging] = useState(false);
+  const [orchestrationTooltipOpen, setOrchestrationTooltipOpen] =
+    useState(false);
+  const orchestration = session.orchestration;
+  const orchestrationExpanded =
+    !!orchestration && (isActive || isSelected || busy);
+  const orchestrationDone =
+    orchestration?.tasks.filter((task) => task.status === "completed").length ??
+    0;
   const title = sessionDisplayTitle(session.title, session.harness);
   const gitLabel = formatGitLabel(session.repo, session.branch);
   const time = formatRelative(session.updatedAt, now);
-  const model = compact
-    ? null
-    : resolveModel(session.harness, session.model).name;
+  const model =
+    compact && !orchestrationExpanded
+      ? null
+      : resolveModel(session.harness, session.model).name;
   const statusClass = needsApproval
     ? "text-amber-400"
     : busy
@@ -2411,7 +2232,7 @@ function SessionCard({
       {needsApproval ? (
         <>
           <CircleAlert className="size-3" strokeWidth={1.75} />
-          <span>Need approval</span>
+          <span>{orchestration ? "Needs input" : "Need approval"}</span>
         </>
       ) : busy ? (
         <>
@@ -2430,12 +2251,19 @@ function SessionCard({
   );
 
   const linkedWorkItem = session.linkedWorkItem;
+  const linkedUpdateDot = linkedUpdate ? (
+    <span
+      title={`Linked ${linkedWorkItem?.kind === "pr" ? "PR" : "issue"} updated since this session`}
+      aria-label="Linked work item updated"
+      className="size-1.5 shrink-0 rounded-full bg-accent"
+    />
+  ) : null;
   const workItemBadge = linkedWorkItem ? (
     <button
       type="button"
       data-no-drag
       data-tauri-drag-region="false"
-      title={`Open ${linkedWorkItem.kind === "pr" ? "PR" : "issue"} #${linkedWorkItem.number} in Inbox (${MOD}-click for GitHub)`}
+      title={`Open ${linkedWorkItem.kind === "pr" ? "PR" : "issue"} #${linkedWorkItem.number} beside this session (${MOD}-click for GitHub)`}
       aria-label={`Open ${linkedWorkItem.kind === "pr" ? "PR" : "issue"} #${linkedWorkItem.number}`}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
@@ -2469,7 +2297,7 @@ function SessionCard({
     if (e.target !== e.currentTarget) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onSelect(session.id, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey });
+      onSelect(session.id, e);
       return;
     }
     if (e.key === "F2" && onRename) {
@@ -2487,6 +2315,10 @@ function SessionCard({
     if (event.button !== 0) return;
     // Warm the transcript during the press. Opening stays on click so a
     // drag-to-pane gesture does not switch conversations.
+    if (prefetchTimer.current != null) {
+      window.clearTimeout(prefetchTimer.current);
+      prefetchTimer.current = null;
+    }
     onPrefetch?.(session.id);
     if (!onPlaceOnPane && !onListDrop) return;
     const handle = event.currentTarget;
@@ -2586,30 +2418,61 @@ function SessionCard({
     window.addEventListener("keydown", onKey);
   };
 
+  useEffect(
+    () => () => {
+      if (prefetchTimer.current != null) {
+        window.clearTimeout(prefetchTimer.current);
+        prefetchTimer.current = null;
+      }
+    },
+    [onPrefetch, session.id],
+  );
+
+  const schedulePrefetch = () => {
+    if (!onPrefetch || prefetchTimer.current != null) return;
+    prefetchTimer.current = window.setTimeout(() => {
+      prefetchTimer.current = null;
+      onPrefetch(session.id);
+    }, SESSION_PREFETCH_DELAY_MS);
+  };
+
+  const cancelScheduledPrefetch = () => {
+    if (prefetchTimer.current == null) return;
+    window.clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = null;
+  };
+
   const archiveLabel = session.archived ? "Unarchive" : "Archive";
+  // Expanding an orchestration card must not move its existing header. Keep
+  // the collapsed top inset and give only the new detail area extra room at
+  // the bottom.
+  const cardPaddingY = orchestrationExpanded
+    ? compact
+      ? "pb-2.5 pt-1.5"
+      : "pb-2.5 pt-2"
+    : compact
+      ? "py-1.5"
+      : "py-2";
 
   return (
     <div className="group relative">
       <div
-        role="button"
-        tabIndex={0}
         title={title}
-        aria-current={isActive ? "true" : undefined}
-        aria-pressed={isSelected}
         data-session-card={session.id}
+        data-orchestration-card={orchestration ? "true" : undefined}
         data-session-selected={isSelected ? "true" : undefined}
         data-tauri-drag-region="false"
         onPointerDown={onPointerDown}
-        onPointerEnter={() => onPrefetch?.(session.id)}
+        onPointerEnter={schedulePrefetch}
+        onPointerLeave={cancelScheduledPrefetch}
         onClick={(event) => {
           if (performance.now() < skipClickUntil.current) return;
           onSelect(session.id, event);
         }}
         onContextMenu={onContextMenu}
-        onKeyDown={onKeyDown}
-        className={`relative border flex w-full touch-none flex-col rounded-md px-2.5 text-left ${
-          compact ? "py-1.5" : "py-2"
-        } ${dragging ? "opacity-40" : ""} ${
+        className={`relative border flex w-full cursor-default select-none touch-none flex-col rounded-md px-2.5 text-left ${cardPaddingY} ${
+          dragging ? "opacity-40" : ""
+        } ${
           dropTarget
             ? "text-content border-transparent"
             : isSelected
@@ -2617,51 +2480,80 @@ function SessionCard({
               : needsApproval
                 ? "bg-content/20 text-content border-content/30 border-dashed"
                 : isActive
-                  ? "bg-content/10 text-content border-transparent"
-                  : "text-content/80 hover:bg-content/5 hover:text-content border-transparent"
+                  ? "bg-selection text-content border-transparent"
+                  : `text-content/80 hover:text-content border-transparent ${
+                      orchestrationExpanded
+                        ? "bg-content/5 hover:bg-content/10"
+                        : "hover:bg-content/5"
+                    }`
         }`}
       >
         {dropTarget ? (
           <div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20" />
         ) : null}
-        {compact ? null : (
-          <span className="relative flex items-center gap-2">
-            <span className="flex min-w-0 flex-1 items-center gap-1.5">
-              <HarnessIcon
-                harness={session.harness}
-                className="size-3.5 shrink-0"
-              />
-              <span className="min-w-0 truncate text-[11px] text-content/50">
-                {model}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-current={isActive ? "true" : undefined}
+          aria-pressed={isSelected}
+          data-session-select={session.id}
+          onKeyDown={onKeyDown}
+          onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            // Shift-click can trigger :focus-visible. Mouse selection should
+            // only highlight the card; Tab can still focus this button.
+            event.preventDefault();
+            // Clear prior focus too, so shortcuts cannot target another card.
+            const focused = event.currentTarget.ownerDocument.activeElement;
+            if (focused instanceof HTMLElement) focused.blur();
+          }}
+          className="rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+        >
+          {compact && !orchestrationExpanded ? null : (
+            <span className="relative flex items-center gap-2">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <HarnessIcon
+                  harness={session.harness}
+                  className="size-3.5 shrink-0"
+                />
+                <span className="min-w-0 truncate text-[11px] text-content/50">
+                  {model}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                {linkedUpdateDot}
+                {status}
               </span>
             </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-              {workItemBadge}
-              {status}
+          )}
+          <span
+            className={`relative flex min-w-0 items-center gap-1.5 ${
+              compact && !orchestrationExpanded ? "" : "mt-1"
+            }`}
+          >
+            {session.pinned ? (
+              <Pin
+                className="size-3 shrink-0 text-content/45"
+                strokeWidth={1.75}
+              />
+            ) : null}
+            <span className="min-w-0 flex-1 line-clamp-1 text-[13px] font-semibold leading-snug text-content">
+              {title}
             </span>
+            {compact && !orchestrationExpanded ? (
+              <span className="flex shrink-0 items-center gap-1.5">
+                {linkedUpdateDot}
+                {status}
+              </span>
+            ) : null}
           </span>
-        )}
-        <span
-          className={`relative flex min-w-0 items-center gap-1.5 ${
-            compact ? "" : "mt-1"
-          }`}
-        >
-          {session.pinned ? (
-            <Pin
-              className="size-3 shrink-0 text-content/45"
-              strokeWidth={1.75}
-            />
-          ) : null}
-          <span className="min-w-0 flex-1 line-clamp-1 text-[13px] font-semibold leading-snug text-content">
-            {title}
-          </span>
-          {compact ? (
-            <span className="flex shrink-0 items-center gap-1.5">
-              {workItemBadge}
-              {status}
-            </span>
-          ) : null}
-        </span>
+        </div>
+        {orchestrationExpanded ? (
+          <OrchestrationSidebarAgents
+            leadId={session.id}
+            summary={orchestration!}
+          />
+        ) : null}
         <span className="relative mt-1 flex items-center gap-2">
           {gitLabel ? (
             <span className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-content/45">
@@ -2671,38 +2563,114 @@ function SessionCard({
           ) : (
             <span className="min-w-0 flex-1" />
           )}
-          <span
-            className={`flex shrink-0 items-center gap-1.5 ${
-              onArchive
-                ? "transition-[padding] group-focus-within:pl-5 group-hover:pl-5"
-                : ""
-            }`}
-          >
-            <HarnessIcon
-              harness={session.harness}
-              className="size-3.5 shrink-0"
-            />
+          <span className="relative flex shrink-0 items-center gap-px">
+            {onArchive ? (
+              <button
+                type="button"
+                data-no-drag
+                data-tauri-drag-region="false"
+                title={archiveLabel}
+                aria-label={`${archiveLabel} ${title}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onArchive();
+                }}
+                className="pointer-events-none grid size-5 place-items-center rounded-md text-content/50 opacity-0 hover:bg-content/10 hover:text-content group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              >
+                <Archive className="size-3 shrink-0" strokeWidth={1.75} />
+              </button>
+            ) : null}
+            {workItemBadge}
+            {orchestration ? (
+              <div
+                ref={orchestrationTooltipRootRef}
+                className="relative shrink-0"
+                onMouseEnter={() => setOrchestrationTooltipOpen(true)}
+                onMouseLeave={() => setOrchestrationTooltipOpen(false)}
+              >
+                <button
+                  type="button"
+                  data-no-drag
+                  data-tauri-drag-region="false"
+                  data-orchestration-icon
+                  aria-label={`Orchestrator, ${orchestration.tasks.length} ${
+                    orchestration.tasks.length === 1 ? "subagent" : "subagents"
+                  }, ${orchestrationDone} done`}
+                  aria-describedby={
+                    orchestrationTooltipOpen
+                      ? orchestrationTooltipId
+                      : undefined
+                  }
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onFocus={() => setOrchestrationTooltipOpen(true)}
+                  onBlur={() => setOrchestrationTooltipOpen(false)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOrchestrationTooltipOpen(false);
+                    onSelect(session.id, event);
+                  }}
+                  className="grid size-5 shrink-0 place-items-center rounded-md text-fuchsia-300/65 hover:bg-content/10 hover:text-fuchsia-200/90"
+                >
+                  <Share className="size-3" />
+                </button>
+              </div>
+            ) : null}
           </span>
         </span>
       </div>
-      {onArchive ? (
-        <button
-          type="button"
-          data-no-drag
-          data-tauri-drag-region="false"
-          title={archiveLabel}
-          aria-label={`${archiveLabel} ${title}`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onArchive();
-          }}
-          className={`pointer-events-none absolute right-7 grid size-5 place-items-center rounded text-content/50 opacity-0 transition-opacity hover:bg-content/10 hover:text-content group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
-            compact ? "bottom-[5px]" : "bottom-[7px]"
-          }`}
+      {orchestration && orchestrationTooltipOpen ? (
+        <Popover
+          anchor={orchestrationTooltipRootRef}
+          side="right"
+          align="end"
+          width={248}
+          maxHeight={320}
+          role="tooltip"
+          id={orchestrationTooltipId}
+          className="pointer-events-none overflow-y-auto p-2.5"
         >
-          <Archive className="size-3.5" strokeWidth={1.75} />
-        </button>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] font-semibold text-content/85">
+              Subagents
+            </span>
+            <span className="shrink-0 text-[10px] tabular-nums text-content/45">
+              {orchestrationDone}/{orchestration.tasks.length} done
+            </span>
+          </div>
+          <div className="mt-1.5 flex flex-col gap-0.5">
+            {orchestration.tasks.map((task) => {
+              const label = orchestrationTaskLabel(task, orchestration);
+              return (
+                <div
+                  key={task.sessionId}
+                  className="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-1"
+                >
+                  <HarnessIcon
+                    harness={task.harness}
+                    className="size-3.5 shrink-0 opacity-75"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-content/75">
+                    {task.title}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[10px] ${
+                      task.needsInput || task.status === "failed"
+                        ? "text-amber-400"
+                        : label === "Working"
+                          ? "text-accent"
+                          : task.status === "completed"
+                            ? "text-emerald-400"
+                            : "text-content/45"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Popover>
       ) : null}
     </div>
   );

@@ -280,8 +280,8 @@ describe("codex live turn sequence", () => {
         ),
       )) {
         expect(message.params).toMatchObject({
-          approvalPolicy: "never",
-          approvalsReviewer: "auto_review",
+          approvalPolicy: "on-request",
+          approvalsReviewer: "user",
         });
       }
       onLine!(
@@ -1164,8 +1164,8 @@ describe("codex live turn sequence", () => {
     );
     const next = parse().filter((m) => m.method === "turn/start")[1];
     expect(next.params).toMatchObject({
-      approvalPolicy: "never",
-      approvalsReviewer: "auto_review",
+      approvalPolicy: "on-request",
+      approvalsReviewer: "user",
       sandboxPolicy: { type: "dangerFullAccess" },
     });
     reply(next.id as number, { turn: { id: "turn_2" } });

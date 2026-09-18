@@ -560,7 +560,8 @@ describe("sidebar reorder affordances", () => {
     act(() => render());
 
     const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
-    expect(tabs).toHaveLength(3);
+    // PK also exposes project notes as a workspace tab.
+    expect([...tabs].map((tab) => tab.textContent)).toEqual(expect.arrayContaining(["Sessions", "Explorer", "Changes", "Notes"]));
     for (const tab of tabs) {
       expect(tab.className).not.toContain("cursor-grab");
       expect(tab.parentElement?.className).not.toContain("cursor-grab");

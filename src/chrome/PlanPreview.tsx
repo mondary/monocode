@@ -111,14 +111,9 @@ export function PlanPreview({
                     <BuildTargetButton
                       from={harness}
                       model={model}
+                      settings={modelSettings}
                       disabled={buildDisabled}
-                      onPick={(targetHarness, targetModel) =>
-                        onBuild({
-                          harness: targetHarness,
-                          model: targetModel,
-                          modelSettings: modelSettings ?? {},
-                        })
-                      }
+                      onPick={onBuild}
                     />
                   ) : null}
                 </div>

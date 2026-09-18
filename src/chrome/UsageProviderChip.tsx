@@ -6,6 +6,9 @@ import {
   formatResetCountdown,
   formatResetDuration,
   formatUsagePercent,
+  formatDisplayedUsagePercent,
+  type UsageDisplayMode,
+  type UsageWindowVisibility,
   formatWindowLabel,
   rateLimitWindowTooltip,
   type ProviderRateLimits,
@@ -50,9 +53,13 @@ export function UsageProviderChip({
   onAddAccount,
   onConsumeReset,
   onReconnect,
+  displayMode = "used",
+  windowVisibility = "all",
 }: {
   limits: ProviderRateLimits;
   now: number;
+  displayMode?: UsageDisplayMode;
+  windowVisibility?: UsageWindowVisibility;
   project?: string;
   accounts?: ProviderAccount[];
   accountId?: string;
@@ -80,6 +87,7 @@ export function UsageProviderChip({
       !limits.monthly);
   const disconnected = limits.status === "unavailable";
   const windows = usageWindows(limits);
+  const chipWindows = windows.filter((entry) => windowVisibility === "all" || entry.key === windowVisibility);
   const loginView = Boolean(
     onReconnect &&
     windows.length === 0 &&
@@ -198,7 +206,7 @@ export function UsageProviderChip({
             ) : null}
             {tightest ? <MiniBar usedPct={tightest.usedPercent} /> : null}
             <span className="flex min-w-0 items-center gap-1 tabular-nums">
-              {windows.map((entry, index) => (
+              {chipWindows.map((entry, index) => (
                 <span
                   key={entry.key}
                   className="inline-flex items-center gap-1"
@@ -207,7 +215,7 @@ export function UsageProviderChip({
                     <span className="text-content/25">·</span>
                   ) : null}
                   <span>
-                    {formatUsagePercent(entry.window.usedPercent)}{" "}
+                    {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)}{" "}
                     {formatRateLimitWindowChipLabel(entry.window, now)}
                   </span>
                 </span>
