@@ -227,6 +227,19 @@ export function gitStageFile(cwd: string, relative: string): Promise<void> {
   return invoke<void>("git_stage_file", { cwd, relative });
 }
 
+export type GitIgnoreResult = {
+  relative: string;
+  added: boolean;
+  tracked: boolean;
+};
+
+export function gitAddToGitignore(
+  cwd: string,
+  relative: string,
+): Promise<GitIgnoreResult> {
+  return invoke<GitIgnoreResult>("git_add_to_gitignore", { cwd, relative });
+}
+
 export function gitUnstageFile(cwd: string, relative: string): Promise<void> {
   return invoke<void>("git_unstage_file", { cwd, relative });
 }
