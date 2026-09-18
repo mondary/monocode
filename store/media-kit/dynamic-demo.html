@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>MonoCode PK — démo</title>
+<style>
+:root{
+  --bg:#0a0a0c; --bg2:#101014; --card:#141419; --line:#23232b;
+  --txt:#ececf1; --mut:#9b9ba6; --dim:#6b6b77; --accent:#c8ff5e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1200px;height:675px;overflow:hidden}
+body{background:var(--bg);color:var(--txt);font:14px/1.5 "Inter",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+.app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:44px 1fr 34px;height:100%}
+/* title bar */
+.title{grid-column:1/3;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:7px}
+.dots i{width:11px;height:11px;border-radius:50%;background:#2c2c33}
+.dots i:first-child{background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+.title .name{font-weight:600;font-size:12.5px;letter-spacing:-.01em}
+.title .proj{font-size:11px;color:var(--dim)}
+/* sidebar */
+.side{background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side .sec{padding:10px 12px 4px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.sess{display:flex;align-items:center;gap:8px;margin:1px 8px;padding:7px 9px;border-radius:9px;font-size:12.5px;color:var(--mut);border:1px solid transparent;transition:background .25s,border-color .25s,color .25s}
+.sess .ic{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:8px;font-weight:800;color:#0a0a0c;flex:none}
+.sess.sel{background:rgba(200,255,94,.10);border-color:rgba(200,255,94,.35);color:var(--txt)}
+.sess .chk{margin-left:auto;width:14px;height:14px;border-radius:4px;border:1.5px solid var(--dim);display:grid;place-items:center;font-size:9px;color:#0a0a0c;opacity:0;transition:opacity .2s}
+.sess.sel .chk{background:var(--accent);border-color:var(--accent);opacity:1}
+/* main */
+.main{display:grid;grid-template-rows:1fr 240px;overflow:hidden;position:relative}
+.tr{padding:18px 22px;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:78%;padding:10px 14px;border-radius:13px;font-size:13px}
+.msg.user{align-self:flex-end;background:#1d1d24}
+.msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line)}
+.msg .who{font-size:10px;color:var(--dim);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase}
+.batch{position:absolute;top:14px;right:22px;display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid rgba(200,255,94,.4);border-radius:11px;padding:8px 12px;font-size:12px;opacity:0;transform:translateY(-6px);transition:opacity .3s,transform .3s}
+.batch.on{opacity:1;transform:none}
+.batch b{color:var(--accent)}
+/* notes */
+.notes{border-top:1px solid var(--line);padding:12px 22px;display:grid;grid-template-columns:220px 1fr;gap:16px;background:var(--bg2)}
+.notes h3{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:8px}
+.filter{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;color:var(--mut)}
+.filter .caret{width:1.5px;height:14px;background:var(--accent);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chip{font-size:10.5px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.chip.on{background:rgba(200,255,94,.12);border-color:rgba(200,255,94,.4);color:var(--accent)}
+.nlist{display:flex;flex-direction:column;gap:6px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:12px;transition:opacity .3s,transform .3s}
+.note .t{font-weight:600;font-size:12px}
+.note .m{font-size:10.5px;color:var(--dim)}
+.note.hide{opacity:.18;transform:scale(.985)}
+/* footer */
+.foot{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--bg2);border-top:1px solid var(--line);font-size:11px;color:var(--mut)}
+.foot .q{display:flex;align-items:center;gap:6px}
+.bar{width:70px;height:5px;border-radius:99px;background:#26262e;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+.foot .prov{margin-left:auto;display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+.foot .prov .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+/* cursor */
+#cursor{position:fixed;z-index:99;width:20px;height:20px;pointer-events:none;left:0;top:0}
+#cursor svg{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="title">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <span class="name">MonoCode PK</span>
+    <span class="proj mono">projet : quartz-site · 4 agents</span>
+  </div>
+
+  <div class="side">
+    <div class="sec">Sessions</div>
+    <div class="sess" id="s1"><span class="ic" style="background:#c8ff5e">C</span>refactor auth<span class="chk">✓</span></div>
+    <div class="sess" id="s2"><span class="ic" style="background:#7ee0ff">Z</span>migrate notes store<span class="chk">✓</span></div>
+    <div class="sess" id="s3"><span class="ic" style="background:#ffb86b">G</span>fix DMG background<span class="chk">✓</span></div>
+    <div class="sess" id="s4"><span class="ic" style="background:#d2a8ff">O</span>update changelog<span class="chk">✓</span></div>
+    <div class="sec">Projets</div>
+    <div class="sess"><span class="ic" style="background:#3ecf8e">Q</span>quartz-site</div>
+    <div class="sess"><span class="ic" style="background:#ff8fa3">P</span>portfolio</div>
+  </div>
+
+  <div class="main">
+    <div class="tr">
+      <div class="msg user">Multi-sélectionne les sessions de migration et archive-les.</div>
+      <div class="msg bot"><div class="who">codex · 0.1.50</div>3 sessions sélectionnées → action groupée disponible depuis la barre contextuelle.</div>
+      <div class="msg bot"><div class="who">zai · glm</div>Quotas footer synchronisés, prêt pour le batch.</div>
+    </div>
+    <div class="batch" id="batch"><b>3 sélectionnées</b><span>Archiver · Taguer · Déplacer</span></div>
+    <div class="notes">
+      <div>
+        <h3>Notes · filtre</h3>
+        <div class="filter"><span>⌕</span><span id="typed"></span><span class="caret"></span></div>
+        <div class="chips">
+          <span class="chip on" id="c1">release</span>
+          <span class="chip" id="c2">bug</span>
+          <span class="chip on" id="c3">merge</span>
+        </div>
+      </div>
+      <div class="nlist">
+        <div class="note" id="n1"><div class="t">Merge upstream 0.1.50</div><div class="m mono">release · merge · 12 notes liées</div></div>
+        <div class="note hide" id="n2"><div class="t">Design DMG animé</div><div class="m mono">design · 2 notes liées</div></div>
+        <div class="note" id="n3"><div class="t">Checklist release 41</div><div class="m mono">release · 5 notes liées</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="q">codex <span class="bar"><i id="q1" style="width:38%"></i></span> <span id="q1v" class="mono">38%</span></span>
+    <span class="q">zai <span class="bar"><i id="q2" style="width:61%"></i></span> <span id="q2v" class="mono">61%</span></span>
+    <span class="q">glm <span class="bar"><i id="q3" style="width:22%"></i></span> <span id="q3v" class="mono">22%</span></span>
+    <span class="prov"><span class="dot"></span><span id="prov">codex</span> · <span class="mono">PK 2026.09.41</span></span>
+  </div>
+</div>
+
+<div id="cursor"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 2l16 8.5-7 1.5L9.5 20 4 2z" fill="#fff" stroke="#000" stroke-width="1.4"/></svg></div>
+
+<script>
+const F=(x,y)=>({x,y});
+const frames=[];
+/* helper push shorthand */
+const S=id=>document.getElementById(id);
+function sel(id,on){S(id).classList.toggle("sel",on)}
+function build(){
+  /* 0-7 idle */
+  for(let i=0;i<8;i++)frames.push({t:i,c:F(905,330)});
+  /* 8-30: multi-select 3 sessions */
+  const steps=[[F(950,330),["s1"]],[F(180,113),["s1"]],[F(180,143),["s1","s2"]],[F(180,173),["s1","s2","s3"]],[F(180,173),["s1","s2","s3"]]];
+  for(let i=0;i<6;i++)frames.push({t:8+i,c:F(905,330-i*25)});
+  frames.push({t:14,c:steps[1][0]});
+  for(let i=0;i<5;i++)frames.push({t:15+i,c:steps[1][0],sel:steps[1][1],click:i===2});
+  frames.push({t:20,c:steps[2][0],sel:steps[1][1],click:true});
+  frames.push({t:21,c:steps[2][0],sel:steps[2][1]});
+  frames.push({t:22,c:steps[3][0],sel:steps[2][1],click:true});
+  for(let i=0;i<10;i++)frames.push({t:23+i,c:steps[4][0],sel:steps[3][1],batch:true});
+  /* 33-50: notes filter typing */
+  const word="release";
+  for(let i=0;i<=7;i++)frames.push({t:33+i,c:F(330,505),type:word.slice(0,Math.min(i,word.length)),chips:["c1","c3"]});
+  for(let i=0;i<9;i++)frames.push({t:41+i,c:F(330,505),type:word,chips:["c1","c3"]});
+  /* 51-62: quotas animate + provider switch */
+  for(let i=0;i<12;i++)frames.push({t:51+i,c:F(700,650),type:word,chips:["c1","c3"],q:[38+i*2,61-i,22+i*1.5],prov:i>6?"zai":"codex",batch:i<4});
+  /* 63-71: settle */
+  for(let i=0;i<9;i++)frames.push({t:63+i,c:F(700,640),type:word,chips:["c1","c3"],q:[62,49,39],prov:"zai",batch:false});
+}
+build();
+let idx=0;
+function apply(f){
+  const c=S("cursor");c.style.transform=`translate(${f.c.x}px,${f.c.y}px)`;
+  ["s1","s2","s3","s4"].forEach(id=>sel(id,false));
+  (f.sel||[]).forEach(id=>sel(id,true));
+  S("batch").classList.toggle("on",!!f.batch);
+  S("typed").textContent=f.type||"";
+  ["c1","c2","c3"].forEach(id=>S(id).classList.toggle("on",id!=="c2"?(f.chips||[]).includes(id):false));
+  S("n1").classList.toggle("hide",!(f.chips||[]).includes("c1")||(f.type&&!"release merge upstream checklist".includes(f.type)&&f.type.length>2));
+  S("n2").classList.toggle("hide",true);
+  S("n3").classList.toggle("hide",!(f.chips||[]).includes("c1")||(f.type&&!"release checklist".includes(f.type)&&f.type.length>2));
+  if(f.q){S("q1").style.width=f.q[0]+"%";S("q1v").textContent=Math.round(f.q[0])+"%";S("q2").style.width=f.q[1]+"%";S("q2v").textContent=Math.round(f.q[1])+"%";S("q3").style.width=f.q[2]+"%";S("q3v").textContent=Math.round(f.q[2])+"%";}
+  S("prov").textContent=f.prov||"codex";
+}
+function show(i){apply(frames[i%frames.length])}
+window.__seek=i=>{idx=i;show(i)};
+show(0);
+</script>
+</body>
+</html>
