@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.42] - 2026-09-18
+
+### Added
+
+- Logo du projet affiché à gauche du nom dans le header du workspace.
+- Sélecteur Steer/Queue par message dans le composeur pendant un tour actif : Entrée applique le choix du message sans modifier le réglage global.
+- Page store v2 avec kit média régénérable (démo HTML, GIF, MP4, bannière, card OG) et captures réelles de l'app.
+
+### Changed
+
+- Défauts PK alignés : usage display « Remaining », fenêtre de quota « 5 heures », auto-export des notes activé, Highlight custom actions activé, titre workspace = nom du projet (badge PK).
+- Les projets « en cours » gardent un ordre stable : cliquer un projet ne le fait plus remonter dans la carte.
+
 ## [2026.09.41] - 2026-09-18
 
 ### Changed
