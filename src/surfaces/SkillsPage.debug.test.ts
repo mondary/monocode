@@ -89,7 +89,7 @@ beforeEach(() => {
   vi.mocked(invoke).mockReset();
   vi.mocked(invoke).mockImplementation(async (command) => {
     console.log("INVOKE:", command);
-    if (command === "list_skills") return skills;
+    if (command === "list_skills") { console.log("retourne", skills.length, "skills"); return skills; }
     if (command === "read_text_file") return markdown;
     throw new Error(`Unexpected command: ${command}`);
   });
@@ -521,5 +521,14 @@ describe("Settings skill preview", () => {
     ).toBe("false");
     expect(button("Copy path of Personal guide")).toBeDefined();
     expect(button("Reveal Personal guide in file explorer")).toBeDefined();
+  });
+});
+
+describe("debug fumee", () => {
+  it("affiche les skills", async () => {
+    await render();
+    console.log("BUTTONS:", Array.from(container.querySelectorAll("button")).map(b=>b.textContent).slice(0,8));
+    console.log("HTML HEAD:", container.querySelector('[aria-label="Skill preview"]')?.textContent?.slice(0,80));
+    expect(container.querySelectorAll("button").length).toBeGreaterThan(0);
   });
 });
