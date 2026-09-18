@@ -3,6 +3,7 @@
  *   New tab             cmd-t
  *   Close other tabs    cmd-opt-t
  *   Close tab           cmd-w
+ *   Close all tabs      shift-cmd-w
  *   Split pane right    cmd-d
  *   Split pane down     shift-cmd-d
  *   Next tab            shift-cmd-}
@@ -34,6 +35,7 @@ import type { FocusDir } from "./layout";
 export type TabCommand =
   | "new"
   | "close-others"
+  | "close-all"
   | "close"
   | "close-all"
   | "next"
