@@ -41,7 +41,8 @@ import {
 } from "../lib/fs";
 import { IS_MAC, MOD } from "../lib/platform";
 import { resolveModel } from "../lib/models";
-import { projectName } from "../lib/paths";
+import { projectName, projectKey } from "../lib/paths";
+import { listProjectFiles } from "../lib/fs";
 import { sessionDisplayTitle } from "../lib/session";
 import { nextUnseenFinishedSessions } from "../lib/sessionDone";
 import {
@@ -108,6 +109,9 @@ import {
 import type { InstalledUpdate } from "../lib/updateNotice";
 import {
   TAB_GROUP_COLORS,
+  loadTabGroupLogos,
+  resolveTabGroupLogo,
+  TAB_GROUP_LOGOS_CHANGED,
 } from "../lib/tabGroups";
 import { useDragResize } from "../hooks/useDragResize";
 import { useGitFileStatuses } from "../hooks/useGitFileStatuses";
@@ -553,6 +557,45 @@ function SidebarComponent({
   // project rail itself is collapsed.
   const railVisible = showProjectRail && (projectRailOpen || settingsOpen);
   const inProject = looksLikeProject(cwd);
+  // Logo du header : logo personnalisé du projet, sinon icon.png à la racine
+  // (même détection que la liste des projets).
+  const [headerLogo, setHeaderLogo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!inProject || projectTitleMode !== "project") {
+      setHeaderLogo(null);
+      return;
+    }
+    let cancelled = false;
+    const custom = resolveTabGroupLogo(projectKey(cwd), loadTabGroupLogos());
+    listProjectFiles(cwd)
+      .then((files) => {
+        if (cancelled) return;
+        const icon = files.find(
+          (file) =>
+            /^(icon|icone)\.(png|jpe?g)$/i.test(file.name) &&
+            !file.relative.includes("/"),
+        );
+        setHeaderLogo(custom ?? icon?.path ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setHeaderLogo(custom);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, inProject, projectTitleMode]);
+  useEffect(() => {
+    const refresh = () => {
+      if (inProject && projectTitleMode === "project") {
+        setHeaderLogo(
+          resolveTabGroupLogo(projectKey(cwd), loadTabGroupLogos()) ??
+            headerLogo,
+        );
+      }
+    };
+    window.addEventListener(TAB_GROUP_LOGOS_CHANGED, refresh);
+    return () => window.removeEventListener(TAB_GROUP_LOGOS_CHANGED, refresh);
+  }, [cwd, inProject, projectTitleMode, headerLogo]);
   const showSidebarFooter = !projectRailOpen;
   // A blank session has no project to browse, so the shell stands alone until
   // one is picked — whether or not the rail is open.

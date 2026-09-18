@@ -531,7 +531,10 @@ export function saveFollowUpBehavior(value: FollowUpBehavior) {
   }
 }
 
-export const COMPOSER_EFFORT_VISIBLE_DEFAULT = false;
+// PK : effort visible en bouton horizontal dans le composeur — les réglages
+// de session restent lisibles d'un coup d'œil au lieu d'être masqués dans le
+// popover du modèle (choix PK, upstream les cache dedans par défaut).
+export const COMPOSER_EFFORT_VISIBLE_DEFAULT = true;
 
 /** Fired on `window` when the standalone composer effort control setting flips. */
 export const COMPOSER_EFFORT_VISIBLE_CHANGE_EVENT =

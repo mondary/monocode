@@ -107,9 +107,9 @@ describe("composer effort control setting", () => {
     localStorage.removeItem(COMPOSER_EFFORT_VISIBLE_KEY);
   });
 
-  it("keeps effort in the model picker by default", () => {
-    expect(COMPOSER_EFFORT_VISIBLE_DEFAULT).toBe(false);
-    expect(loadComposerEffortVisible()).toBe(false);
+  it("shows effort beside the model picker by default (PK)", () => {
+    expect(COMPOSER_EFFORT_VISIBLE_DEFAULT).toBe(true);
+    expect(loadComposerEffortVisible()).toBe(true);
   });
 
   it("persists the standalone effort control preference", () => {

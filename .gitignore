@@ -64,3 +64,6 @@ GEMINI.md
 GLM.md
 OPENCODE.md
 src-tauri/tauri.pk.dev.conf.json
+
+# exports de notes de l app (contenu local)
+.monocode/
