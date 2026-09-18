@@ -234,6 +234,10 @@ describe("FileTree explorer header settings", () => {
   });
 
   it("tints the custom action buttons only when highlighting is on", async () => {
+    // Defaut PK : highlighting active — on desactive d'abord pour tester.
+    await act(async () => {
+      saveExplorerHighlightActions(false);
+    });
     await act(async () => render());
     expect(initButton()?.className).not.toContain("text-accent");
 

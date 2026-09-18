@@ -962,7 +962,8 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       </Row>
       <Row
         label="Workspace title"
-        description="Show the generic Workspace label, or the current project name in the workspace header."
+        pk
+        description="Show the generic Workspace label, or the current project name (with its logo) in the workspace header."
       >
         <Segmented
           label="Workspace title"

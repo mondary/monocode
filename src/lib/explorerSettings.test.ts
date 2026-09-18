@@ -23,9 +23,9 @@ describe("explorer header settings", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the Changes button and skips the accent tint by default", () => {
+  it("shows the Changes button and tints custom actions by default (PK)", () => {
     expect(loadExplorerShowChanges()).toBe(true);
-    expect(loadExplorerHighlightActions()).toBe(false);
+    expect(loadExplorerHighlightActions()).toBe(true);
   });
 
   it("persists both options across a reload", () => {

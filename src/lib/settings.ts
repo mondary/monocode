@@ -639,9 +639,9 @@ const NOTES_AUTO_EXPORT_KEY = "monocode.notesAutoExport";
 /** Mirror notes into their source project's .monocode/notes folder. */
 export function loadNotesAutoExport(): boolean {
   try {
-    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) === "1";
+    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 

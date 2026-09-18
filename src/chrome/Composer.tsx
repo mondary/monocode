@@ -116,6 +116,7 @@ import {
   COMPOSER_RUNNER_CHANGE_EVENT,
   loadComposerEffortVisible,
   loadComposerRunner,
+  loadFollowUpBehavior,
   loadNotesEnabled,
   subscribeComposerEffortVisible,
   subscribeNotesEnabled,
@@ -470,6 +471,12 @@ export function Composer({
   const slashRef = useRef<SlashToken | null>(null);
   const mentionRef = useRef<MentionToken | null>(null);
   const [draft, setDraft] = useState(initialDraft ?? "");
+  // Comportement Enter pendant un tour actif : choisi par message (choix
+  // visible dans le composeur), initialise depuis le reglage global.
+  const [enterBehavior, setEnterBehavior] = useState<FollowUpBehavior>(
+    () => "queue",
+  );
+  useEffect(() => setEnterBehavior(loadFollowUpBehavior()), []);
   const [hasValue, setHasValue] = useState(
     () =>
       (initialDraft ?? "").trim().length > 0 ||
@@ -1203,7 +1210,7 @@ export function Composer({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      submit(e.currentTarget.value);
+      submit(e.currentTarget.value, busy ? enterBehavior : undefined);
     }
   };
 
@@ -1669,8 +1676,10 @@ export function Composer({
               <ComposerAction
                 busy={busy}
                 hasValue={hasValue}
+                enterBehavior={enterBehavior}
+                onEnterBehaviorChange={setEnterBehavior}
                 onSend={(behavior) =>
-                  submit(ref.current?.value ?? "", behavior)
+                  submit(ref.current?.value ?? "", behavior ?? enterBehavior)
                 }
                 onStop={() => onStop?.()}
               />
@@ -1758,23 +1767,49 @@ function MentionRuns({
   );
 }
 
-export function ComposerAction({
-  busy,
-  hasValue,
-  onSend,
-  onStop,
-}: {
+export function ComposerAction(props: {
   busy: boolean;
   hasValue: boolean;
+  enterBehavior: FollowUpBehavior;
+  onEnterBehaviorChange: (behavior: FollowUpBehavior) => void;
   onSend: (behavior?: FollowUpBehavior) => void;
   onStop: () => void;
 }) {
+  const { busy, hasValue, enterBehavior, onEnterBehaviorChange, onSend, onStop } = props;
   if (busy) {
     if (hasValue) {
       // Deux envois toujours visibles : steer coupe le tour en cours, queue
-      // met a la suite. Entree suit le comportement par defaut des reglages.
+      // met a la suite. Le selecteur fixe ce que fera Entree (par message,
+      // sans toucher au reglage global).
       return (
         <>
+          <div
+            role="radiogroup"
+            aria-label="Follow-up behavior for this message"
+            className="mr-1 flex items-center rounded-md border border-white/25 p-px"
+          >
+            {(["steer", "queue"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={enterBehavior === mode}
+                title={
+                  mode === "steer"
+                    ? "Enter will steer — send now, into the active turn"
+                    : "Enter will queue — send when the active turn finishes"
+                }
+                onClick={() => onEnterBehaviorChange(mode)}
+                className={`rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  enterBehavior === mode
+                    ? "bg-white text-black"
+                    : "text-white/80 hover:text-white"
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             title="Steer — send now, into the active turn"

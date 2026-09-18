@@ -128,6 +128,7 @@ import { FileTree } from "./FileTree";
 import { HarnessIcon } from "./HarnessIcon";
 import { ProjectNotes } from "./ProjectNotes";
 import { ProjectRail } from "./ProjectRail";
+import { ProjectLogoIcon } from "./ProjectLogoIcon";
 import { RailAction } from "./RailAction";
 import { TerminalSpinner } from "./TerminalSpinner";
 import { DevModeSlot, IconButton, TabVisitNav } from "./TitleBar";
@@ -1204,9 +1205,15 @@ function SidebarComponent({
       {railVisible ? (
         <>
           <div
-            className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-content/10 pl-3 pr-1.5"
+            className="flex h-10 shrink-0 select-none items-center gap-1.5 border-b border-content/10 pl-3 pr-1.5"
             data-tauri-drag-region="deep"
           >
+            {projectTitleMode === "project" && inProject ? (
+              <ProjectLogoIcon
+                projectPath={cwd}
+                className="size-4 shrink-0"
+              />
+            ) : null}
             <span className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">
               {workspaceTitle}
             </span>

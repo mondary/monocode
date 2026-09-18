@@ -565,11 +565,11 @@ export function ProjectRail({
         return true;
       })
       .sort((a, b) => {
+        // Ordre stable : busy avant done, sinon l'ordre du rail. Le clic sur
+        // un projet (openedAt) ne doit pas le faire remonter dans la carte.
         const aLive = busy.has(a) ? 0 : done.has(a) ? 1 : 2;
         const bLive = busy.has(b) ? 0 : done.has(b) ? 1 : 2;
-        if (aLive !== bLive) return aLive - bLive;
-        return (recents.find((item) => sameProjectPath(item.path, b))?.openedAt ?? 0) -
-          (recents.find((item) => sameProjectPath(item.path, a))?.openedAt ?? 0);
+        return aLive - bLive;
       })
       .map((path) => allProjects.get(path)!)
       .filter(Boolean);
