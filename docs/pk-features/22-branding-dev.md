@@ -1,6 +1,6 @@
 ---
 id: 22
-status: pending
+status: verified
 upstream: v0.1.50
 files:
   - src/lib/pkVariant.ts
@@ -46,7 +46,8 @@ Test manuel : Lancer le bundle Dev, vérifier badge et identifiant com.monocode.
 
 ## Preuves
 
-- Tests automatiques : à consigner.
-- Test dans l’application : pas encore effectué.
-- Commit de validation : pas encore créé.
+- Tests automatiques : `cargo check` OK (2026-09-18) ; bundle integration construit via `npm run build:pk:integration`.
+- Bundle vérifié : `com.monocode.pk.dev`, `CFBundleShortVersionString = 0.1.50`, `icon.icns` présent.
+- Test dans l'application : `/Applications/MonoCodePK-Dev.app` lancée, badge DEV + PK `2026.09.40` visibles, app quotidienne `MonoCode.app` intacte (observé par l'utilisateur).
+- Commit de validation : REFACTO port upstream 0.1.50.
 

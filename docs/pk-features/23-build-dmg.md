@@ -1,6 +1,6 @@
 ---
 id: 23
-status: pending
+status: verified
 upstream: v0.1.50
 files:
   - package.json
@@ -44,7 +44,8 @@ Test manuel : Construire le bundle d’intégration sans remplacer l’app quoti
 
 ## Preuves
 
-- Tests automatiques : à consigner.
-- Test dans l’application : pas encore effectué.
-- Commit de validation : pas encore créé.
+- Tests automatiques : `npm run build:pk:integration` produit `build/target/release/bundle/macos/MonoCode PK Dev.app` (0.1.50) sans installation ; `bash scripts/package-pk-dmg.sh` produit `build/releases/MonoCodePK_2026.09.40_aarch64.dmg` (app + lien Applications).
+- DMG stable : construit depuis le worktree `monocodePK-stable` (branche `stable/pk`), version 0.1.49 — retard volontaire du canal stable sur l'intégration.
+- Test dans l'application : DMG monté, contenu vérifié (`MonoCode PK.app` + `Applications`, `com.monocode.pk`).
+- Commit de validation : REFACTO port upstream 0.1.50.
 
