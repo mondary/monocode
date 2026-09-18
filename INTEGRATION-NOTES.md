@@ -1,22 +1,18 @@
-# Intégration amont 0.1.50 — état au 2026-09-18
+# Intégration amont 0.1.50 — reprise
 
-Branche `integration-0.1.50` (base 860c58f + merge upstream/main 8743e9a).
+Branch: integration-0.1.50. tsc 0 erreur. Tests: ~48 échecs sur 2555.
 
-## Fait
-- ~100 conflits de merge résolus (features PK conservées + nouveautés amont intégrées :
-  orchestration, provider accounts, accent color, project groups, notification mutes,
-  pasteboard, hermes harness, control socket...)
-- `npx tsc --noEmit` : 0 erreur
-- Build vite : OK
+## Reste (par priorité)
+1. SidebarRename (19): port complet multisélection amont (focus project picker,
+   prefetch au survol, cas limite range). Base déjà posée (onSessionCardSelect 3-modifiers).
+2. NotesView (11): port du picker "move" amont dans NoteEditor PK
+   (recents/activeCwd/projectChangeRef/saveNow — voir NoteEditor upstream 532-560).
+3. SettingsView (8): port page notification settings amont (ProjectNotificationSettings.tsx
+   existe déjà) + toggle close-to-tray dans GeneralPage + settings indexés.
+4. UsageFooterAuth (3) + UsageFooter (2): panneau sign-in (loginHarness) dans footer PK.
+5. codexLive (3): cf. codexProtocol (déjà upstream).
+6. SecondOpinionButton (2): sous-menu effort — vérifier setHarnessModels/modelsFor.
 
-## Reste à faire
-- 86 tests vitest en échec (tests amont nouveaux dont le code support a été
-  partiellement écrasé par les résolutions rerere périmées). Clusters :
-  - SkillsPage.test (27) : liste skills vide au rendu — investiguer le mock list_skills
-  - SidebarRename.test (26) : props Sidebar manquantes (session multiselection upstream)
-  - NotesView.test (11), SettingsView.test (8) : idem
-  - codexProtocol.test (3) : prendre la version upstream du comportement sandbox
-  - UsageFooterAuth.test (3) : panneau sign-in upstream (loginHarness) absent du footer PK
-  - UsageFooter.test (2), agentMarkdownSpacing (OK depuis), SecondOpinionButton (2) :
-    sous-menu effort — vérifier models.ts / setHarnessModels
-- Puis : cargo check, build:pk, DMG, release pk-2026.09.41
+## Ensuite
+- cargo check && npm run build:pk
+- DMG + release pk-2026.09.41 (GitHub + cask)
