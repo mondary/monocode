@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.43] - 2026-09-18
+
+### Fixed
+
+- Le logo du header du workspace se résout depuis le logo personnalisé ou l'icon.png racine du projet.
+- Les projets « en cours » suivent l'ordre du rail : cliquer un projet ne le fait plus remonter.
+- Dossier `.monocode/` (exports de notes) ignoré par git.
+
+### Changed
+
+- Effort visible par défaut en bouton horizontal dans le composeur (choix PK : lisible sans ouvrir le popover).
+
 ## [2026.09.42] - 2026-09-18
 
 ### Added
