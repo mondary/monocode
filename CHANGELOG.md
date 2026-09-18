@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.09.41] - 2026-09-18
+
+### Changed
+
+- Base officielle 0.1.50 réintégrée dans l'arbre PK (127 commits amont, fin du port à la main).
+- Port complet des 23 features PK sur la base 0.1.50 : sidebar multisélection/tags, notes (filtre, chips, édition, export), paramètres, providers PK et personnalisés, quotas CodexBar, thèmes, terminaux, raccourcis.
+- Catalogue `docs/pk-features/` : 23/23 fiches vérifiées (tests + build + inspection DMG).
+
+### Fixed
+
+- Doubles imports et collisions de merge résolus (HarnessIcon, harness env PK, modules lib.rs).
+
 ## [2026.09.40] - 2026-09-17
 
 ### Changed
