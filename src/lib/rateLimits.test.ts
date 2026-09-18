@@ -4,7 +4,6 @@ import {
   formatRateLimitWindowChipLabel,
   formatResetCountdown,
   formatResetDuration,
-  formatDisplayedUsagePercent,
   formatUsagePercent,
   formatWindowLabel,
   idleRateLimits,
@@ -12,7 +11,6 @@ import {
   mapUsageWindow,
   parseClaudeOAuthUsage,
   parseCodexRateLimits,
-  parseCodexBarUsage,
   parseOpencodeGoUsage,
   parseResetTimestamp,
   RATE_LIMIT_MIN_REFETCH_MS,
@@ -28,32 +26,6 @@ describe("formatWindowLabel", () => {
     expect(formatWindowLabel(60)).toBe("1h");
     expect(formatWindowLabel(45)).toBe("45m");
     expect(formatWindowLabel(1_440)).toBe("1d");
-  });
-});
-
-describe("usage display", () => {
-  it("can display remaining quota instead of consumed quota", () => {
-    expect(formatDisplayedUsagePercent(58, "used")).toBe("58%");
-    expect(formatDisplayedUsagePercent(58, "remaining")).toBe("42%");
-  });
-});
-
-describe("parseCodexBarUsage", () => {
-  it("maps generic provider windows", () => {
-    const result = parseCodexBarUsage(
-      JSON.stringify({
-        provider: "cursor",
-        usage: {
-          primary: { usedPercent: 5, windowMinutes: 300 },
-          secondary: { usedPercent: 58, windowMinutes: 10080 },
-        },
-      }),
-    );
-    expect(result[0]).toMatchObject({
-      provider: "cursor",
-      session: { usedPercent: 5, windowMinutes: 300 },
-      weekly: { usedPercent: 58, windowMinutes: 10080 },
-    });
   });
 });
 

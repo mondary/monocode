@@ -166,7 +166,7 @@ describe("model picker", () => {
     const modelFlyout = container.querySelector<HTMLElement>(
       '[role="dialog"][aria-label="Models"]',
     )!;
-    expect(modelFlyout.style.height).toBe("584px");
+    expect(modelFlyout.style.height).toBe("584px"); // PK: 4 harnesses supplementaires
     expect(modelFlyout.dataset.minHeight).toBe("586");
     expect(modelFlyout.dataset.maxHeight).toBe("586");
     expect(

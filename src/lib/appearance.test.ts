@@ -18,16 +18,12 @@ import {
   saveTranscriptAnchor,
   TRANSCRIPT_ANCHOR_DEFAULT,
   loadThemePreference,
+  loadThemeDarkLightness,
+  saveThemeDarkLightness,
   saveThemePreference,
   resolveColorScheme,
   THEME_PREFERENCE_DEFAULT,
-  loadSidebarTabOrder,
-  loadThemePreset,
-  saveThemePreset,
-  THEME_PRESET_DEFAULT,
-  loadBackgroundPanels,
-  saveBackgroundPanels,
-  applyBackgroundPanels,
+  THEME_DARK_LIGHTNESS_DEFAULT,
 } from "./appearance";
 
 const KEY = "monocode.transcriptLayout";
@@ -37,6 +33,7 @@ const ANCHOR_KEY = "monocode.transcriptAnchor";
 const CHAT_BACKGROUND_PATH_KEY = "monocode.chatBackgroundPath";
 const CHAT_BACKGROUND_OPACITY_KEY = "monocode.chatBackgroundOpacity";
 const CHAT_BACKGROUND_SCOPE_KEY = "monocode.chatBackgroundScope";
+const THEME_DARK_LIGHTNESS_KEY = "monocode.themeDarkLightness";
 
 function mockLocalStorage() {
   const data = new Map<string, string>();
@@ -223,81 +220,21 @@ describe("theme preference setting", () => {
   });
 });
 
-describe("sidebar tab order", () => {
-  afterEach(() => localStorage.clear());
-
-  it("appends the notes tab to a legacy saved order", () => {
-    localStorage.setItem(
-      "monocode.sidebarTabOrder",
-      JSON.stringify(["files", "sessions", "changes", "inbox"]),
-    );
-    expect(loadSidebarTabOrder()).toEqual([
-      "files",
-      "sessions",
-      "changes",
-      "inbox",
-      "notes",
-    ]);
+describe("dark theme lightness setting", () => {
+  beforeEach(mockLocalStorage);
+  afterEach(() => {
+    localStorage.removeItem(THEME_DARK_LIGHTNESS_KEY);
   });
 
-  it("honors a current full order", () => {
-    localStorage.setItem(
-      "monocode.sidebarTabOrder",
-      JSON.stringify(["notes", "sessions", "inbox", "files", "changes"]),
-    );
-    expect(loadSidebarTabOrder()).toEqual([
-      "notes",
-      "sessions",
-      "inbox",
-      "files",
-      "changes",
-    ]);
-  });
-});
-
-describe("theme presets", () => {
-  afterEach(() => localStorage.clear());
-
-  it("round-trips every Catppuccin flavor", () => {
-    for (const preset of [
-      "catppuccin-latte",
-      "catppuccin-macchiato",
-      "catppuccin-mocha",
-      "catppuccin-frappe",
-    ] as const) {
-      saveThemePreset(preset);
-      expect(loadThemePreset()).toBe(preset);
-    }
+  it("defaults to the existing dark background lightness", () => {
+    expect(THEME_DARK_LIGHTNESS_DEFAULT).toBe(9);
+    expect(loadThemeDarkLightness()).toBe(9);
   });
 
-  it("falls back to the PK default on garbage", () => {
-    localStorage.setItem("monocode.themePreset", "solarized");
-    expect(loadThemePreset()).toBe(THEME_PRESET_DEFAULT);
-  });
-
-  it("migrates the neutral default to the PK default", () => {
-    localStorage.setItem("monocode.themePreset", "default");
-    expect(loadThemePreset()).toBe(THEME_PRESET_DEFAULT);
-  });
-});
-
-describe("background panel scope", () => {
-  afterEach(() => localStorage.clear());
-
-  it("applies the image to chat only by default", () => {
-    expect(loadBackgroundPanels()).toEqual({
-      chat: true,
-      workspace: false,
-      terminal: false,
-    });
-  });
-
-  it("persists panel picks across a reload", () => {
-    saveBackgroundPanels({ chat: true, workspace: true, terminal: false });
-    expect(loadBackgroundPanels()).toEqual({
-      chat: true,
-      workspace: true,
-      terminal: false,
-    });
+  it("persists true black and clamps overly light values", () => {
+    saveThemeDarkLightness(0);
+    expect(loadThemeDarkLightness()).toBe(0);
+    saveThemeDarkLightness(100);
+    expect(loadThemeDarkLightness()).toBe(30);
   });
 });

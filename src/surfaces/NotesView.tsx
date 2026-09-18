@@ -1,5 +1,8 @@
-import { LoaderCircle, Plus, Search, File, Trash2, Download } from "../chrome/icons";
-import { consumePendingOpenNote, OPEN_NOTE_EVENT } from "../lib/notes";
+import { LoaderCircle, Plus, Search, File, Trash2, Download, X } from "../chrome/icons";
+import { consumePendingOpenNote, OPEN_NOTE_EVENT,
+  normalizeNoteTags,
+  MAX_NOTE_TAGS,
+} from "../lib/notes";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
@@ -157,6 +160,7 @@ export function NotesView({
         note.title.toLowerCase().includes(needle) ||
         note.body.toLowerCase().includes(needle) ||
         note.slug.toLowerCase().includes(needle) ||
+        note.tags.some((tag) => tag.includes(needle.replace(/^#/, ""))) ||
         project.includes(needle)
       );
     });
@@ -464,10 +468,12 @@ function NoteEditor({
   const [mode, setMode] = useMarkdownMode(note.id);
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
+  const [tags, setTags] = useState(note.tags);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageDrag, setImageDrag] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const titleRef = useRef(title);
+  const tagsRef = useRef(tags);
   const bodyRef = useRef(body);
   const noteRef = useRef(note);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -495,13 +501,19 @@ function NoteEditor({
     const current = noteRef.current;
     const nextTitle = titleRef.current.trim() || noteTitle(bodyRef.current);
     const nextBody = bodyRef.current;
-    if (nextTitle === current.title && nextBody === current.body) return;
+    const nextTags = tagsRef.current;
+    if (
+      nextTitle === current.title &&
+      nextBody === current.body &&
+      JSON.stringify(nextTags) === JSON.stringify(current.tags ?? [])
+    )
+      return;
     try {
       const saved = await upsertNote({
         id: current.id,
         title: nextTitle,
         body: nextBody,
-        tags: current.tags ?? [],
+        tags: nextTags,
       });
       setSaveError(null);
       if (
@@ -751,6 +763,14 @@ function NoteEditor({
           {saveError ? (
             <p className="text-[12px] text-red-400/90">{saveError}</p>
           ) : null}
+          <NoteTagsEditor
+            tags={tags}
+            onChange={(next) => {
+              tagsRef.current = next;
+              setTags(next);
+              scheduleSave();
+            }}
+          />
         </header>
         <div
           role="tablist"
@@ -886,3 +906,81 @@ function hasDroppedFiles(data: DataTransfer | null): data is DataTransfer {
     (type) => type === "Files" || type === "application/x-moz-file",
   );
 }
+
+function NoteTagsEditor({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  const addTag = (input = value) => {
+    const next = normalizeNoteTags([...tags, input]);
+    setValue("");
+    if (!sameTags(next, tags)) onChange(next);
+  };
+
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1.5"
+      aria-label="Tags"
+    >
+      <span className="mr-0.5 text-[11px] text-content/45">Tags</span>
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex h-6 max-w-48 items-center gap-1 rounded-md bg-content/8 pl-2 pr-1 text-[11px] text-content/70"
+        >
+          <span className="truncate">#{tag}</span>
+          <button
+            type="button"
+            title={`Remove #${tag}`}
+            aria-label={`Remove #${tag}`}
+            onClick={() => onChange(tags.filter((item) => item !== tag))}
+            className="grid size-4 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content"
+          >
+            <X className="size-2.5" strokeWidth={1.75} />
+          </button>
+        </span>
+      ))}
+      {tags.length < MAX_NOTE_TAGS ? (
+        <input
+          value={value}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next.endsWith(",")) addTag(next.slice(0, -1));
+            else setValue(next);
+          }}
+          onBlur={() => {
+            if (value.trim()) addTag();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              addTag();
+              return;
+            }
+            if (event.key === "Backspace" && !value && tags.length > 0) {
+              onChange(tags.slice(0, -1));
+            }
+          }}
+          aria-label="Add note tag"
+          placeholder="Add tag…"
+          spellCheck={false}
+          autoComplete="off"
+          className="h-6 min-w-20 flex-1 border-0 bg-transparent px-1 text-[11px] text-content outline-none placeholder:text-content/35"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function sameTags(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((tag, index) => tag === right[index])
+  );
+}
+
