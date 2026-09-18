@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version applicative **0.1.46**, distribution PK **2026.09.40**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version applicative **0.1.50**, distribution PK **2026.09.42**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -72,7 +72,7 @@ brew install --cask mondary/tap/monocode-pk
 
 Mise à jour : `brew upgrade --cask mondary/tap/monocode-pk`
 
-**DMG signé** : télécharger [MonoCodePK_2026.09.40_aarch64.dmg](https://github.com/mondary/monocode/releases/latest), ouvrir et glisser MonoCode PK dans Applications. Chaque release PK publie son DMG sur [GitHub Releases](https://github.com/mondary/monocode/releases) (tag `pk-<version>`).
+**DMG signé** : télécharger [MonoCodePK_2026.09.42_aarch64.dmg](https://github.com/mondary/monocode/releases/latest), ouvrir et glisser MonoCode PK dans Applications. Chaque release PK publie son DMG sur [GitHub Releases](https://github.com/mondary/monocode/releases) (tag `pk-<version>`).
 
 **Depuis les sources** : `npm run build:pk` installe `/Applications/MonoCodePK.app`.
 

@@ -51,11 +51,11 @@ const USAGE_PROVIDER_ORDER_KEY = "monocode.usageProviderOrder";
 
 export function loadUsageDisplayMode(): UsageDisplayMode {
   try {
-    return localStorage.getItem(USAGE_DISPLAY_MODE_KEY) === "remaining"
-      ? "remaining"
-      : "used";
+    return localStorage.getItem(USAGE_DISPLAY_MODE_KEY) === "used"
+      ? "used"
+      : "remaining";
   } catch {
-    return "used";
+    return "remaining";
   }
 }
 
@@ -71,9 +71,9 @@ export function saveUsageDisplayMode(mode: UsageDisplayMode): void {
 export function loadUsageWindowVisibility(): UsageWindowVisibility {
   try {
     const value = localStorage.getItem(USAGE_WINDOW_VISIBILITY_KEY);
-    return value === "session" || value === "weekly" ? value : "all";
+    return value === "weekly" || value === "all" ? value : "session";
   } catch {
-    return "all";
+    return "session";
   }
 }
 

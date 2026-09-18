@@ -6,7 +6,7 @@ export const EXPLORER_SETTINGS_CHANGE_EVENT =
   "monocode:explorer-settings-change";
 
 export const EXPLORER_SHOW_CHANGES_DEFAULT = true;
-export const EXPLORER_HIGHLIGHT_ACTIONS_DEFAULT = false;
+export const EXPLORER_HIGHLIGHT_ACTIONS_DEFAULT = true;
 
 /** Show the Changes (diff) button in the Explorer header. */
 export function loadExplorerShowChanges(): boolean {
