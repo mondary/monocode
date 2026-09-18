@@ -9,6 +9,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Share,
   Square,
   StickyNote,
   Trash2,
@@ -35,6 +36,11 @@ import {
   pickAttachments,
   revokeAttachment,
 } from "../lib/attachments";
+import { resizeComposer } from "../lib/composerResize";
+import {
+  EXPLORER_FILE_POINTER_DRAG_EVENT,
+  type ExplorerFilePointerDragDetail,
+} from "../lib/drag";
 import type { ContextUsage } from "../lib/contextUsage";
 import {
   loadProjectFiles,
@@ -65,7 +71,7 @@ import type {
   MessageQueueStatus,
   QueuedMessage,
   RuntimeMode,
-  TurnIntent,
+  ComposerTurnOptions,
 } from "../lib/session";
 import {
   harnessSupportsAttachments,
@@ -98,8 +104,9 @@ import { FileTypeIcon } from "./FileTypeIcon";
 import { InboxMiniCard } from "./InboxMiniCard";
 import { NoteMiniCard } from "./NoteMiniCard";
 import { HandoffMiniCard } from "./HandoffMiniCard";
-import { ModelPicker } from "./ModelPicker";
+import { EffortPicker, ModelPicker } from "./ModelPicker";
 import { ModelSettings } from "./ModelSettings";
+
 import { QuestionForm } from "./QuestionForm";
 import { SkillPicker } from "./SkillPicker";
 import { projectKey } from "../lib/paths";
@@ -107,10 +114,10 @@ import { consumeQuoteRequest, type QuoteRequest } from "../lib/quoteDraft";
 import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import {
   COMPOSER_RUNNER_CHANGE_EVENT,
-  FOLLOW_UP_BEHAVIOR_CHANGE_EVENT,
+  loadComposerEffortVisible,
   loadComposerRunner,
-  loadFollowUpBehavior,
   loadNotesEnabled,
+  subscribeComposerEffortVisible,
   subscribeNotesEnabled,
   type FollowUpBehavior,
 } from "../lib/settings";
@@ -144,6 +151,8 @@ import { SessionFolderPicker } from "./SessionFolderPicker";
 type Props = {
   enabled?: boolean;
   focused: boolean;
+  /** Bump to force a refocus even when `focused` was already true (e.g. window regains OS focus). */
+  focusToken?: number;
   shell?: boolean;
   harness: HarnessId;
   model: string;
@@ -185,8 +194,8 @@ type Props = {
   onSubmit: (
     text: string,
     attachments: Attachment[],
-    options?: { intent?: TurnIntent; followUpBehavior?: FollowUpBehavior },
-  ) => void;
+    options?: ComposerTurnOptions & { followUpBehavior?: FollowUpBehavior },
+  ) => boolean | void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
   onPlaceInFolder?: (target: SessionFolderTarget) => void;
@@ -222,8 +231,8 @@ function ToolButton({
       onClick={onClick}
       className={`grid size-6.5 shrink-0 place-items-center rounded-md ${
         active
-          ? "bg-content/20 text-content"
-          : "bg-content/10 text-content/50 hover:bg-content/15 hover:text-content"
+          ? "bg-selection-emphasis text-content"
+          : "bg-selection text-content/50 hover:bg-selection-hover hover:text-content"
       } disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-content/50`}
     >
       {children}
@@ -286,7 +295,7 @@ function MessageQueue({
         data-message-queue-card
       >
         {paused ? (
-          <div className="flex h-7 items-center gap-2 border-b border-content/10 text-[12px]">
+          <div className="flex h-7 items-center gap-2 border-b border-stroke text-[12px]">
             <Pause className="size-3.5" />
             <span className="min-w-0 flex-1 truncate">
               Queue paused because you interrupted
@@ -310,7 +319,7 @@ function MessageQueue({
             <div
               key={message.id}
               className={`flex min-h-7 items-center gap-2 text-[12px] ${
-                index > 0 ? "border-t border-content/10" : ""
+                index > 0 ? "border-t border-stroke" : ""
               }`}
             >
               <ListEnd className="size-3.5 shrink-0" />
@@ -400,6 +409,7 @@ function MessageQueue({
 export function Composer({
   enabled = true,
   focused,
+  focusToken,
   hotkeys = false,
   shell = false,
   harness,
@@ -471,6 +481,7 @@ export function Composer({
   const [fileDrag, setFileDrag] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [planSelected, setPlanSelected] = useState(false);
+  const [orchestrationSelected, setOrchestrationSelected] = useState(false);
   const [slash, setSlash] = useState<SlashToken | null>(null);
   const [skillActive, setSkillActive] = useState(0);
   const [creatingSkill, setCreatingSkill] = useState(false);
@@ -487,12 +498,15 @@ export function Composer({
     loadNotesEnabled,
     () => true,
   );
+  const composerEffortVisible = useSyncExternalStore(
+    subscribeComposerEffortVisible,
+    loadComposerEffortVisible,
+    () => false,
+  );
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [runnerEnabled, setRunnerEnabled] = useState(loadComposerRunner);
-  const [followUpChoice, setFollowUpChoice] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [runnerLive, setRunnerLive] = useState(
     () => busy && loadComposerRunner(),
   );
@@ -635,13 +649,6 @@ export function Composer({
   }, []);
 
   useEffect(() => {
-    const refresh = () => setFollowUpChoice(loadFollowUpBehavior());
-    window.addEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
-    return () =>
-      window.removeEventListener(FOLLOW_UP_BEHAVIOR_CHANGE_EVENT, refresh);
-  }, []);
-
-  useEffect(() => {
     if (!runnerEnabled) {
       setRunnerLive(false);
       return;
@@ -705,17 +712,26 @@ export function Composer({
     );
   }, [rankedFiles.length]);
 
-  const resizeTextarea = (el: HTMLTextAreaElement) => {
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  };
-
   useEffect(() => {
     const el = ref.current;
     if (!el || !initialDraft) return;
     if (el.value !== initialDraft) el.value = initialDraft;
-    resizeTextarea(el);
+    resizeComposer(el);
   }, [initialDraft]);
+
+  // Drafts changed while hidden could not be measured. Inbox panes are portaled
+  // into place by a parent effect that runs after this one, so the first pass
+  // can still find no layout box; retry once the move has landed.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    resizeComposer(el);
+    if (el.scrollHeight !== 0) return;
+    const frame = requestAnimationFrame(() => {
+      if (ref.current === el) resizeComposer(el);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled]);
 
   useEffect(() => {
     onDraftChange?.(draft);
@@ -767,7 +783,7 @@ export function Composer({
     consumedQuoteId.current = result.consumedId;
     if (result.changed) {
       el.value = result.draft;
-      resizeTextarea(el);
+      resizeComposer(el);
       setDraft(result.draft);
       syncHasValue(result.draft, attachmentsRef.current);
       setSlash(null);
@@ -802,7 +818,7 @@ export function Composer({
           SESSION_FOLDER_COMMAND.invocation,
         );
         el.value = next;
-        resizeTextarea(el);
+        resizeComposer(el);
         let cursor = token.start + SESSION_FOLDER_COMMAND.invocation.length + 1;
         if (next[cursor] === " ") cursor += 1;
         el.setSelectionRange(cursor, cursor);
@@ -819,7 +835,7 @@ export function Composer({
             .replace(/^\s/, "")}`
         : replaceSlashToken(el.value, token, skill.invocation);
       el.value = next;
-      resizeTextarea(el);
+      resizeComposer(el);
       let cursor = planCommand
         ? token.start
         : token.start + skill.invocation.length + 1;
@@ -829,7 +845,10 @@ export function Composer({
       syncHasValue(next, attachmentsRef.current);
       setSlash(null);
       setCreatingSkill(false);
-      if (planCommand) setPlanSelected(true);
+      if (planCommand) {
+        setPlanSelected(true);
+        setOrchestrationSelected(false);
+      }
       el.focus();
     },
     [onPlaceInFolder, openSessionFolderPicker, syncHasValue],
@@ -848,7 +867,7 @@ export function Composer({
         : mentionLabel(file, mentionIndexRef.current);
       const next = replaceMentionToken(el.value, token, label);
       el.value = next;
-      resizeTextarea(el);
+      resizeComposer(el);
       let cursor = token.start + label.length + 1;
       if (next[cursor] === " ") cursor += 1;
       el.setSelectionRange(cursor, cursor);
@@ -862,14 +881,28 @@ export function Composer({
 
   useEffect(() => {
     if (!focused) return;
+
+    const composer = ref.current?.closest("[data-composer]");
+    const activeComposer = document.activeElement?.closest("[data-composer]");
+    if (activeComposer && activeComposer !== composer) return;
+
+    if (
+      composer?.querySelector(
+        "[data-skill-picker], [data-session-folder-picker], [data-mention-picker], [data-composer-plus], [data-question-form]",
+      )
+    )
+      return;
+    // Model/access/branch/settings/file pickers render through a portal into
+    // document.body (see Popover.tsx), so they never appear under this
+    // composer's own DOM subtree — check the whole document for those.
     if (
       document.querySelector(
-        "[data-model-picker], [data-access-picker], [data-model-settings], [data-file-picker], [data-branch-picker], [data-skill-picker], [data-session-folder-picker], [data-mention-picker], [data-composer-plus]",
+        "[data-model-picker], [data-access-picker], [data-model-settings], [data-file-picker], [data-branch-picker]",
       )
     )
       return;
     ref.current?.focus();
-  }, [focused]);
+  }, [focused, question, busy, focusToken]);
 
   useEffect(() => {
     if (!enabled) {
@@ -930,10 +963,31 @@ export function Composer({
       void attachmentsFromFiles(files).then(addAttachments);
     };
 
+    const onExplorerFilePointerDrag = (event: Event) => {
+      const detail = (event as CustomEvent<ExplorerFilePointerDragDetail>)
+        .detail;
+      if (!detail || detail.type === "end") {
+        setFileDrag(false);
+        return;
+      }
+      const over = overTarget(detail.x, detail.y);
+      if (detail.type === "move") {
+        setFileDrag(over && attachmentsSupported);
+        return;
+      }
+      setFileDrag(false);
+      if (!over || !attachmentsSupported) return;
+      void attachmentsFromPaths([detail.path]).then(addAttachments);
+    };
+
     const root = dropRoot();
     root?.addEventListener("dragover", onDragOver);
     root?.addEventListener("dragleave", onDragLeave);
     root?.addEventListener("drop", onDrop);
+    window.addEventListener(
+      EXPLORER_FILE_POINTER_DRAG_EVENT,
+      onExplorerFilePointerDrag,
+    );
 
     let cancelled = false;
     let unlisten: (() => void) | undefined;
@@ -966,6 +1020,10 @@ export function Composer({
       root?.removeEventListener("dragover", onDragOver);
       root?.removeEventListener("dragleave", onDragLeave);
       root?.removeEventListener("drop", onDrop);
+      window.removeEventListener(
+        EXPLORER_FILE_POINTER_DRAG_EVENT,
+        onExplorerFilePointerDrag,
+      );
       unlisten?.();
     };
   }, [addAttachments, attachmentsSupported, enabled]);
@@ -1003,10 +1061,19 @@ export function Composer({
       : composeInboxMessage(inboxCard, command.text);
     const files = attachments;
     if (!text && files.length === 0 && !noteCard && !handoffCard) return;
-    onSubmit(text, files, {
-      intent: planSelected || command.planning ? "plan" : "default",
+    const accepted = onSubmit(text, files, {
+      intent:
+        planSelected || command.planning
+          ? "plan"
+          : orchestrationSelected
+            ? "orchestrate"
+            : "default",
       followUpBehavior: behavior,
     });
+    // The app can reject a turn before it is recorded (for example while an
+    // orchestration is paused). Keep the user's text, files and selected mode
+    // intact so resolving the blocker never destroys their work.
+    if (accepted === false) return;
     if (!ref.current) return;
     ref.current.value = "";
     ref.current.style.height = "auto";
@@ -1014,6 +1081,7 @@ export function Composer({
     onDraftChange?.("");
     setAttachments([]);
     setPlanSelected(false);
+    setOrchestrationSelected(false);
     setSessionFolderSelected(false);
     setSessionFolderOpen(false);
     setPlusOpen(false);
@@ -1192,7 +1260,7 @@ export function Composer({
                 const cursor = el.selectionStart ?? el.value.length;
                 if (/^\s*\/add-to-folder$/i.test(el.value)) {
                   el.value = `${el.value} `;
-                  resizeTextarea(el);
+                  resizeComposer(el);
                   setDraft(el.value);
                   syncHasValue(el.value, attachmentsRef.current);
                   el.setSelectionRange(el.value.length, el.value.length);
@@ -1241,7 +1309,7 @@ export function Composer({
                       const rest = el.value.slice(token.end).replace(/^\s/, "");
                       const next = `${el.value.slice(0, token.start)}${rest}`;
                       el.value = next;
-                      resizeTextarea(el);
+                      resizeComposer(el);
                       el.setSelectionRange(token.start, token.start);
                       setDraft(next);
                       syncHasValue(next, attachments);
@@ -1355,7 +1423,7 @@ export function Composer({
             <div
               ref={highlightRef}
               aria-hidden
-              className={`composer-highlight pointer-events-none absolute inset-0 max-h-40 overflow-hidden whitespace-pre-wrap break-words px-3 text-sm leading-5.5 text-content font-sans ${
+              className={`composer-highlight pointer-events-none absolute inset-0 max-h-60 overflow-hidden whitespace-pre-wrap break-words px-3 text-sm leading-5.5 text-content font-sans ${
                 shell ? "py-4" : "py-3"
               }`}
             >
@@ -1382,7 +1450,7 @@ export function Composer({
                         ? "Ask, build, / for commands, @ for references... "
                         : "Ask, build, / for commands, @ for references... "
               }
-              className={`composer-field scrollbar-none relative max-h-40 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
+              className={`composer-field scrollbar-none relative max-h-60 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
                 shell ? "py-4" : "py-3"
               }`}
               onFocus={onFocus}
@@ -1394,7 +1462,7 @@ export function Composer({
               onSelect={(e) => syncTokensFromTextarea(e.currentTarget)}
               onInput={(e) => {
                 const el = e.currentTarget;
-                resizeTextarea(el);
+                resizeComposer(el);
                 setDraft(el.value);
                 if (
                   sessionFolderSelected &&
@@ -1443,9 +1511,9 @@ export function Composer({
                     <FilePlus className="mt-0.5 size-4 shrink-0" />
                     <span className="min-w-0">
                       <span className="block text-[13px]">Upload file</span>
-                      <span className="block text-[11px] leading-4 text-content/45">
+                      <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
                         {attachmentsSupported
-                          ? "Attach files or images to this message"
+                          ? "Attach files or images"
                           : `${harnessTitle(harness)} does not support attachments`}
                       </span>
                     </span>
@@ -1456,6 +1524,7 @@ export function Composer({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setPlanSelected((selected) => !selected);
+                      setOrchestrationSelected(false);
                       setPlusOpen(false);
                       ref.current?.focus();
                     }}
@@ -1464,17 +1533,64 @@ export function Composer({
                     <AiIdea className="mt-0.5 size-4 shrink-0 text-yellow-300/80" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px]">Plan mode</span>
-                      <span className="block text-[11px] leading-4 text-content/45">
-                        Create a plan to review before building
+                      <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
+                        Review a plan before building
                       </span>
                     </span>
                     {planSelected ? (
                       <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
                     ) : null}
                   </button>
+                  {!hideTopBar && (
+                    <button
+                      type="button"
+                      aria-pressed={orchestrationSelected}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setOrchestrationSelected((selected) => !selected);
+                        setPlanSelected(false);
+                        setPlusOpen(false);
+                        ref.current?.focus();
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left text-content hover:bg-content/10"
+                    >
+                      <Share className="mt-0.5 size-4 shrink-0 text-fuchsia-300/65" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-[13px]">Orchestrator</span>
+                          <span className="rounded-full bg-fuchsia-300/10 px-1.5 py-0.5 text-[9px] font-medium leading-none tracking-wide text-fuchsia-200/55 mb-px">
+                            v1
+                          </span>
+                        </span>
+                        <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
+                          Plan and coordinate agent work
+                        </span>
+                      </span>
+                      {orchestrationSelected && (
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-fuchsia-300/80" />
+                      )}
+                    </button>
+                  )}
                 </Popover>
               ) : null}
             </div>
+            {orchestrationSelected && (
+              <button
+                type="button"
+                title="Turn off Orchestrator mode"
+                aria-label="Turn off Orchestrator mode"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  setOrchestrationSelected(false);
+                  ref.current?.focus();
+                }}
+                className="flex h-6.5 shrink-0 items-center gap-1 rounded-md bg-fuchsia-500/15 px-1.5 text-[11px] font-medium text-fuchsia-700 hover:bg-fuchsia-500/20 dark:bg-fuchsia-400/10 dark:text-fuchsia-200/90 dark:hover:bg-fuchsia-400/15"
+              >
+                <Share className="size-3.5" />
+                Orchestrator
+                <X className="size-3" />
+              </button>
+            )}
             {planSelected ? (
               <button
                 type="button"
@@ -1497,7 +1613,7 @@ export function Composer({
                 if (
                   e.target instanceof Element &&
                   e.target.closest(
-                    "[data-model-picker], [data-access-picker], [data-model-settings]",
+                    "[data-model-picker], [data-effort-picker], [data-access-picker], [data-model-settings]",
                   )
                 ) {
                   return;
@@ -1511,8 +1627,13 @@ export function Composer({
                 <ModelPicker
                   harness={harness}
                   model={model}
+                  values={modelSettings}
+                  hideEffort={composerEffortVisible}
                   hotkeys={hotkeys && enabled}
                   onChange={onModelChange}
+                  onSettingsChange={(settings) =>
+                    onModelSettingsChange?.(settings)
+                  }
                   onClose={() => ref.current?.focus()}
                 />
                 <ModelSettings
@@ -1522,6 +1643,17 @@ export function Composer({
                   onChange={(settings) => onModelSettingsChange?.(settings)}
                   onClose={() => ref.current?.focus()}
                 />
+                {composerEffortVisible ? (
+                  <EffortPicker
+                    harness={harness}
+                    model={model}
+                    values={modelSettings}
+                    onSettingsChange={(settings) =>
+                      onModelSettingsChange?.(settings)
+                    }
+                    onClose={() => ref.current?.focus()}
+                  />
+                ) : null}
                 {harness !== "fx" ? (
                   <AccessPicker
                     value={runtimeMode}
@@ -1537,7 +1669,6 @@ export function Composer({
               <ComposerAction
                 busy={busy}
                 hasValue={hasValue}
-                choice={followUpChoice === "choice"}
                 onSend={(behavior) =>
                   submit(ref.current?.value ?? "", behavior)
                 }
@@ -1627,21 +1758,21 @@ function MentionRuns({
   );
 }
 
-function ComposerAction({
+export function ComposerAction({
   busy,
   hasValue,
-  choice,
   onSend,
   onStop,
 }: {
   busy: boolean;
   hasValue: boolean;
-  choice: boolean;
   onSend: (behavior?: FollowUpBehavior) => void;
   onStop: () => void;
 }) {
   if (busy) {
-    if (hasValue && choice) {
+    if (hasValue) {
+      // Deux envois toujours visibles : steer coupe le tour en cours, queue
+      // met a la suite. Entree suit le comportement par defaut des reglages.
       return (
         <>
           <button
@@ -1649,7 +1780,7 @@ function ComposerAction({
             title="Steer — send now, into the active turn"
             aria-label="Steer"
             onClick={() => onSend("steer")}
-            className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+            className="composer-send primary-action grid size-6.5 place-items-center rounded-md"
           >
             <ArrowUp className="size-3.5" strokeWidth={2.25} />
           </button>
@@ -1698,7 +1829,7 @@ function ComposerAction({
       aria-label="Send"
       disabled={!hasValue}
       onClick={() => onSend()}
-      className="composer-send grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90 disabled:cursor-default disabled:bg-white/30 disabled:text-black/40 disabled:hover:bg-white/30"
+      className="composer-send primary-action grid size-6.5 place-items-center rounded-md disabled:cursor-default"
     >
       <ArrowUp className="size-3.5" strokeWidth={2.25} />
     </button>

@@ -1,5 +1,5 @@
-/** Matches the composer's `max-h-40`, so the field stops growing where it clips. */
-export const COMPOSER_MAX_HEIGHT = 160;
+/** Matches the composer's `max-h-60`: ~10 lignes visibles avant de scroller. */
+export const COMPOSER_MAX_HEIGHT = 240;
 
 type Resizable = {
   style: { height: string };

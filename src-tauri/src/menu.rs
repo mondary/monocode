@@ -105,6 +105,9 @@ fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let close_all_tabs = MenuItemBuilder::with_id("close_all_tabs", "Close All Tabs")
         .accelerator("CmdOrCtrl+Shift+W")
         .build(app)?;
+    let close_all_tabs = MenuItemBuilder::with_id("close_all_tabs", "Close All Tabs")
+        .accelerator("CmdOrCtrl+Shift+W")
+        .build(app)?;
     let next_tab = MenuItemBuilder::with_id("next_tab", "Next Tab")
         .accelerator(accel_or(app, "next_tab", "CmdOrCtrl+Shift+]"))
         .build(app)?;

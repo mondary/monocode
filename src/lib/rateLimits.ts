@@ -175,11 +175,29 @@ export type RateLimitWindow = {
   resetsAt: number | null;
 };
 
+export type RateLimitResetCredit = {
+  id: string;
+  resetType: "codexRateLimits" | "unknown";
+  status: "available" | "redeeming" | "redeemed" | "unknown";
+  grantedAt: number | null;
+  expiresAt: number | null;
+  title: string | null;
+  description: string | null;
+};
+
+export type RateLimitResetCredits = {
+  availableCount: number;
+  /** Optional detail rows; the backend can report only the aggregate count. */
+  credits: RateLimitResetCredit[] | null;
+};
+
 export type ProviderRateLimits = {
   provider: RateLimitProvider;
   session: RateLimitWindow | null;
   weekly: RateLimitWindow | null;
   monthly: RateLimitWindow | null;
+  /** Codex-only banked rate-limit reset rewards, when supplied by app-server. */
+  resetCredits: RateLimitResetCredits | null;
   updatedAt: number;
   error: string | null;
   status: RateLimitStatus;
@@ -187,6 +205,7 @@ export type ProviderRateLimits = {
 
 export const SESSION_WINDOW_MINUTES = 300;
 export const WEEKLY_WINDOW_MINUTES = 10_080;
+export const MONTHLY_WINDOW_MINUTES = 43_200;
 
 /** Background poll while the window is visible. */
 export const RATE_LIMIT_POLL_MS = 15 * 60 * 1000;
@@ -219,11 +238,13 @@ export function shouldFetchRateLimits(input: {
   visible: boolean;
   claude: ProviderRateLimits;
   codex: ProviderRateLimits;
+  opencode?: ProviderRateLimits;
   now?: number;
 }): boolean {
   return (
     shouldFetchProvider(input.claude, input) ||
-    shouldFetchProvider(input.codex, input)
+    shouldFetchProvider(input.codex, input) ||
+    (input.opencode ? shouldFetchProvider(input.opencode, input) : false)
   );
 }
 
@@ -237,6 +258,7 @@ export function idleRateLimits(
     session: null,
     weekly: null,
     monthly: null,
+    resetCredits: null,
     updatedAt: 0,
     error: null,
     status: "idle",
@@ -247,7 +269,10 @@ export function fetchingRateLimits(
   provider: RateLimitProvider,
   previous?: ProviderRateLimits | null,
 ): ProviderRateLimits {
-  if (previous && (previous.session || previous.weekly)) {
+  if (
+    previous &&
+    (previous.session || previous.weekly || previous.monthly || previous.resetCredits)
+  ) {
     return { ...previous, status: "fetching" };
   }
   return {
@@ -255,6 +280,7 @@ export function fetchingRateLimits(
     session: previous?.session ?? null,
     weekly: previous?.weekly ?? null,
     monthly: previous?.monthly ?? null,
+    resetCredits: previous?.resetCredits ?? null,
     updatedAt: previous?.updatedAt ?? 0,
     error: null,
     status: "fetching",
@@ -270,6 +296,7 @@ export function unavailableRateLimits(
     session: null,
     weekly: null,
     monthly: null,
+    resetCredits: null,
     updatedAt: Date.now(),
     error,
     status: "unavailable",
@@ -281,7 +308,10 @@ export function errorRateLimits(
   error: string,
   previous?: ProviderRateLimits | null,
 ): ProviderRateLimits {
-  if (previous && (previous.session || previous.weekly)) {
+  if (
+    previous &&
+    (previous.session || previous.weekly || previous.monthly || previous.resetCredits)
+  ) {
     return {
       ...previous,
       error,
@@ -294,6 +324,7 @@ export function errorRateLimits(
     session: null,
     weekly: null,
     monthly: null,
+    resetCredits: null,
     updatedAt: Date.now(),
     error,
     status: "error",
@@ -323,6 +354,7 @@ export function formatDisplayedUsagePercent(
  */
 export function formatWindowLabel(windowMinutes: number): string {
   if (windowMinutes === WEEKLY_WINDOW_MINUTES) return "wk";
+  if (windowMinutes === MONTHLY_WINDOW_MINUTES) return "mo";
   if (windowMinutes === SESSION_WINDOW_MINUTES) return "5h";
   if (windowMinutes === 60) return "1h";
   if (windowMinutes < 60) return `${windowMinutes}m`;
@@ -446,6 +478,7 @@ export function parseClaudeOAuthUsage(body: string): ProviderRateLimits {
     session: mapUsageWindow(rec.five_hour, SESSION_WINDOW_MINUTES),
     weekly: mapUsageWindow(rec.seven_day, WEEKLY_WINDOW_MINUTES),
     monthly: null,
+    resetCredits: null,
     updatedAt: Date.now(),
     error: null,
     status: "ok",
@@ -470,6 +503,30 @@ export function parseCodexRateLimits(result: unknown): ProviderRateLimits {
     session: mapCodexSnapshot(classified.session, SESSION_WINDOW_MINUTES),
     weekly: mapCodexSnapshot(classified.weekly, WEEKLY_WINDOW_MINUTES),
     monthly: null,
+    resetCredits: parseResetCredits(
+      rec?.rateLimitResetCredits ?? rec?.rate_limit_reset_credits,
+    ),
+    updatedAt: Date.now(),
+    error: null,
+    status: "ok",
+  };
+}
+
+/**
+ * Parse the official OpenCode Go usage payload:
+ * { usage: { rolling: { status, percent, resetsAt },
+ *            weekly: {...}, monthly: {...} } }
+ * `percent` is percent used, matching the dashboard.
+ */
+export function parseOpencodeGoUsage(result: unknown): ProviderRateLimits {
+  const rec = asRecord(result);
+  const usage = asRecord(rec?.usage) ?? rec;
+  return {
+    provider: "opencode",
+    session: mapOpencodeGoWindow(usage?.rolling, SESSION_WINDOW_MINUTES),
+    weekly: mapOpencodeGoWindow(usage?.weekly, WEEKLY_WINDOW_MINUTES),
+    monthly: mapOpencodeGoWindow(usage?.monthly, MONTHLY_WINDOW_MINUTES),
+    resetCredits: null,
     updatedAt: Date.now(),
     error: null,
     status: "ok",
@@ -507,13 +564,13 @@ export function parseCodexBarUsage(body: string): ProviderRateLimits[] {
       session: windows[0] ?? null,
       weekly: windows[1] ?? null,
       monthly: windows[2] ?? null,
+      resetCredits: null,
       updatedAt: Date.now(),
       error: null,
       status: "ok",
     }];
   });
 }
-
 function mapCodexBarWindow(value: unknown): RateLimitWindow | null {
   const record = asRecord(value);
   if (!record) return null;
@@ -530,6 +587,69 @@ function mapCodexBarWindow(value: unknown): RateLimitWindow | null {
     usedPercent: clampUsedPercent(used),
     windowMinutes: duration,
     resetsAt: parseResetTimestamp(record.resetsAt ?? record.resets_at),
+  };
+}
+
+function mapOpencodeGoWindow(
+  raw: unknown,
+  windowMinutes: number,
+): RateLimitWindow | null {
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  // Require an explicit valid status; unknown shapes are dropped so the
+  // caller can treat a fully empty payload as an error, not a snapshot.
+  const status = rec.status;
+  if (status !== "ok" && status !== "rate-limited") return null;
+  const usedPercent =
+    numberField(rec, "percent") ?? numberField(rec, "usedPercent");
+  if (usedPercent == null) return null;
+  return {
+    usedPercent: clampUsedPercent(usedPercent),
+    windowMinutes,
+    resetsAt:
+      parseResetTimestamp(rec.resetsAt) ?? parseResetTimestamp(rec.resets_at),
+  };
+}
+
+function parseResetCredits(raw: unknown): RateLimitResetCredits | null {
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  const count =
+    numberField(rec, "availableCount") ?? numberField(rec, "available_count");
+  if (count == null) return null;
+  const rawCredits = rec.credits;
+  const credits = Array.isArray(rawCredits)
+    ? rawCredits
+        .map(parseResetCredit)
+        .filter((credit): credit is RateLimitResetCredit => credit != null)
+    : null;
+  return {
+    availableCount: Math.max(0, Math.floor(count)),
+    credits,
+  };
+}
+
+function parseResetCredit(raw: unknown): RateLimitResetCredit | null {
+  const rec = asRecord(raw);
+  if (!rec || typeof rec.id !== "string" || rec.id.trim() === "") {
+    return null;
+  }
+  const resetType =
+    rec.resetType === "codexRateLimits" ? "codexRateLimits" : "unknown";
+  const status =
+    rec.status === "available" ||
+    rec.status === "redeeming" ||
+    rec.status === "redeemed"
+      ? rec.status
+      : "unknown";
+  return {
+    id: rec.id,
+    resetType,
+    status,
+    grantedAt: parseResetTimestamp(rec.grantedAt ?? rec.granted_at),
+    expiresAt: parseResetTimestamp(rec.expiresAt ?? rec.expires_at),
+    title: stringField(rec, "title"),
+    description: stringField(rec, "description"),
   };
 }
 

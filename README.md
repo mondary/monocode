@@ -5,7 +5,7 @@
 
 [🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
 
-Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version applicative **0.1.48**, distribution PK **2026.09.39**.
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version applicative **0.1.46**, distribution PK **2026.09.40**.
 
 <p align="center">
   <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
@@ -62,6 +62,20 @@ MonoCode PK garde **tout MonoCode officiel** (intégration validée de l'amont, 
 ## ⚙️ Réglages
 - Tout se règle dans Settings : thème, raccourcis, position du dock terminal, footer usage (*Current chat* / *Choose*), glow des projets en travail, options Explorer, initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.
 
+## 📦 Installation
+
+**Homebrew** (Apple Silicon) :
+
+```bash
+brew install --cask mondary/tap/monocode-pk
+```
+
+Mise à jour : `brew upgrade --cask mondary/tap/monocode-pk`
+
+**DMG signé** : télécharger [MonoCodePK_2026.09.40_aarch64.dmg](https://github.com/mondary/monocode/releases/latest), ouvrir et glisser MonoCode PK dans Applications. Chaque release PK publie son DMG sur [GitHub Releases](https://github.com/mondary/monocode/releases) (tag `pk-<version>`).
+
+**Depuis les sources** : `npm run build:pk` installe `/Applications/MonoCodePK.app`.
+
 ## 📦 Build & Package
 
 - `npm run build:pk` — build release avec overlay de branding PK (`tauri.conf.json` identique à l'amont, zéro conflit de merge), installe `/Applications/MonoCodePK.app` (identifiant dédié `com.monocode.pk`, signature Apple Development stable).
@@ -91,7 +105,7 @@ MonoCode PK garde **tout MonoCode officiel** (intégration validée de l'amont, 
   <img width="1680" height="1050" alt="Screenshot 2026-09-04 at 06 34 00" src="https://github.com/user-attachments/assets/2cd4a6ec-eb1e-4b45-8627-a76442ea3874" />
 </p>
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, and fx. If they’re installed and logged in, MonoCode can run them. Tabs are sessions. The composer is the input. MonoCode does not sell tokens.
+Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, fx, and Hermes Agent. If they’re installed and logged in, MonoCode can run them. Tabs are sessions. The composer is the input. MonoCode does not sell tokens.
 
 ## Install
 
@@ -105,6 +119,7 @@ Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCod
 > - [Pi](https://pi.dev/) - `npm install -g @earendil-works/pi-coding-agent`
 > - [omp](https://omp.sh) - `curl -fsSL https://omp.sh/install | sh`
 > - [fx](https://fx.sh) - `curl -fsSL https://fx.sh/setup.sh | bash` then `fx login`
+> - [Hermes Agent](https://github.com/NousResearch/hermes-agent) - macOS/Linux: `curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash`; Windows PowerShell: `iex (irm https://hermes-agent.nousresearch.com/install.ps1)`; then run `hermes model`
 
 macOS (Apple Silicon): download [MonoCode.dmg](https://dl.usemono.dev/MonoCode.dmg), open it, drag MonoCode to Applications.
 

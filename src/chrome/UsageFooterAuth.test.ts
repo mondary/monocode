@@ -11,6 +11,7 @@ const rateLimitsFetch = vi.hoisted(() => ({
   consumeCodexRateLimitResetCredit: vi.fn(),
   fetchClaudeRateLimits: vi.fn(),
   fetchCodexRateLimits: vi.fn(),
+  fetchCodexBarRateLimits: vi.fn(async () => []),
 }));
 
 vi.mock("../lib/harness/auth", async (importOriginal) => ({
@@ -38,6 +39,7 @@ beforeEach(() => {
   rateLimitsFetch.consumeCodexRateLimitResetCredit.mockReset();
   rateLimitsFetch.fetchClaudeRateLimits.mockReset();
   rateLimitsFetch.fetchCodexRateLimits.mockReset();
+  localStorage.setItem("monocode.usageScope", "active");
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -46,6 +48,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -64,6 +67,7 @@ function signedOutLimits(provider: RateLimitProvider): ProviderRateLimits {
     provider,
     session: null,
     weekly: null,
+    monthly: null,
     resetCredits: null,
     updatedAt: Date.now(),
     error: `${provider} is not signed in`,

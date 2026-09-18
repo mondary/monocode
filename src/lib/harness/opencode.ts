@@ -304,6 +304,11 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const existing = liveByThread.get(input.sessionId);
   if (existing && existing.cwd === input.cwd && existing.taskDisabled === zai) {
     existing.onEvent = input.onEvent;
+    if (existing.runtimeMode !== input.runtimeMode) {
+      await existing.client.updateSession(existing.openCodeSessionId, {
+        permission: buildOpenCodePermissionRules(input.runtimeMode),
+      });
+    }
     existing.runtimeMode = input.runtimeMode;
     return existing;
   }
@@ -662,7 +667,6 @@ async function handleEvent(
         stringField(properties, "toolCallId") ??
         stringField(metadata, "callID") ??
         stringField(metadata, "toolCallId");
-      const uiId = live.nextApprovalUiId++;
       const kind = toolKindFromName(permission);
       const preview =
         previewFromToolPart({
@@ -705,6 +709,11 @@ async function handleEvent(
         );
         break;
       }
+      if (live.runtimeMode === "full-access") {
+        await live.client.replyPermission(id, "once");
+        break;
+      }
+      const uiId = live.nextApprovalUiId++;
       const pending = waitApproval(live, uiId, id);
       if (callId) {
         live.onEvent({

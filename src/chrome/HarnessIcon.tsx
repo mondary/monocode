@@ -4,6 +4,7 @@ import codex from "../assets/providers/codex.svg";
 import cursor from "../assets/providers/cursor.svg";
 import fx from "../assets/providers/fx.svg";
 import grok from "../assets/providers/grok.svg";
+import hermes from "../assets/providers/hermes.svg";
 import omp from "../assets/providers/omp.svg";
 import opencode from "../assets/providers/opencode.svg";
 import zai from "../assets/providers/zai.svg";
@@ -16,6 +17,7 @@ import pi from "../assets/providers/pi.svg";
 import type { HarnessId } from "../lib/session";
 
 export const HARNESS_ICONS: Record<HarnessId, string> = {
+  hermes,
   claude,
   codex,
   cursor,
@@ -42,6 +44,7 @@ export const MONOCHROME_HARNESSES = new Set<HarnessId>([
   "openrouter",
   "pi",
   "fx",
+  "hermes",
 ]);
 
 function MonoIcon({
@@ -89,6 +92,28 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
+  if (harness === "hermes") {
+    return (
+      <span
+        aria-hidden
+        className={`inline-flex items-center justify-center ${className}`}
+      >
+        <span
+          className="block size-[72%] bg-current"
+          style={{
+            maskImage: `url(${hermes})`,
+            maskPosition: "center",
+            maskRepeat: "no-repeat",
+            maskSize: "contain",
+            WebkitMaskImage: `url(${hermes})`,
+            WebkitMaskPosition: "center",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskSize: "contain",
+          }}
+        />
+      </span>
+    );
+  }
   if (harness === "grok") {
     return (
       <MonoIcon className={className} viewBox="0 0 35 33">
@@ -118,6 +143,7 @@ export function HarnessIcon({
       </MonoIcon>
     );
   }
+
   const icon = HARNESS_ICONS[harness];
   if (!icon) {
     // Custom providers have no brand asset: initial letter chip.

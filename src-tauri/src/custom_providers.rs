@@ -1,6 +1,4 @@
-use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -69,8 +67,7 @@ pub async fn custom_provider_test(
                     error: None,
                 })
             }
-            Err(ureq::Error::Status(status, response)) => {
-                let body = response.into_string().unwrap_or_default();
+            Err(ureq::Error::Status(status, _response)) => {
                 let message = if status == 401 || status == 403 {
                     "Unauthorized — check the API key."
                 } else {

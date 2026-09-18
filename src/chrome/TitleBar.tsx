@@ -332,6 +332,15 @@ function TitleTabItem({
             : "text-content/50 hover:bg-content/5 hover:text-content"
         }`}
       >
+        {active ? (
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-x-2 top-0 h-0.5 rounded-full ${
+              busyTint ? "" : "bg-accent"
+            }`}
+            style={busyTint ? { background: busyTint, opacity: 0.45 } : undefined}
+          />
+        ) : null}
         {tab.harnesses.length > 0 ? (
           <TabHarnesses
             harnesses={tab.harnesses}

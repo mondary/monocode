@@ -9,6 +9,7 @@ import {
   ensureOpenCodeProviderRegistered,
   ensureOpenCodeRegistered,
 } from "./opencodeAdapter";
+import { ensureHermesRegistered } from "./hermesAdapter";
 import { ensureOmpRegistered } from "./ompAdapter";
 import { ensurePiRegistered } from "./piAdapter";
 
@@ -28,6 +29,8 @@ export function registerBuiltinHarnesses(): void {
   ensurePiRegistered();
   ensureOmpRegistered();
   ensureFxRegistered();
+  ensureHermesRegistered();
+
   registerCustomProviderHarnesses();
 }
 

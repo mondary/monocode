@@ -3,6 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { UsageFooter } from "./UsageFooter";
 
+vi.mock("../lib/rateLimits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/rateLimits")>()),
+  loadUsageScope: () => "active",
+}));
+
 describe("UsageFooter terminal control", () => {
   it("replaces the generic terminal button with the live process control", () => {
     const markup = renderToStaticMarkup(

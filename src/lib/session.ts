@@ -28,7 +28,8 @@ export type BuiltinHarnessId =
   | "antigravity"
   | "pi"
   | "omp"
-  | "fx";
+  | "fx"
+  | "hermes";
 
 /** Custom providers managed from Settings; ids are `pk-custom-<slug>`. */
 export type CustomHarnessId = `pk-custom-${string}`;
@@ -54,6 +55,7 @@ export const HARNESSES: BuiltinHarnessId[] = [
   "pi",
   "omp",
   "fx",
+  "hermes",
 ];
 
 export type BlockRole =
@@ -104,7 +106,7 @@ export type PlanBlockMeta = {
 export type ModelTarget = {
   harness: HarnessId;
   model: string;
-  modelSettings: Record<string, string>;
+  modelSettings?: Record<string, string>;
 };
 
 export type PlanBuildTarget = ModelTarget;
@@ -346,6 +348,8 @@ export type Session = {
   editingQueuedMessageId?: string;
   /** Provider-side conversation id (Cursor ACP session id). */
   providerSessionId?: string;
+  /** Named local credential profile used by Claude or Codex. */
+  providerAccountId?: string;
   /** Context-window level reported by the harness. Absent until it reports. */
   context?: ContextUsage;
   /**
@@ -384,9 +388,10 @@ export type PendingHarnessSwitch = {
   fromModel: string;
   fromSettings: Record<string, string>;
   fromProviderSessionId?: string;
+  fromProviderAccountId?: string;
 };
 
-export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
+export const HARNESS_LABEL: Record<string, string> = {
   claude: "claude",
   codex: "codex",
   cursor: "cursor",
@@ -401,9 +406,10 @@ export const HARNESS_LABEL: Record<BuiltinHarnessId, string> = {
   pi: "pi",
   omp: "omp",
   fx: "fx",
+  hermes: "hermes",
 };
 
-export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
+export const HARNESS_TITLE: Record<string, string> = {
   claude: "Claude Code",
   codex: "Codex",
   cursor: "Cursor",
@@ -418,6 +424,7 @@ export const HARNESS_TITLE: Record<BuiltinHarnessId, string> = {
   pi: "Pi",
   omp: "omp",
   fx: "fx",
+  hermes: "Hermes Agent",
 };
 
 /**

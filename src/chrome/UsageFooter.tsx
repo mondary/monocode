@@ -14,11 +14,11 @@ import {
   fetchClaudeRateLimits,
   fetchCodexBarRateLimits,
   fetchCodexRateLimits,
+  fetchOpencodeGoRateLimits,
 } from "../lib/rateLimitsFetch";
 import {
   errorRateLimits,
   clampUsedPercent,
-  fetchingRateLimits,
   formatRateLimitWindowChipLabel,
   formatDisplayedUsagePercent,
   loadHiddenUsageProviders,
@@ -30,19 +30,20 @@ import {
   USAGE_SCOPE_CHANGE_EVENT,
   USAGE_WINDOW_VISIBILITY_CHANGE_EVENT,
   USAGE_PROVIDER_ORDER_CHANGE_EVENT,
-  idleRateLimits,
-  RATE_LIMIT_POLL_MS,
   rateLimitWindowTooltip,
-  shouldFetchProvider,
-  type ProviderRateLimits,
-  type RateLimitProvider,
   type RateLimitWindow,
   type UsageDisplayMode,
   type UsageScope,
   type UsageWindowVisibility,
   normalizeUsageProviderId,
+  fetchingRateLimits,
+  idleRateLimits,
+  RATE_LIMIT_POLL_MS,
+  shouldFetchProvider,
+  type ProviderRateLimits,
+  type RateLimitProvider,
 } from "../lib/rateLimits";
-import { HARNESS_LABEL, HARNESS_TITLE, type HarnessId } from "../lib/session";
+import { harnessLabel, harnessTitle, type HarnessId } from "../lib/session";
 import { loginHarness, supportsHarnessLogin } from "../lib/harness/auth";
 import {
   runningTerminalChipLabel,
@@ -54,6 +55,14 @@ import {
   ProviderSignInPanel,
   type ProviderSignInState,
 } from "./ProviderSignInPanel";
+import {
+  newProviderAccount,
+  providerAccounts,
+  saveProviderAccount,
+  selectProviderAccount,
+  selectedProviderAccountId,
+  subscribeProviderAccounts,
+} from "../lib/providerAccounts";
 
 const CLOCK_MS = 30_000;
 
@@ -61,6 +70,7 @@ export type UsageFooterSession = {
   id?: string;
   harness: HarnessId;
   authRequired?: boolean;
+  providerAccountId?: string;
 };
 
 export function UsageFooter({
@@ -73,6 +83,7 @@ export function UsageFooter({
   onNewTerminal,
   onShowTerminal,
   projectTerminalActive = false,
+  onSelectAccount,
 }: {
   providers: RateLimitProvider[];
   session?: UsageFooterSession;
@@ -83,13 +94,8 @@ export function UsageFooter({
   onNewTerminal?: () => void;
   onShowTerminal?: () => void;
   projectTerminalActive?: boolean;
+  onSelectAccount?: (provider: RateLimitProvider, accountId: string) => void;
 }) {
-  const [claude, setClaude] = useState<ProviderRateLimits>(() =>
-    idleRateLimits("claude"),
-  );
-  const [codex, setCodex] = useState<ProviderRateLimits>(() =>
-    idleRateLimits("codex"),
-  );
   const [codexbar, setCodexbar] = useState<ProviderRateLimits[]>([]);
   const [displayMode, setDisplayMode] = useState<UsageDisplayMode>(
     loadUsageDisplayMode,
@@ -101,26 +107,51 @@ export function UsageFooter({
   const [hiddenProviders, setHiddenProviders] = useState<string[]>(
     loadHiddenUsageProviders,
   );
-  // "Current chat" scope tracks the active session's provider. "Choose"
-  // (custom) must fetch and show picks regardless of which chat is focused —
-  // the old session-driven gate made the Claude chip vanish on other chats.
-  const wantClaude =
-    usageScope === "custom"
-      ? !hiddenProviders.includes("claude")
-      : providers.includes("claude");
-  const wantCodex =
-    usageScope === "custom"
-      ? !hiddenProviders.includes("codex")
-      : providers.includes("codex");
+
+  const wantClaude = usageScope === "custom" ? !hiddenProviders.includes("claude") : providers.includes("claude");
+  const wantCodex = usageScope === "custom" ? !hiddenProviders.includes("codex") : providers.includes("codex");
+  const wantOpencode = usageScope === "custom" ? !hiddenProviders.includes("opencode") : providers.includes("opencode");
+  const [claude, setClaude] = useState<ProviderRateLimits>(() =>
+    idleRateLimits("claude"),
+  );
+  const [codex, setCodex] = useState<ProviderRateLimits>(() =>
+    idleRateLimits("codex"),
+  );
+  const [opencode, setOpencode] = useState<ProviderRateLimits>(() =>
+    idleRateLimits("opencode"),
+  );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
+  const [, setAccountsVersion] = useState(0);
   const inflight = useRef<Promise<void> | null>(null);
   const claudeRef = useRef(claude);
   const codexRef = useRef(codex);
+  const opencodeRef = useRef(opencode);
   const codexbarRef = useRef(codexbar);
+  codexbarRef.current = codexbar;
   claudeRef.current = claude;
   codexRef.current = codex;
-  codexbarRef.current = codexbar;
+  opencodeRef.current = opencode;
+  const claudeAccountId =
+    session?.harness === "claude" && session.providerAccountId
+      ? session.providerAccountId
+      : selectedProviderAccountId("claude", project);
+  const codexAccountId =
+    session?.harness === "codex" && session.providerAccountId
+      ? session.providerAccountId
+      : selectedProviderAccountId("codex", project);
+  const claudeAccounts = providerAccounts("claude");
+  const codexAccounts = providerAccounts("codex");
+  const claudeAccountRef = useRef(claudeAccountId);
+  const codexAccountRef = useRef(codexAccountId);
+  claudeAccountRef.current = claudeAccountId;
+  codexAccountRef.current = codexAccountId;
+
+  useEffect(
+    () =>
+      subscribeProviderAccounts(() => setAccountsVersion((value) => value + 1)),
+    [],
+  );
 
   const refresh = useCallback(
     (force = false) => {
@@ -131,39 +162,40 @@ export function UsageFooter({
         shouldFetchProvider(claudeRef.current, { force, visible });
       const fetchCodex =
         wantCodex && shouldFetchProvider(codexRef.current, { force, visible });
-      const fetchCodexbar =
-        (usageScope === "custom" || providers.length > 0) &&
-        (force ||
-          codexbarRef.current.length === 0 ||
-          codexbarRef.current.some((entry) =>
-            shouldFetchProvider(entry, { force, visible }),
-          ));
-      if (!fetchClaude && !fetchCodex && !fetchCodexbar) return;
+      const fetchOpencode =
+        wantOpencode &&
+        shouldFetchProvider(opencodeRef.current, { force, visible });
+      const fetchCodexbar = (usageScope === "custom" || providers.length > 0) && (force || codexbarRef.current.length === 0 || codexbarRef.current.some((entry) => shouldFetchProvider(entry, {force, visible})));
+      if (!fetchClaude && !fetchCodex && !fetchOpencode && !fetchCodexbar) return;
       if (force) setRefreshing(true);
       const jobs: Promise<void>[] = [];
       if (fetchClaude) {
+        const accountId = claudeAccountId;
         setClaude((current) => fetchingRateLimits("claude", current));
         jobs.push(
-          fetchClaudeRateLimits().then((value) => {
-            setClaude(value);
+          fetchClaudeRateLimits(accountId).then((value) => {
+            if (accountId === claudeAccountRef.current) setClaude(value);
           }),
         );
       }
       if (fetchCodex) {
+        const accountId = codexAccountId;
         setCodex((current) => fetchingRateLimits("codex", current));
         jobs.push(
-          fetchCodexRateLimits().then((value) => {
-            setCodex(value);
+          fetchCodexRateLimits(accountId).then((value) => {
+            if (accountId === codexAccountRef.current) setCodex(value);
           }),
         );
       }
-      if (fetchCodexbar) {
+      if (fetchOpencode) {
+        setOpencode((current) => fetchingRateLimits("opencode", current));
         jobs.push(
-          fetchCodexBarRateLimits().then((value) => {
-            if (value.length > 0) setCodexbar(value);
+          fetchOpencodeGoRateLimits().then((value) => {
+            setOpencode(value);
           }),
         );
       }
+      if (fetchCodexbar) jobs.push(fetchCodexBarRateLimits().then(setCodexbar));
       const run = Promise.allSettled(jobs)
         .then(() => undefined)
         .finally(() => {
@@ -173,8 +205,24 @@ export function UsageFooter({
       inflight.current = run;
       return run;
     },
-    [providers.length, usageScope, wantClaude, wantCodex],
+    [claudeAccountId, codexAccountId, wantClaude, wantCodex, wantOpencode, providers.length, usageScope],
   );
+
+  useEffect(() => {
+    const idle = idleRateLimits("claude");
+    claudeRef.current = idle;
+    setClaude(idle);
+    const pending = inflight.current;
+    if (pending) void pending.finally(() => refresh(true));
+  }, [claudeAccountId]);
+
+  useEffect(() => {
+    const idle = idleRateLimits("codex");
+    codexRef.current = idle;
+    setCodex(idle);
+    const pending = inflight.current;
+    if (pending) void pending.finally(() => refresh(true));
+  }, [codexAccountId]);
 
   useEffect(() => {
     void refresh();
@@ -194,71 +242,43 @@ export function UsageFooter({
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const onChange = () => {
-      setDisplayMode(loadUsageDisplayMode());
-      setUsageScope(loadUsageScope());
-      setWindowVisibility(loadUsageWindowVisibility());
-      setProviderOrder(loadUsageProviderOrder());
-      setHiddenProviders(loadHiddenUsageProviders());
-    };
-    window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
-    window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
-    window.addEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
-    window.addEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
-    return () => {
-      window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
-      window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
-      window.removeEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
-      window.removeEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
-    };
-  }, []);
-
-  const native = [wantClaude ? claude : null, wantCodex ? codex : null].filter(
-    (entry): entry is ProviderRateLimits => entry != null,
+  const consumeCodexReset = useCallback(
+    async (creditId?: string) => {
+      while (inflight.current) await inflight.current;
+      setRefreshing(true);
+      setCodex((current) => fetchingRateLimits("codex", current));
+      let outcome: Awaited<ReturnType<typeof consumeCodexRateLimitResetCredit>>;
+      const operation = (async () => {
+        try {
+          outcome = await consumeCodexRateLimitResetCredit(
+            creditId,
+            codexAccountId,
+          );
+          setCodex(await fetchCodexRateLimits(codexAccountId));
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Could not use Codex reset";
+          setCodex((current) => errorRateLimits("codex", message, current));
+          throw error;
+        }
+      })();
+      const tracked = operation.finally(() => {
+        inflight.current = null;
+        setRefreshing(false);
+      });
+      inflight.current = tracked.catch(() => undefined);
+      await tracked;
+      return outcome!;
+    },
+    [codexAccountId],
   );
-  const codexbarProviders = new Set(codexbar.map((entry) => entry.provider));
-  const mergedUsage = [
-    ...codexbar,
-    ...native.filter((entry) => !codexbarProviders.has(entry.provider)),
-  ];
-  const usage =
-    usageScope === "active"
-      ? mergedUsage.filter((entry) =>
-          usageProviderMatches(entry.provider, providers),
-        )
-      : mergedUsage.filter(
-        (entry) => !hiddenProviders.includes(normalizeUsageProviderId(entry.provider)),
-        )
-      .sort((a, b) => providerOrder.indexOf(normalizeUsageProviderId(a.provider)) - providerOrder.indexOf(normalizeUsageProviderId(b.provider)));
-  const consumeCodexReset = useCallback(async (creditId?: string) => {
-    while (inflight.current) await inflight.current;
-    setRefreshing(true);
-    setCodex((current) => fetchingRateLimits("codex", current));
-    let outcome: Awaited<ReturnType<typeof consumeCodexRateLimitResetCredit>>;
-    const operation = (async () => {
-      try {
-        outcome = await consumeCodexRateLimitResetCredit(creditId);
-        setCodex(await fetchCodexRateLimits());
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Could not use Codex reset";
-        setCodex((current) => errorRateLimits("codex", message, current));
-        throw error;
-      }
-    })();
-    const tracked = operation.finally(() => {
-      inflight.current = null;
-      setRefreshing(false);
-    });
-    inflight.current = tracked.catch(() => undefined);
-    await tracked;
-    return outcome!;
-  }, []);
 
   const reconnectProvider = useCallback(
     async (
       provider: RateLimitProvider,
+      accountId: string,
       fetchLimits: () => Promise<ProviderRateLimits>,
       setLimits: Dispatch<SetStateAction<ProviderRateLimits>>,
     ) => {
@@ -267,13 +287,15 @@ export function UsageFooter({
       setLimits((current) => fetchingRateLimits(provider, current));
       const operation = (async () => {
         try {
-          await loginHarness(provider);
+          await (accountId === "default"
+            ? loginHarness(provider as HarnessId)
+            : loginHarness(provider as HarnessId, accountId));
           const value = await fetchLimits();
           setLimits(value);
           if (value.status !== "ok") {
             throw new Error(
               value.error ||
-                `${HARNESS_TITLE[provider]} sign-in could not be verified`,
+                `${harnessTitle(provider as HarnessId)} sign-in could not be verified`,
             );
           }
         } catch (error) {
@@ -296,21 +318,98 @@ export function UsageFooter({
   );
 
   const reconnectClaude = useCallback(
-    () => reconnectProvider("claude", fetchClaudeRateLimits, setClaude),
-    [reconnectProvider],
+    () =>
+      reconnectProvider(
+        "claude",
+        claudeAccountId,
+        () => fetchClaudeRateLimits(claudeAccountId),
+        setClaude,
+      ),
+    [claudeAccountId, reconnectProvider],
   );
 
   const reconnectCodex = useCallback(
-    () => reconnectProvider("codex", fetchCodexRateLimits, setCodex),
-    [reconnectProvider],
+    () =>
+      reconnectProvider(
+        "codex",
+        codexAccountId,
+        () => fetchCodexRateLimits(codexAccountId),
+        setCodex,
+      ),
+    [codexAccountId, reconnectProvider],
   );
 
-  const showUsage = usage.length > 0 || wantClaude || wantCodex;
+  const selectAccount = useCallback(
+    (provider: RateLimitProvider, accountId: string) => {
+      selectProviderAccount(provider, project, accountId);
+      onSelectAccount?.(provider, accountId);
+    },
+    [onSelectAccount, project],
+  );
+
+  const addAccount = useCallback(
+    async (provider: RateLimitProvider, label: string) => {
+      const account = newProviderAccount(provider, label);
+      await loginHarness(provider as HarnessId, account.id);
+      saveProviderAccount(account);
+      selectAccount(provider, account.id);
+      return account;
+    },
+    [selectAccount],
+  );
+
+  useEffect(() => {
+    const onChange = () => {
+      setDisplayMode(loadUsageDisplayMode());
+      setUsageScope(loadUsageScope());
+      setWindowVisibility(loadUsageWindowVisibility());
+      setProviderOrder(loadUsageProviderOrder());
+      setHiddenProviders(loadHiddenUsageProviders());
+    };
+    window.addEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+    window.addEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
+    return () => {
+      window.removeEventListener(USAGE_DISPLAY_MODE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_SCOPE_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT, onChange);
+      window.removeEventListener(USAGE_PROVIDER_ORDER_CHANGE_EVENT, onChange);
+    };
+  }, []);
+
+
+  const showOpencodeChip =
+    wantOpencode && opencode.status !== "unavailable";
+  const native = [wantClaude ? claude : null, wantCodex ? codex : null, showOpencodeChip ? opencode : null].filter(
+    (entry): entry is ProviderRateLimits => entry != null,
+  );
+  const nativeProviders = new Set(native.map((entry) => entry.provider));
+  const mergedUsage = [
+    ...native,
+    ...codexbar.filter((entry) => !nativeProviders.has(normalizeUsageProviderId(entry.provider))),
+  ];
+  const usage =
+    usageScope === "active"
+      ? mergedUsage.filter((entry) =>
+          usageProviderMatches(entry.provider, providers),
+        )
+      : mergedUsage.filter(
+        (entry) => !hiddenProviders.includes(normalizeUsageProviderId(entry.provider)),
+        )
+      .sort((a, b) => providerOrder.indexOf(normalizeUsageProviderId(a.provider)) - providerOrder.indexOf(normalizeUsageProviderId(b.provider)));
+  const showUsage = usage.length > 0;
   const showTerminals = terminals.length > 0;
-  const showRight = showUsage || showTerminals;
+  const showTerminalButton = Boolean(onNewTerminal || onShowTerminal);
+  const terminalLabel = projectTerminalActive
+    ? "Terminal"
+    : `New Terminal (${MOD}\`)`;
+  const onTerminalClick = projectTerminalActive
+    ? (onShowTerminal ?? onNewTerminal)
+    : (onNewTerminal ?? onShowTerminal);
   const ariaLabel = showUsage
     ? "Provider usage"
-    : showTerminals
+    : showTerminals || showTerminalButton
       ? "Terminals"
       : session
         ? "Session"
@@ -319,45 +418,39 @@ export function UsageFooter({
   return (
     <footer
       aria-label={ariaLabel}
-      className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-content/10 px-3 text-[11px] text-content/55"
+      className="flex h-7 shrink-0 items-center gap-1.5 overflow-x-auto border-t border-stroke px-3 text-[11px] text-content/55"
     >
       {showUsage ? (
         <>
-          {wantClaude ? (
-            <UsageProviderChip
-              limits={claude}
-              now={now}
-              onReconnect={reconnectClaude}
+          {usage.map((limits) => limits.provider === "claude" || limits.provider === "codex" || limits.provider === "opencode" ? (
+            <UsageProviderChip key={limits.provider} limits={limits} now={now} project={project}
+              displayMode={displayMode} windowVisibility={windowVisibility}
+              accounts={limits.provider === "claude" ? claudeAccounts : limits.provider === "codex" ? codexAccounts : undefined}
+              accountId={limits.provider === "claude" ? claudeAccountId : limits.provider === "codex" ? codexAccountId : undefined}
+              onSelectAccount={limits.provider === "opencode" ? undefined : (id) => selectAccount(limits.provider, id)}
+              onAddAccount={limits.provider === "opencode" ? undefined : (label) => addAccount(limits.provider, label)}
+              onReconnect={limits.provider === "claude" ? reconnectClaude : limits.provider === "codex" ? reconnectCodex : undefined}
+              onConsumeReset={limits.provider === "codex" ? consumeCodexReset : undefined} />
+          ) : <ProviderChip key={limits.provider} limits={limits} now={now} displayMode={displayMode} windowVisibility={windowVisibility} />)}
+          <button
+            type="button"
+            className="grid size-4.5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50"
+            aria-label="Refresh usage"
+            title="Refresh usage"
+            disabled={refreshing}
+            onClick={() => void refresh(true)}
+          >
+            <RefreshCw
+              className={`size-2.5 ${refreshing ? "animate-spin" : ""}`}
+              strokeWidth={1.75}
+              aria-hidden
             />
-          ) : null}
-          {wantCodex ? (
-            <UsageProviderChip
-              limits={codex}
-              now={now}
-              project={project}
-              onConsumeReset={consumeCodexReset}
-              onReconnect={reconnectCodex}
-            />
-          ) : null}
-          {usage
-            .filter(
-              (limits) =>
-                limits.provider !== "claude" && limits.provider !== "codex",
-            )
-            .map((limits) => (
-              <ProviderChip
-                key={limits.provider}
-                limits={limits}
-                now={now}
-                displayMode={displayMode}
-                windowVisibility={windowVisibility}
-              />
-            ))}
+          </button>
         </>
       ) : session ? (
         <SessionChip key={session.id ?? session.harness} session={session} />
       ) : null}
-      {showRight ? (
+      {showTerminals || showTerminalButton ? (
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {showTerminals ? (
             <RunningTerminalChip
@@ -365,21 +458,21 @@ export function UsageFooter({
               open={terminalOpen}
               onToggle={onToggleTerminal}
             />
-          ) : null}
-          {showUsage ? (
+          ) : showTerminalButton ? (
             <button
               type="button"
-              className="grid size-5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50"
-              aria-label="Refresh usage"
-              title="Refresh usage"
-              disabled={refreshing}
-              onClick={() => void refresh(true)}
+              className={`inline-flex h-5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1.5 hover:bg-content/10 ${
+                projectTerminalActive
+                  ? "text-accent"
+                  : "text-content/40 hover:text-content"
+              }`}
+              aria-label={terminalLabel}
+              aria-pressed={projectTerminalActive}
+              title={terminalLabel}
+              onClick={onTerminalClick}
             >
-              <RefreshCw
-                className={`size-3 ${refreshing ? "animate-spin" : ""}`}
-                strokeWidth={1.75}
-                aria-hidden
-              />
+              <Terminal className="size-3.5" strokeWidth={1.75} aria-hidden />
+              <span>Terminal</span>
             </button>
           ) : null}
         </div>
@@ -440,10 +533,10 @@ function SessionChip({ session }: { session: UsageFooterSession }) {
     return (
       <span
         className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-        title={HARNESS_TITLE[session.harness]}
+        title={harnessTitle(session.harness)}
       >
         <HarnessIcon harness={session.harness} className="size-3 shrink-0" />
-        <span>{HARNESS_LABEL[session.harness]}</span>
+        <span>{harnessLabel(session.harness)}</span>
       </span>
     );
   }
@@ -454,14 +547,14 @@ function SessionChip({ session }: { session: UsageFooterSession }) {
         ref={trigger}
         type="button"
         className="-mx-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 text-content/55 transition-[background-color,color,transform] duration-150 ease-out hover:bg-content/10 hover:text-content focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97]"
-        aria-label={`${HARNESS_TITLE[session.harness]} sign-in required`}
+        aria-label={`${harnessTitle(session.harness)} sign-in required`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={`${HARNESS_TITLE[session.harness]} sign-in required`}
+        title={`${harnessTitle(session.harness)} sign-in required`}
         onClick={() => setOpen((value) => !value)}
       >
         <HarnessIcon harness={session.harness} className="size-3 shrink-0" />
-        <span>{HARNESS_LABEL[session.harness]}</span>
+        <span>{harnessLabel(session.harness)}</span>
         {authRequired ? (
           <span className="text-[10px] text-amber-600 dark:text-amber-300">
             sign in
@@ -478,7 +571,7 @@ function SessionChip({ session }: { session: UsageFooterSession }) {
           autoFocus
           onDismiss={dismiss}
           role="dialog"
-          aria-label={`${HARNESS_TITLE[session.harness]} sign-in`}
+          aria-label={`${harnessTitle(session.harness)} sign-in`}
           tabIndex={-1}
           className="text-content"
         >

@@ -20,6 +20,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import {
@@ -44,8 +45,11 @@ import {
   saveSelected,
   subscribeDirsChanged,
 } from "../lib/fileTree";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { dragPointToClient } from "../lib/dragPoint";
 import {
   basename,
+  clipboardFilePaths,
   copyPath,
   createPath,
   deletePath,
@@ -67,8 +71,14 @@ import {
 } from "../lib/explorerSettings";
 import { displayPath, fileUrl, parentPath, rebasePath } from "../lib/paths";
 import { IS_MAC, IS_WIN, MOD } from "../lib/platform";
+import type { OpenFileFn } from "../lib/search";
 import type { GitStatusMap } from "../hooks/useGitFileStatuses";
 import { useProjectDiffStats } from "../hooks/useProjectDiffStats";
+import {
+  emitExplorerFilePointerDrag,
+  setGrabbing,
+  suppressTextSelection,
+} from "../lib/drag";
 import { ExplorerMenu, type ExplorerMenuItem } from "./ExplorerMenu";
 import { FileTypeIcon } from "./FileTypeIcon";
 
@@ -83,7 +93,7 @@ type Props = {
   cwd: string;
   /** Project path, independent from the active session's working directory. */
   projectCwd?: string;
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenFileFn;
   onOpenTerminal?: (cwd: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
@@ -110,11 +120,17 @@ type TreeCtxValue = {
   creating: Creating | null;
   renaming: string | null;
   cutPath: string | null;
+  dragOverPath: string | null;
   epoch: number;
   gitStatuses?: GitStatusMap;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
-  onOpenFile: (path: string) => void;
+  onFilePointerDown: (
+    path: string,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => void;
+  consumeFileClick: () => boolean;
+  onOpenFile: OpenFileFn;
   onCreateCommit: (id: number, raw: string) => Promise<void>;
   onCreateCancel: (id: number) => void;
   onRenameCommit: (path: string, raw: string) => Promise<void>;
@@ -164,9 +180,8 @@ function explorerItems(
 ): ExplorerMenuItem[] {
   const pasteParent = target.isDir ? target.path : parentPath(target.path);
   const pasteBlocked =
-    !clip ||
-    (clip.isDir &&
-      (pasteParent === clip.path || pasteParent.startsWith(`${clip.path}/`)));
+    !!clip?.isDir &&
+    (pasteParent === clip.path || pasteParent.startsWith(`${clip.path}/`));
   return [
     { kind: "item", id: "new-file", label: "New File" },
     { kind: "item", id: "new-folder", label: "New Folder" },
@@ -258,6 +273,7 @@ export const FileTree = memo(function FileTree({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [clip, setClip] = useState<Clip | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
   const [opNotice, setOpNotice] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(false);
@@ -268,6 +284,8 @@ export const FileTree = memo(function FileTree({
   );
   const creatingRef = useRef(creating);
   creatingRef.current = creating;
+  const fileDragCleanup = useRef<(() => void) | null>(null);
+  const suppressFileClickUntil = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const name = basename(cwd);
@@ -287,6 +305,155 @@ export const FileTree = memo(function FileTree({
     setSelectedPath(path);
     saveSelected(cwd, path);
   };
+
+  const onFilePointerDown = (
+    path: string,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.button !== 0 || fileDragCleanup.current) return;
+    const handle = event.currentTarget;
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let lastX = startX;
+    let lastY = startY;
+    let active = false;
+    let restoreSelection: (() => void) | undefined;
+    let preview: HTMLDivElement | null = null;
+
+    const movePreview = () => {
+      if (!preview) return;
+      const edge = 8;
+      const grabX = 12;
+      const grabY = 13;
+      const width = preview.offsetWidth;
+      const height = preview.offsetHeight;
+      const x = Math.min(
+        Math.max(edge, lastX - grabX),
+        Math.max(edge, window.innerWidth - width - edge),
+      );
+      const y = Math.min(
+        Math.max(edge, lastY - grabY),
+        Math.max(edge, window.innerHeight - height - edge),
+      );
+      preview.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(
+        y,
+      )}px, 0)`;
+    };
+
+    const createPreview = () => {
+      preview = document.createElement("div");
+      preview.setAttribute("aria-hidden", "true");
+      preview.classList.add("explorer-file-drag-preview");
+
+      // Keep the useful identity of the row without dragging its full-width
+      // layout, indentation spacer, selection state, or button behavior.
+      const icon = handle.children.item(1)?.cloneNode(true);
+      const label = handle.children.item(2)?.cloneNode(true);
+      if (icon) preview.append(icon);
+      if (label) preview.append(label);
+
+      document.body.append(preview);
+      movePreview();
+    };
+
+    const release = () => {
+      delete handle.dataset.explorerDragging;
+      preview?.remove();
+      preview = null;
+      document.documentElement.classList.remove("is-explorer-file-dragging");
+      if (restoreSelection) {
+        restoreSelection();
+        restoreSelection = undefined;
+        setGrabbing(false);
+      }
+      try {
+        if (handle.hasPointerCapture(pointerId))
+          handle.releasePointerCapture(pointerId);
+      } catch {
+        /* already released */
+      }
+    };
+
+    const reset = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("blur", onCancel);
+      release();
+      if (active) emitExplorerFilePointerDrag({ type: "end", path });
+      fileDragCleanup.current = null;
+    };
+
+    const activate = () => {
+      active = true;
+      onSelect(path);
+      restoreSelection = suppressTextSelection();
+      setGrabbing(true);
+      createPreview();
+      document.documentElement.classList.add("is-explorer-file-dragging");
+      handle.dataset.explorerDragging = "true";
+      try {
+        handle.setPointerCapture(pointerId);
+      } catch {
+        /* window listeners still track the gesture */
+      }
+    };
+
+    function onMove(moveEvent: PointerEvent) {
+      if (moveEvent.pointerId !== pointerId) return;
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
+      if (!active) {
+        if (Math.hypot(lastX - startX, lastY - startY) < 5) return;
+        activate();
+      }
+      moveEvent.preventDefault();
+      movePreview();
+      emitExplorerFilePointerDrag({ type: "move", path, x: lastX, y: lastY });
+    }
+
+    function finish(commit: boolean, upEvent?: PointerEvent) {
+      if (commit && upEvent) onMove(upEvent);
+      if (active) {
+        suppressFileClickUntil.current = performance.now() + 400;
+        if (commit) {
+          emitExplorerFilePointerDrag({
+            type: "drop",
+            path,
+            x: lastX,
+            y: lastY,
+          });
+        }
+      }
+      reset();
+    }
+
+    function onUp(upEvent: PointerEvent) {
+      if (upEvent.pointerId === pointerId) finish(true, upEvent);
+    }
+    function onCancel() {
+      finish(false);
+    }
+    function onKey(keyEvent: KeyboardEvent) {
+      if (keyEvent.key !== "Escape") return;
+      keyEvent.preventDefault();
+      finish(false);
+    }
+
+    fileDragCleanup.current = onCancel;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("blur", onCancel);
+  };
+
+  const consumeFileClick = () =>
+    performance.now() < suppressFileClickUntil.current;
+
+  useEffect(() => () => fileDragCleanup.current?.(), []);
 
   const expandDirs = (dirs: string[]) => {
     setExpanded((prev) => {
@@ -356,7 +523,7 @@ export const FileTree = memo(function FileTree({
     expandDirs(touched);
     setSelectedPath(created);
     saveSelected(cwd, created);
-    if (!asFolder) onOpenFile(created);
+    if (!asFolder) onOpenFile(created, undefined, { exact: true });
   };
 
   const onRenameCancel = () => setRenaming(null);
@@ -408,9 +575,26 @@ export const FileTree = memo(function FileTree({
     onFileDeleted?.(path);
   };
 
+  const copyExternalFiles = async (paths: string[], destParent: string) => {
+    let created: string | null = null;
+    try {
+      for (const from of paths) created = await copyPath(from, destParent);
+    } finally {
+      if (created) {
+        await refreshTouched([destParent]);
+        expandDirs([destParent]);
+        setSelectedPath(created);
+        saveSelected(cwd, created);
+      }
+    }
+  };
+
   const pasteAt = async (targetPath: string) => {
-    if (!clip) return;
     const destParent = createParentOf(cwd, targetPath);
+    if (!clip) {
+      await copyExternalFiles(await clipboardFilePaths(), destParent);
+      return;
+    }
     if (
       clip.isDir &&
       (destParent === clip.path || destParent.startsWith(`${clip.path}/`))
@@ -492,6 +676,10 @@ export const FileTree = memo(function FileTree({
       setInitializing(false);
     }
   };
+  const dropFiles = (paths: string[], targetPath: string) =>
+    run(() => copyExternalFiles(paths, createParentOf(cwd, targetPath)));
+  const dropFilesRef = useRef(dropFiles);
+  dropFilesRef.current = dropFiles;
 
   const openMenu = (target: MenuTarget, x: number, y: number) => {
     setCreating(null);
@@ -635,6 +823,44 @@ export const FileTree = memo(function FileTree({
   }, [menu]);
 
   useEffect(() => {
+    const treePathAt = (x: number, y: number): string | null => {
+      const root = rootRef.current;
+      if (!root) return null;
+      const point = dragPointToClient(x, y);
+      const el = document.elementFromPoint(point.x, point.y);
+      if (!el || !root.contains(el)) return null;
+      return el.closest<HTMLElement>("[role='treeitem']")?.title ?? cwd;
+    };
+
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "leave") {
+          setDragOverPath(null);
+          return;
+        }
+        const { x, y } = event.payload.position;
+        const target = treePathAt(x, y);
+        if (event.payload.type !== "drop") {
+          setDragOverPath(target ? createParentOf(cwd, target) : null);
+          return;
+        }
+        setDragOverPath(null);
+        if (target) void dropFilesRef.current(event.payload.paths, target);
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [cwd]);
+
+  useEffect(() => {
     const unsub = subscribeDirsChanged(() => setEpoch((n) => n + 1));
     const onResume = () => {
       if (!document.hidden) notifyDirsChanged();
@@ -693,10 +919,13 @@ export const FileTree = memo(function FileTree({
         creating,
         renaming,
         cutPath: clip?.mode === "cut" ? clip.path : null,
+        dragOverPath,
         epoch,
         gitStatuses,
         onToggle: toggle,
         onSelect,
+        onFilePointerDown,
+        consumeFileClick,
         onOpenFile,
         onCreateCommit,
         onCreateCancel,
@@ -714,7 +943,7 @@ export const FileTree = memo(function FileTree({
         onContextMenu={onBackgroundMenu}
       >
         <div
-          className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-content/10 px-2"
+          className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2"
           onContextMenu={(e) => e.stopPropagation()}
         >
           <HeaderIcon label="New File" onClick={() => startCreate(false)}>
@@ -791,7 +1020,9 @@ export const FileTree = memo(function FileTree({
                 e.clientY,
               );
             }}
-            className={`flex min-w-0 flex-1 items-center gap-1 h-full pl-2 text-left`}
+            className={`flex min-w-0 flex-1 items-center gap-1 h-full pl-2 text-left ${
+              dragOverPath === cwd ? "bg-selection" : ""
+            }`}
           >
             <span className="grid size-4 shrink-0 place-items-center text-content/50">
               {rootOpen ? (
@@ -872,7 +1103,7 @@ function HeaderIcon({
       onClick={onClick}
       className={`flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
         active
-          ? "bg-content/10 text-content"
+          ? "bg-selection text-content"
           : highlight
             ? "border border-accent/35 bg-accent/10 text-accent hover:bg-accent/15"
             : "text-content/50 hover:bg-content/5 hover:text-content"
@@ -925,7 +1156,7 @@ function FileTreeDiffButton({
       onClick={onClick}
       className={`relative flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
         active
-          ? "bg-content/10 text-content"
+          ? "bg-selection text-content"
           : "text-content/50 hover:bg-content/5 hover:text-content"
       }`}
     >
@@ -1002,10 +1233,13 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     selectedPath,
     renaming,
     cutPath,
+    dragOverPath,
     epoch,
     gitStatuses,
     onToggle,
     onSelect,
+    onFilePointerDown,
+    consumeFileClick,
     onOpenFile,
     onRenameCommit,
     onRenameCancel,
@@ -1053,7 +1287,8 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
 
   const [dropHover, setDropHover] = useState(false);
 
-  const onRowClick = (e: ReactMouseEvent) => {
+  const onClick = (e: ReactMouseEvent) => {
+    if (consumeFileClick()) return;
     // Cmd/Ctrl+click opens the file with its system default app (like `open`).
     if (!entry.isDir && (IS_MAC ? e.metaKey : e.ctrlKey)) {
       e.preventDefault();
@@ -1062,7 +1297,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     }
     onSelect(entry.path);
     if (entry.isDir) onToggle(entry.path);
-    else onOpenFile(entry.path);
+    else onOpenFile(entry.path, undefined, { exact: true });
   };
 
   const siblings = (peekDir(parentPath(entry.path)) ?? [])
@@ -1087,7 +1322,10 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
           role="treeitem"
           title={entry.path}
           aria-expanded={entry.isDir ? open : undefined}
-          onClick={onRowClick}
+          onClick={onClick}
+          onPointerDown={(event) => {
+            if (!entry.isDir) onFilePointerDown(entry.path, event);
+          }}
           onContextMenu={(e) => onItemContextMenu(entry, e)}
           draggable
           onDragStart={(e) => {
@@ -1120,13 +1358,13 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
               : undefined
           }
           style={{ paddingLeft: 8 + depth * 12 }}
-          className={`flex h-7.5 w-full cursor-default items-center gap-1 pr-2 text-left text-[14px] leading-none ${
+          className={`flex h-7.5 w-full cursor-default items-center gap-1 pr-2 text-left text-[14px] leading-none data-[explorer-dragging]:opacity-50 ${
             selected
-              ? "bg-content/10 text-content"
+              ? "bg-selection text-content"
               : "text-content hover:bg-content/5"
           } ${cutPath === entry.path ? "opacity-50" : ""} ${
             dropHover ? "ring-1 ring-inset ring-accent" : ""
-          }`}
+          } ${dragOverPath === entry.path ? "bg-selection" : ""}`}
         >
           <span className="grid size-4 shrink-0 place-items-center text-content/50">
             {entry.isDir ? (

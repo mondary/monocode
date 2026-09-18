@@ -9,6 +9,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  X,
 } from "../chrome/icons";
 import { invoke } from "@tauri-apps/api/core";
 import { exportAllNotesToProjects } from "../lib/notes";
@@ -22,7 +23,9 @@ import {
   type CustomProviderProbe,
 } from "../lib/customProviders";
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useMemo,
@@ -34,6 +37,7 @@ import {
 } from "react";
 import { HarnessIcon } from "../chrome/HarnessIcon";
 import { Popover } from "../chrome/Popover";
+import { SecondaryButton } from "../chrome/SecondaryButton";
 import { InboxProviderMark } from "../chrome/InboxProviderMark";
 import { RemoveProjectDialog } from "../chrome/RemoveProjectDialog";
 import { WindowControls } from "../chrome/WindowControls";
@@ -41,7 +45,8 @@ import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { useColorScheme } from "../hooks/useColorScheme";
 import {
   applyChatBackground,
-  applyChatBackgroundOpacity,
+  applyChatBackgroundEmptyOpacity,
+  applyChatBackgroundSessionOpacity,
   applyChatBackgroundScope,
   applyBackgroundPanels,
   applyBodyGlass,
@@ -49,17 +54,21 @@ import {
   applyThemePreset,
   applySidebarBlur,
   applySidebarOpacity,
+  applyThemeDarkLightness,
   applyThemeTint,
   BODY_GLASS_DEFAULT,
-  CHAT_BACKGROUND_OPACITY_DEFAULT,
+  CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT,
   CHAT_BACKGROUND_OPACITY_MAX,
   CHAT_BACKGROUND_OPACITY_MIN,
+  CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT,
   CHAT_BACKGROUND_SCOPE_DEFAULT,
   THEME_PREFERENCE_DEFAULT,
   chatBackgroundSrc,
   loadBodyGlass,
-  loadChatBackgroundOpacity,
+  loadAccentColor,
+  loadChatBackgroundEmptyOpacity,
   loadChatBackgroundPath,
+  loadChatBackgroundSessionOpacity,
   loadChatBackgroundScope,
   loadBackgroundPanels,
   type BackgroundPanel,
@@ -72,8 +81,9 @@ import {
   loadTranscriptLayout,
   loadTranscriptAnchor,
   saveBodyGlass,
-  saveChatBackgroundOpacity,
+  saveChatBackgroundEmptyOpacity,
   saveChatBackgroundPath,
+  saveChatBackgroundSessionOpacity,
   saveChatBackgroundScope,
   saveBackgroundPanels,
   saveThemePreference,
@@ -91,6 +101,9 @@ import {
   SIDEBAR_OPACITY_DEFAULT,
   SIDEBAR_OPACITY_MAX,
   SIDEBAR_OPACITY_MIN,
+  THEME_DARK_LIGHTNESS_DEFAULT,
+  THEME_DARK_LIGHTNESS_MAX,
+  THEME_DARK_LIGHTNESS_MIN,
   THEME_HUE_DEFAULT,
   THEME_HUE_MAX,
   THEME_HUE_MIN,
@@ -138,7 +151,7 @@ import {
   subscribeModels,
 } from "../lib/models";
 import { prettyCwd, projectKey, projectName } from "../lib/paths";
-import { IS_MAC } from "../lib/platform";
+import { IS_MAC, IS_WIN } from "../lib/platform";
 import {
   captureAccelerator,
   findBindingOwner,
@@ -173,6 +186,7 @@ import {
   looksLikeProject,
   subscribeArchivedProjects,
   type ArchivedProject,
+  type RecentProject,
 } from "../lib/recents";
 import {
   HARNESSES,
@@ -243,7 +257,9 @@ import {
   settingsSectionLabel,
   type DiffViewer,
   type FollowUpBehavior,
+  type SettingsSearchResult,
   type SettingsSectionId,
+  searchSettings,
 } from "../lib/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../lib/sounds";
 import {
@@ -273,27 +289,47 @@ import {
   type UpdaterSnapshot,
 } from "../lib/updater";
 
+import { ProjectNotificationSettings } from "./ProjectNotificationSettings";
+import { loadComposerEffortVisible, saveComposerEffortVisible, loadCloseToTray, saveCloseToTray } from "../lib/settings";
+import { ColorSwatchRow, ColorPickerPopover } from "../chrome/ColorPickerPopover";
+import { ACCENT_COLOR_DEFAULT } from "../lib/appearance";
 import { SkillsPage } from "./SkillsPage";
 import { PK_VERSION } from "../lib/pkVersion";
+import {
+  loadThemeDarkLightness,
+  saveAccentColor,
+  saveThemeDarkLightness,
+  applyAccentColor,
+} from "../lib/appearance";
 import { usePkVariant } from "../lib/pkVariant";
 
-export type SettingsAnchor = "github" | "gitlab" | "linear";
+/**
+ * The `data-setting-id` Settings should reveal when it opens: one of the ids in
+ * `SETTINGS_INDEX`. Inbox integrations pass their provider id.
+ */
+export type SettingsAnchor = string;
 
-const ANCHOR_IDS: Record<SettingsAnchor, string> = {
-  github: "settings-github",
-  gitlab: "settings-gitlab",
-  linear: "settings-linear",
-};
+const settingDomId = (id: string) => `setting-${id}`;
+
+/** The row or group Settings just jumped to, so it can flash where you landed. */
+const RevealedSetting = createContext<string | null>(null);
 
 type Props = {
   section: SettingsSectionId;
   /** Card to scroll to; the General page is too long to land at the top. */
   anchor?: SettingsAnchor | null;
+  /** Project to focus when opening notification settings from a quick action. */
+  notificationProjectPath?: string | null;
+  /** Changes for each quick action, including repeated requests for one project. */
+  notificationSettingsRequest?: number;
+  recents?: RecentProject[];
   cwd: string;
   projectCwd?: string;
   sessions: SessionSummary[];
   besideRail?: boolean;
   onClose: () => void;
+  /** Lets search jump to a setting that lives on another page. */
+  onSelectSection?: (section: SettingsSectionId) => void;
   onOpenSession: (sessionId: string) => void;
   onArchiveSession: (sessionId: string, archived: boolean) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -305,11 +341,15 @@ type Props = {
 export function SettingsView({
   section,
   anchor = null,
+  notificationProjectPath = null,
+  notificationSettingsRequest = 0,
+  recents,
   cwd,
   projectCwd,
   sessions,
   besideRail = false,
   onClose,
+  onSelectSection,
   onOpenSession,
   onArchiveSession,
   onDeleteSession,
@@ -318,25 +358,45 @@ export function SettingsView({
   onOpenWhatsNew,
 }: Props) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
-  useEffect(() => {
-    if (!anchor) return;
-    document.getElementById(ANCHOR_IDS[anchor])?.scrollIntoView({
-      block: "start",
-    });
-  }, [anchor]);
+  const [revealed, setRevealed] = useState<string | null>(anchor);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const appearance = useAppearanceSettings();
 
+  useEffect(() => setRevealed(anchor), [anchor, notificationSettingsRequest]);
+
+  // Section is a dependency so a search result on another page scrolls once
+  // that page has mounted the row.
+  useEffect(() => {
+    if (!revealed) return;
+    // A project quick action lets the project card focus itself after discovery.
+    if (!(revealed === "project-notifications" && notificationProjectPath)) {
+      document
+        .getElementById(settingDomId(revealed))
+        ?.scrollIntoView?.({ block: "center" });
+    }
+    const timer = window.setTimeout(() => setRevealed(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [revealed, section, notificationProjectPath, notificationSettingsRequest]);
+
+  const onReveal = useCallback(
+    (next: SettingsSectionId, settingId: string | null) => {
+      if (next !== section) onSelectSection?.(next);
+      setRevealed(settingId);
+    },
+    [onSelectSection, section],
+  );
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       event.stopPropagation();
       onCloseRef.current();
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    // Let dialogs and other Settings controls handle Escape first.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (
@@ -347,7 +407,7 @@ export function SettingsView({
       className="flex min-h-0 min-w-0 flex-1 flex-col text-content"
     >
       <div
-        className="flex h-10 shrink-0 select-none items-center border-b border-content/10"
+        className="flex h-10 shrink-0 select-none items-center border-b border-stroke"
         data-tauri-drag-region="deep"
       >
         {IS_MAC && !besideRail ? <div className="w-[78px] shrink-0" /> : null}
@@ -360,17 +420,22 @@ export function SettingsView({
             {settingsSectionLabel(section)}
           </span>
         </div>
-        {section === "appearance" ? (
-          <button
-            type="button"
-            data-tauri-drag-region="false"
-            onClick={appearance.restoreDefaults}
-            className="mr-2 flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-content/50 hover:bg-content/10 hover:text-content"
-          >
-            <RotateCcw className="size-3.5" strokeWidth={1.75} />
-            Restore defaults
-          </button>
-        ) : null}
+        <div
+          className="flex shrink-0 items-center gap-1.5 pr-2"
+          data-tauri-drag-region="false"
+        >
+          {section === "appearance" ? (
+            <button
+              type="button"
+              onClick={appearance.restoreDefaults}
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-content/50 hover:bg-content/10 hover:text-content"
+            >
+              <RotateCcw className="size-3.5" strokeWidth={1.75} />
+              Restore defaults
+            </button>
+          ) : null}
+          <SettingsSearch onReveal={onReveal} />
+        </div>
         {IS_MAC ? null : <WindowControls />}
       </div>
 
@@ -379,6 +444,7 @@ export function SettingsView({
         className="settings-body min-h-0 flex-1 overflow-y-auto overscroll-none"
       >
         <div className="mx-auto w-full max-w-5xl px-8 py-8">
+          <RevealedSetting.Provider value={revealed}>
           <PageHeader
             title={
               section === "keybindings" ? (
@@ -399,8 +465,11 @@ export function SettingsView({
             <AppearancePage appearance={appearance} />
           ) : null}
           {section === "keybindings" ? <KeybindingsPage /> : null}
+          {section === "chat" ? <ChatPage /> : null}
           {section === "providers" ? <ProvidersPage /> : null}
-          {section === "inbox" ? <InboxPage /> : null}
+          {section === "inbox" ? (
+            <InboxPage cwd={cwd} recents={recents} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest} />
+          ) : null}
           {section === "skills" ? (
             <SkillsPage key={projectCwd ?? cwd} cwd={projectCwd ?? cwd} />
           ) : null}
@@ -415,20 +484,136 @@ export function SettingsView({
               onDeleteProject={onDeleteProject}
             />
           ) : null}
+          </RevealedSetting.Provider>
         </div>
       </div>
     </div>
   );
 }
 
+/** Jumps to any setting by name, including ones on another page. */
+function SettingsSearch({
+  onReveal,
+}: {
+  onReveal: (section: SettingsSectionId, settingId: string | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = useId();
+  const results = useMemo(() => searchSettings(query), [query]);
+  const open = query.trim().length > 0;
+
+  useEffect(() => setActive(0), [query]);
+
+  const go = (result: SettingsSearchResult | undefined) => {
+    if (!result) return;
+    onReveal(result.section, result.settingId);
+    setQuery("");
+    input.current?.blur();
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((index) => Math.min(results.length - 1, index + 1));
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((index) => Math.max(0, index - 1));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      go(results[active]);
+    }
+  };
+
+  return (
+    <div ref={root} className="relative shrink-0">
+      <label className="flex h-7 w-48 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
+        <Search className="size-3.5 shrink-0" strokeWidth={1.75} />
+        <input
+          ref={input}
+          role="combobox"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Search settings"
+          aria-label="Search settings"
+          aria-expanded={open}
+          aria-controls={listId}
+          spellCheck={false}
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
+        />
+        {query ? (
+          <button
+            type="button"
+            aria-label="Clear settings search"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setQuery("");
+              input.current?.focus();
+            }}
+            className="grid size-4 shrink-0 place-items-center rounded text-content/45 hover:text-content"
+          >
+            <X className="size-3" strokeWidth={2} />
+          </button>
+        ) : null}
+      </label>
+      {open ? (
+        <Popover
+          anchor={root}
+          side="bottom"
+          align="end"
+          width={300}
+          maxHeight={320}
+          onDismiss={(reason) => {
+            setQuery("");
+            if (reason === "escape") input.current?.focus();
+          }}
+          id={listId}
+          role="listbox"
+          aria-label="Settings search results"
+          className="overflow-y-auto overscroll-contain p-1"
+        >
+          {results.length === 0 ? (
+            <p className="px-2 py-1.5 text-[12px] text-content/45">
+              No matching settings
+            </p>
+          ) : (
+            results.map((result, index) => (
+              <button
+                key={`${result.section}:${result.settingId ?? "*"}`}
+                type="button"
+                role="option"
+                aria-selected={index === active}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActive(index)}
+                onClick={() => go(result)}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] ${
+                  index === active
+                    ? "bg-selection text-content"
+                    : "text-content hover:bg-content/5"
+                }`}
+              >
+                <span className="min-w-0 flex-1 truncate">{result.label}</span>
+                <span className="shrink-0 text-[11px] text-content/40">
+                  {result.settingId ? result.sectionLabel : "Page"}
+                </span>
+              </button>
+            ))
+          )}
+        </Popover>
+      ) : null}
+    </div>
+  );
+}
+
 function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
-  const [transcriptLayout, setTranscriptLayout] =
-    useState<TranscriptLayout>(loadTranscriptLayout);
-  const [transcriptAnchor, setTranscriptAnchor] =
-    useState(loadTranscriptAnchor);
-  const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
-  const [followUpBehavior, setFollowUpBehavior] =
-    useState<FollowUpBehavior>(loadFollowUpBehavior);
   const [doneCheckSide, setDoneCheckSide] = useState<DoneCheckSide>(
     loadDoneCheckSide,
   );
@@ -438,10 +623,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   const [projectActivity, setProjectActivity] = useState(loadProjectActivity);
   const [projectReviewHighlight, setProjectReviewHighlight] = useState(loadProjectReviewHighlight);
   const [projectTitleMode, setProjectTitleMode] = useState<ProjectTitleMode>(loadProjectTitleMode);
-  const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
-  const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
-    loadGridArcadeEnabled,
-  );
   const [dockSide, setDockSide] = useState<TerminalPlacement>(
     loadDefaultTerminalPlacement,
   );
@@ -463,12 +644,13 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     loadLiveAgentsEnabled,
   );
   const [soundsEnabled, setSoundsEnabled] = useState(loadSoundsEnabled);
+  const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
+  const onCloseToTray = (next: boolean) => { saveCloseToTray(next); setCloseToTray(next); };
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     loadNotificationsEnabled,
   );
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission>(cachedNotificationPermission);
-  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
 
   const [explorerShowChanges, setExplorerShowChanges] = useState(
     loadExplorerShowChanges,
@@ -489,35 +671,10 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     return () => window.removeEventListener("focus", refresh);
   }, [notificationsEnabled]);
 
-  useEffect(() => {
-    const onAnchor = (event: Event) => {
-      setTranscriptAnchor((event as CustomEvent<boolean>).detail === true);
-    };
-    window.addEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
-    return () => {
-      window.removeEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
-    };
-  }, []);
 
-  const onTranscriptLayout = (next: TranscriptLayout) => {
-    saveTranscriptLayout(next);
-    setTranscriptLayout(next);
-  };
 
-  const onTranscriptAnchor = (next: boolean) => {
-    saveTranscriptAnchor(next);
-    setTranscriptAnchor(next);
-  };
 
-  const onDiffViewer = (next: DiffViewer) => {
-    saveDiffViewer(next);
-    setDiffViewer(next);
-  };
 
-  const onFollowUpBehavior = (next: FollowUpBehavior) => {
-    saveFollowUpBehavior(next);
-    setFollowUpBehavior(next);
-  };
 
   const onDoneCheckSide = (next: DoneCheckSide) => {
     saveDoneCheckSide(next);
@@ -544,15 +701,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setProjectTitleMode(next);
   };
 
-  const onComposerRunner = (next: boolean) => {
-    saveComposerRunner(next);
-    setComposerRunner(next);
-  };
 
-  const onGridArcadeEnabled = (next: boolean) => {
-    saveGridArcadeEnabled(next);
-    setGridArcadeEnabled(next);
-  };
 
   const onNotesEnabled = (next: boolean) => {
     saveNotesEnabled(next);
@@ -584,11 +733,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
     setNotificationsEnabled(next);
     if (!next) return;
     void requestNotificationPermission().then(setNotificationPermission);
-  };
-
-  const onClaudeHooks = (next: boolean) => {
-    saveClaudeHooks(next);
-    setClaudeHooks(next);
   };
 
   const onExplorerShowChanges = (next: boolean) => {
@@ -661,34 +805,19 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
       <Heading title="About" />
       <UpdateRow onOpenWhatsNew={onOpenWhatsNew} />
 
-      <Row
-        label="Transcript layout"
-        description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
-      >
-        <Segmented
-          label="Transcript layout"
-          value={transcriptLayout}
-          options={[
-            { value: "full", label: "Full width" },
-            { value: "chat", label: "Chat" },
-          ]}
-          onChange={onTranscriptLayout}
-        />
-      </Row>
-      <Row
-        label="Diff view"
-        description="Editor keeps working-tree changes in the file. Unified stacks every changed file in one review, with sticky headers and collapsed unchanged lines."
-      >
-        <Segmented
-          label="Diff view"
-          value={diffViewer}
-          options={[
-            { value: "editor", label: "Editor" },
-            { value: "unified", label: "Unified" },
-          ]}
-          onChange={onDiffViewer}
-        />
-      </Row>
+        {IS_WIN && (
+          <Row
+            id="close-to-tray"
+            label="Close to tray"
+            description="Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window."
+          >
+            <Toggle
+              label="Close to tray"
+              on={closeToTray}
+              onChange={onCloseToTray}
+            />
+          </Row>
+        )}
       <Row
         label="Terminal dock position"
         pk
@@ -818,21 +947,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Follow-up behavior"
-        description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
-      >
-        <Segmented
-          label="Follow-up behavior"
-          value={followUpBehavior}
-          options={[
-            { value: "queue", label: "Queue" },
-            { value: "steer", label: "Steer" },
-            { value: "choice", label: "Let me choose" },
-          ]}
-          onChange={onFollowUpBehavior}
-        />
-      </Row>
-      <Row
         label="Finished check position"
         description="Where the green check sits on a project row when its agent finishes: over the project icon, or over the changes counter on the right."
       >
@@ -889,36 +1003,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
-        label="Anchor prompts to top"
-        description="When you send, the new prompt sits at the top of the transcript and the reply grows into the space below. Turn this off to keep the classic layout, with the latest message resting on the composer."
-      >
-        <Toggle
-          label="Anchor prompts to top"
-          on={transcriptAnchor}
-          onChange={onTranscriptAnchor}
-        />
-      </Row>
-      <Row
-        label="Composer mascot"
-        description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
-      >
-        <Toggle
-          label="Composer mascot"
-          on={composerRunner}
-          onChange={onComposerRunner}
-        />
-      </Row>
-      <Row
-        label="Empty session games"
-        description="Pac-man and snake idle on the empty-session grid. Hover the band to take control of whichever is on screen. Turn this off to keep the pane still."
-      >
-        <Toggle
-          label="Empty session games"
-          on={gridArcadeEnabled}
-          onChange={onGridArcadeEnabled}
-        />
-      </Row>
-      <Row
+        id="notes"
         label="Notes"
         description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat. Turn this off to hide Notes from the UI."
       >
@@ -936,6 +1021,7 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         />
       </Row>
       <Row
+        id="working-agents"
         label="Working agents"
         description="When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session. Turn this off to hide the card."
       >
@@ -983,12 +1069,14 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
         </div>
       </Row>
       <Row
+        id="sounds"
         label="Sounds"
         description="Short cues when a turn finishes, the agent asks a question or approval, a new inbox item appears on the project rail, or an update is available. Switches and Copy on a finished turn also play."
       >
         <Toggle label="Sounds" on={soundsEnabled} onChange={onSoundsEnabled} />
       </Row>
       <Row
+        id="notifications"
         label="Notifications"
         description="Notify when a reminder is due, or when an agent finishes or needs input in another session or while MonoCode is in the background. Click the notification to open that session."
       >
@@ -1004,16 +1092,6 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
           label="Notifications"
           on={notificationsEnabled}
           onChange={onNotificationsEnabled}
-        />
-      </Row>
-      <Row
-        label="Claude Code hooks"
-        description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
-      >
-        <Toggle
-          label="Claude Code hooks"
-          on={claudeHooks}
-          onChange={onClaudeHooks}
         />
       </Row>
 
@@ -1044,17 +1122,249 @@ function GeneralPage({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
   );
 }
 
-function InboxPage() {
+function ChatPage() {
+  const [transcriptLayout, setTranscriptLayout] =
+    useState<TranscriptLayout>(loadTranscriptLayout);
+  const [transcriptAnchor, setTranscriptAnchor] =
+    useState(loadTranscriptAnchor);
+  const [followUpBehavior, setFollowUpBehavior] =
+    useState<FollowUpBehavior>(loadFollowUpBehavior);
+  const [composerEffortVisible, setComposerEffortVisible] = useState(
+    loadComposerEffortVisible,
+  );
+  const [diffViewer, setDiffViewer] = useState<DiffViewer>(loadDiffViewer);
+  const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
+  const [gridArcadeEnabled, setGridArcadeEnabled] = useState(
+    loadGridArcadeEnabled,
+  );
+
+  useEffect(() => {
+    const onAnchor = (event: Event) => {
+      setTranscriptAnchor((event as CustomEvent<boolean>).detail === true);
+    };
+    window.addEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
+    return () => {
+      window.removeEventListener(TRANSCRIPT_ANCHOR_CHANGE_EVENT, onAnchor);
+    };
+  }, []);
+
+  const onTranscriptLayout = (next: TranscriptLayout) => {
+    saveTranscriptLayout(next);
+    setTranscriptLayout(next);
+  };
+
+  const onTranscriptAnchor = (next: boolean) => {
+    saveTranscriptAnchor(next);
+    setTranscriptAnchor(next);
+  };
+
+  const onFollowUpBehavior = (next: FollowUpBehavior) => {
+    saveFollowUpBehavior(next);
+    setFollowUpBehavior(next);
+  };
+
+  const onComposerEffortVisible = (next: boolean) => {
+    saveComposerEffortVisible(next);
+    setComposerEffortVisible(next);
+  };
+
+  const onDiffViewer = (next: DiffViewer) => {
+    saveDiffViewer(next);
+    setDiffViewer(next);
+  };
+
+  const onComposerRunner = (next: boolean) => {
+    saveComposerRunner(next);
+    setComposerRunner(next);
+  };
+
+  const onGridArcadeEnabled = (next: boolean) => {
+    saveGridArcadeEnabled(next);
+    setGridArcadeEnabled(next);
+  };
+
   return (
     <>
-      <Heading title="GitHub" id={ANCHOR_IDS.github} first />
-      <GithubSettings />
+      <Group
+        title="Transcript"
+        description="How a conversation reads as it grows."
+      >
+        <Row
+          id="transcript-layout"
+          label="Transcript layout"
+          description="Full width keeps user prompts as a spanning card. Chat aligns them to the right with a max width, like a messaging app."
+        >
+          <Segmented
+            label="Transcript layout"
+            value={transcriptLayout}
+            options={[
+              { value: "full", label: "Full width" },
+              { value: "chat", label: "Chat" },
+            ]}
+            onChange={onTranscriptLayout}
+          />
+        </Row>
+        <Row
+          id="anchor-prompts"
+          label="Anchor prompts to top"
+          description="When you send, the new prompt sits at the top of the transcript and the reply grows into the space below. Turn this off to keep the classic layout, with the latest message resting on the composer."
+        >
+          <Toggle
+            label="Anchor prompts to top"
+            on={transcriptAnchor}
+            onChange={onTranscriptAnchor}
+          />
+        </Row>
+      </Group>
 
-      <Heading title="GitLab" id={ANCHOR_IDS.gitlab} />
-      <GitlabSettings />
+      <Group
+        title="Composer"
+        description="What the composer does with what you type."
+      >
+        <Row
+          id="follow-up"
+          label="Follow-up behavior"
+          description="Queue follow-ups until the active turn finishes, or steer the active turn immediately."
+        >
+          <Segmented
+            label="Follow-up behavior"
+            value={followUpBehavior}
+            options={[
+              { value: "queue", label: "Queue" },
+              { value: "steer", label: "Steer" },
+            ]}
+            onChange={onFollowUpBehavior}
+          />
+        </Row>
+        <Row
+          id="effort-control"
+          label="Effort control"
+          description="Show the current effort as a separate control beside the model picker for quicker changes. When off, effort stays inside the model menu."
+        >
+          <Toggle
+            label="Show effort beside model picker"
+            on={composerEffortVisible}
+            onChange={onComposerEffortVisible}
+          />
+        </Row>
+      </Group>
 
-      <Heading title="Linear" id={ANCHOR_IDS.linear} />
-      <LinearSettings />
+      <Group
+        title="Code review"
+        description="Where a turn's changes open when you go to read them."
+      >
+        <Row
+          id="diff-view"
+          label="Diff view"
+          description="Editor keeps working-tree changes in the file. Unified stacks every changed file in one review, with sticky headers and collapsed unchanged lines."
+        >
+          <Segmented
+            label="Diff view"
+            value={diffViewer}
+            options={[
+              { value: "editor", label: "Editor" },
+              { value: "unified", label: "Unified" },
+            ]}
+            onChange={onDiffViewer}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Extras"
+        description="Idle animation, and nothing else. Turn both off for a still workspace."
+      >
+        <Row
+          id="composer-mascot"
+          label="Composer mascot"
+          description="When a turn is running, the project mascot runs along the composer, bonks the scroll-to-latest button the first time, then jumps it, and sometimes grabs a coin."
+        >
+          <Toggle
+            label="Composer mascot"
+            on={composerRunner}
+            onChange={onComposerRunner}
+          />
+        </Row>
+        <Row
+          id="empty-session-games"
+          label="Empty session games"
+          description="Pac-man and snake idle on the empty-session grid. Hover the band to take control of whichever is on screen. Turn this off to keep the pane still."
+        >
+          <Toggle
+            label="Empty session games"
+            on={gridArcadeEnabled}
+            onChange={onGridArcadeEnabled}
+          />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function InboxPage({
+  cwd,
+  recents,
+  notificationProjectPath,
+  notificationSettingsRequest,
+}: {
+  cwd: string;
+  recents?: RecentProject[];
+  notificationProjectPath?: string | null;
+  notificationSettingsRequest?: number;
+}) {
+  const revealed = useContext(RevealedSetting);
+  return (
+    <>
+      <div
+        id={settingDomId("project-notifications")}
+        data-setting-id="project-notifications"
+      >
+        <ProjectNotificationSettings
+          cwd={cwd}
+          recents={recents}
+          notificationProjectPath={notificationProjectPath}
+          notificationSettingsRequest={notificationSettingsRequest}
+          highlighted={revealed === "project-notifications"}
+        />
+      </div>
+      <Group
+        id="github"
+        title={
+          <span className="flex items-center gap-2">
+            <InboxProviderMark provider="github" className="size-4 shrink-0" />
+            GitHub
+          </span>
+        }
+        description="Pull requests, reviews, and issues, read through the GitHub CLI."
+      >
+        <GithubSettings />
+      </Group>
+
+      <Group
+        id="gitlab"
+        title={
+          <span className="flex items-center gap-2">
+            <InboxProviderMark provider="gitlab" className="size-4 shrink-0" />
+            GitLab
+          </span>
+        }
+        description="Merge requests from GitLab.com or a self-managed instance."
+      >
+        <GitlabSettings />
+      </Group>
+
+      <Group
+        id="linear"
+        title={
+          <span className="flex items-center gap-2">
+            <InboxProviderMark provider="linear" className="size-4 shrink-0" />
+            Linear
+          </span>
+        }
+        description="Issues assigned to you, from the teams you pick."
+      >
+        <LinearSettings />
+      </Group>
     </>
   );
 }
@@ -1103,15 +1413,7 @@ function GithubSettings() {
 
   return (
     <>
-      <Row
-        label={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark provider="github" className="size-4 shrink-0" />
-            Connection
-          </span>
-        }
-        description={description}
-      >
+      <Row label="Connection" description={description}>
         <span className="text-[12px] text-content/50">{label}</span>
         {!checking && !status?.installed ? (
           <SecondaryButton
@@ -1127,7 +1429,9 @@ function GithubSettings() {
         </SecondaryButton>
       </Row>
       {error ? (
-        <p className="pb-2 text-[12px] text-red-400/90">{error}</p>
+        <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">
+          {error}
+        </p>
       ) : null}
     </>
   );
@@ -1194,16 +1498,11 @@ function GitlabSettings() {
   return (
     <>
       <Row
-        label={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark provider="gitlab" className="size-4 shrink-0" />
-            Connection
-          </span>
-        }
+        label="Connection"
         description="Connect GitLab.com or a self-managed GitLab instance. Use a personal access token with API access; the token is stored locally and Disconnect deletes it."
       >
         {connected ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             <span className="max-w-56 truncate text-[12px] text-content/50">
               {url}
             </span>
@@ -1215,8 +1514,8 @@ function GitlabSettings() {
             </SecondaryButton>
           </div>
         ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            <label className="flex h-7 w-52 shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
               <input
                 type="url"
                 value={url}
@@ -1228,7 +1527,7 @@ function GitlabSettings() {
                 className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
               />
             </label>
-            <label className="flex h-7 w-52 shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
+            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
               <input
                 type="password"
                 value={token}
@@ -1253,7 +1552,9 @@ function GitlabSettings() {
         )}
       </Row>
       {error ? (
-        <p className="pb-2 text-[12px] text-red-400/90">{error}</p>
+        <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">
+          {error}
+        </p>
       ) : null}
     </>
   );
@@ -1278,11 +1579,15 @@ function LinearSettings() {
 
   useEffect(() => {
     let cancelled = false;
-    void linearConnected().then((status) => {
-      if (cancelled) return;
-      setConnected(status.connected);
-      if (status.connected) void loadTeams();
-    });
+    void linearConnected()
+      .then((status) => {
+        if (cancelled) return;
+        setConnected(status.connected);
+        if (status.connected) void loadTeams();
+      })
+      .catch(() => {
+        if (!cancelled) setConnected(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -1344,12 +1649,7 @@ function LinearSettings() {
   return (
     <>
       <Row
-        label={
-          <span className="flex items-center gap-2">
-            <InboxProviderMark provider="linear" className="size-4 shrink-0" />
-            API key
-          </span>
-        }
+        label="API key"
         description="Create a personal API key in Linear → Settings → Security & Access. Disconnect deletes it."
       >
         {connected ? (
@@ -1357,8 +1657,8 @@ function LinearSettings() {
             Disconnect
           </SecondaryButton>
         ) : (
-          <div className="flex items-center gap-2">
-            <label className="flex h-7 w-52 shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
+            <label className="flex h-7 w-52 max-w-full shrink-0 items-center rounded-md border border-content/10 px-2 focus-within:border-content/20">
               <input
                 type="password"
                 value={token}
@@ -1383,17 +1683,17 @@ function LinearSettings() {
         )}
       </Row>
       {error ? (
-        <p className="pb-2 text-[12px] text-red-400/90">{error}</p>
+        <p className="border-b border-content/5 px-4 pb-3 text-[12px] text-red-400/90 last:border-b-0">
+          {error}
+        </p>
       ) : null}
       {connected && teams.length > 0 ? (
-        <div className="border-b border-content/5 py-4">
-          <div className="text-[13px] font-medium text-content">
-            Linear Teams
-          </div>
+        <div className="border-b border-content/5 px-4 py-3.5 last:border-b-0">
+          <div className="text-[13px] font-medium text-content">Teams</div>
           <p className="mt-1 text-[12px] leading-relaxed text-content/45">
             Unchecked teams stay out of the inbox.
           </p>
-          <div className="mt-3 flex flex-col gap-0.5 -mx-2">
+          <div className="-mx-2 mt-2 flex flex-col gap-0.5">
             {teams.map((team) => {
               const checked = !hiddenTeamIds.includes(team.id);
               return (
@@ -1468,6 +1768,7 @@ function UpdateRow({ onOpenWhatsNew }: { onOpenWhatsNew: () => void }) {
 
   return (
     <Row
+      id="update"
       pk
       label={
         <span className="flex flex-col gap-0.5">
@@ -1522,17 +1823,23 @@ function useAppearanceSettings() {
   const [themePreset, setThemePreset] = useState<ThemePreset>(loadThemePreset);
   const [themePreference, setThemePreference] =
     useState<ThemePreference>(loadThemePreference);
+  const [accentColor, setAccentColor] = useState(loadAccentColor);
   const [opacity, setOpacity] = useState(loadSidebarOpacity);
   const [blur, setBlur] = useState(loadSidebarBlur);
   const [themeHue, setThemeHue] = useState(loadThemeHue);
   const [themeSaturation, setThemeSaturation] = useState(loadThemeSaturation);
+  const [themeDarkLightness, setThemeDarkLightness] = useState(
+    loadThemeDarkLightness,
+  );
   const [bodyGlass, setBodyGlass] = useState(loadBodyGlass);
   const [chatBackgroundPath, setChatBackgroundPath] = useState(
     loadChatBackgroundPath,
   );
-  const [chatBackgroundOpacity, setChatBackgroundOpacity] = useState(
-    loadChatBackgroundOpacity,
+  const [chatBackgroundEmptyOpacity, setChatBackgroundEmptyOpacity] = useState(
+    loadChatBackgroundEmptyOpacity,
   );
+  const [chatBackgroundSessionOpacity, setChatBackgroundSessionOpacity] =
+    useState(loadChatBackgroundSessionOpacity);
   const [chatBackgroundScope, setChatBackgroundScope] =
     useState<ChatBackgroundScope>(loadChatBackgroundScope);
   const [backgroundPanels, setBackgroundPanels] =
@@ -1587,6 +1894,12 @@ function useAppearanceSettings() {
     setThemeSaturation(next.saturation);
   }, []);
 
+  const onDarkLightness = useCallback((value: number) => {
+    const next = applyThemeDarkLightness(value);
+    saveThemeDarkLightness(next);
+    setThemeDarkLightness(next);
+  }, []);
+
   const onBodyGlass = useCallback((next: boolean) => {
     applyBodyGlass(next);
     saveBodyGlass(next);
@@ -1628,10 +1941,16 @@ function useAppearanceSettings() {
     }
   }, []);
 
-  const onChatBackgroundOpacity = useCallback((percent: number) => {
-    const next = applyChatBackgroundOpacity(percent / 100);
-    saveChatBackgroundOpacity(next);
-    setChatBackgroundOpacity(next);
+  const onChatBackgroundEmptyOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundEmptyOpacity(percent / 100);
+    saveChatBackgroundEmptyOpacity(next);
+    setChatBackgroundEmptyOpacity(next);
+  }, []);
+
+  const onChatBackgroundSessionOpacity = useCallback((percent: number) => {
+    const next = applyChatBackgroundSessionOpacity(percent / 100);
+    saveChatBackgroundSessionOpacity(next);
+    setChatBackgroundSessionOpacity(next);
   }, []);
 
   const onChatBackgroundScope = useCallback((next: ChatBackgroundScope) => {
@@ -1662,8 +1981,14 @@ function useAppearanceSettings() {
     onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
     onBlur(SIDEBAR_BLUR_DEFAULT);
     onTint(THEME_HUE_DEFAULT, THEME_SATURATION_DEFAULT);
+    onDarkLightness(THEME_DARK_LIGHTNESS_DEFAULT);
     onBodyGlass(BODY_GLASS_DEFAULT);
-    onChatBackgroundOpacity(Math.round(CHAT_BACKGROUND_OPACITY_DEFAULT * 100));
+    onChatBackgroundEmptyOpacity(
+      Math.round(CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT * 100),
+    );
+    onChatBackgroundSessionOpacity(
+      Math.round(CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT * 100),
+    );
     onChatBackgroundScope(CHAT_BACKGROUND_SCOPE_DEFAULT);
     onBackgroundPanel("chat", true);
     onBackgroundPanel("workspace", false);
@@ -1674,13 +1999,15 @@ function useAppearanceSettings() {
     chatBackgroundPath,
     onBlur,
     onBodyGlass,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onClearChatBackground,
     onThemePreference,
     onThemePreset,
     onOpacity,
     onTint,
+    onDarkLightness,
     onUiScale,
   ]);
 
@@ -1691,9 +2018,20 @@ function useAppearanceSettings() {
     blur,
     themeHue,
     themeSaturation,
+    themeDarkLightness,
     bodyGlass,
     chatBackgroundPath,
-    chatBackgroundOpacity,
+    chatBackgroundEmptyOpacity,
+    chatBackgroundSessionOpacity,
+    chatBackgroundOpacity: chatBackgroundEmptyOpacity,
+    onChatBackgroundOpacity: onChatBackgroundEmptyOpacity,
+    accentColor,
+    onAccentColor: (value: string | null) => {
+      const next = applyAccentColor(value);
+      saveAccentColor(next);
+      setAccentColor(next);
+      return next;
+    },
     chatBackgroundScope,
     backgroundPanels,
     chatBackgroundBusy,
@@ -1704,10 +2042,12 @@ function useAppearanceSettings() {
     onOpacity,
     onBlur,
     onTint,
+    onDarkLightness,
     onBodyGlass,
     onChooseChatBackground,
     onClearChatBackground,
-    onChatBackgroundOpacity,
+    onChatBackgroundEmptyOpacity,
+    onChatBackgroundSessionOpacity,
     onChatBackgroundScope,
     onBackgroundPanel,
     onUiScale,
@@ -1721,21 +2061,37 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
 
   return (
     <>
-      <Row
-        label="Theme"
-        description="System follows the OS appearance. Dark and light share the same tint, so the hue below applies to both."
+        <Row
+          id="accent-color"
+          label="Accent color"
+          description="Used for the composer send button and your message bubbles."
+        >
+          <AccentColorPicker
+            value={appearance.accentColor}
+            onChange={appearance.onAccentColor}
+          />
+        </Row>
+      <Group
+        title="Theme"
+        description="Dark and light share the same tint, so the color settings below apply to both."
       >
-        <Segmented
+        <Row
+          id="theme"
           label="Theme"
-          value={appearance.themePreference}
-          options={[
-            { value: "system", label: "System" },
-            { value: "dark", label: "Dark" },
-            { value: "light", label: "Light" },
-          ]}
-          onChange={appearance.onThemePreference}
-        />
-      </Row>
+          description="Dark and light share the same tint, so the color settings below apply to both."
+        >
+          <Segmented
+            label="Theme"
+            value={appearance.themePreference}
+            options={[
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
+            ]}
+            onChange={appearance.onThemePreference}
+          />
+        </Row>
+      </Group>
       <Row
         label="Theme preset"
         pk
@@ -1755,97 +2111,132 @@ function AppearancePage({ appearance }: { appearance: AppearanceSettings }) {
           onChange={appearance.onThemePreset}
         />
       </Row>
-      <Row
-        label="Sidebar opacity"
-        description={
-          glassDisabled
-            ? "Light mode always uses an opaque window. Your dark-mode value is preserved."
-            : "How much of the desktop shows through the sidebar and the project rail."
-        }
+      <Group
+        title="Translucency"
+        description="How much of the desktop shows through MonoCode."
       >
-        <Slider
-          label="Sidebar opacity"
-          value={percent}
-          display={`${percent}%`}
-          min={Math.round(SIDEBAR_OPACITY_MIN * 100)}
-          max={Math.round(SIDEBAR_OPACITY_MAX * 100)}
-          onChange={appearance.onOpacity}
-          disabled={glassDisabled}
-        />
-      </Row>
       <Row
-        label="Blur radius"
-        description={
-          glassDisabled
-            ? "Background blur is unavailable while light mode uses an opaque window."
-            : "Background blur behind the window. Higher values cost more to composite."
-        }
-      >
-        <Slider
-          label="Blur radius"
-          value={appearance.blur}
-          display={String(appearance.blur)}
-          min={SIDEBAR_BLUR_MIN}
-          max={SIDEBAR_BLUR_MAX}
-          onChange={appearance.onBlur}
-          disabled={glassDisabled}
-        />
-      </Row>
-      <Row label="Hue" description="Base hue for accents and tinted surfaces.">
-        <Slider
+          id="hue"
           label="Hue"
-          value={appearance.themeHue}
-          display={`${appearance.themeHue}°`}
-          min={THEME_HUE_MIN}
-          max={THEME_HUE_MAX}
-          onChange={(value) =>
-            appearance.onTint(value, appearance.themeSaturation)
-          }
-        />
-      </Row>
-      <Row
-        label="Saturation"
-        description="How strongly the hue tints the interface. Zero keeps it neutral."
-      >
-        <Slider
+          description="Base hue for accents and tinted surfaces."
+        >
+          <Slider
+            label="Hue"
+            value={appearance.themeHue}
+            display={`${appearance.themeHue}°`}
+            min={THEME_HUE_MIN}
+            max={THEME_HUE_MAX}
+            onChange={(value) =>
+              appearance.onTint(value, appearance.themeSaturation)
+            }
+          />
+        </Row>
+        <Row
+          id="saturation"
           label="Saturation"
-          value={appearance.themeSaturation}
-          display={`${appearance.themeSaturation}%`}
-          min={THEME_SATURATION_MIN}
-          max={THEME_SATURATION_MAX}
-          onChange={(value) => appearance.onTint(appearance.themeHue, value)}
-        />
-      </Row>
-      <Row
-        label="Main pane glass"
+          description="How strongly the hue tints the interface. Zero keeps it neutral."
+        >
+          <Slider
+            label="Saturation"
+            value={appearance.themeSaturation}
+            display={`${appearance.themeSaturation}%`}
+            min={THEME_SATURATION_MIN}
+            max={THEME_SATURATION_MAX}
+            onChange={(value) => appearance.onTint(appearance.themeHue, value)}
+          />
+        </Row>
+        <Row
+          id="dark-lightness"
+          label="Dark-mode lightness"
+          description={
+            glassDisabled
+              ? "This only affects dark mode. Your dark-mode value is preserved."
+              : "Base brightness of the dark theme. Lower values are darker; zero is true black."
+          }
+        >
+          <Slider
+            label="Dark-mode lightness"
+            value={appearance.themeDarkLightness}
+            display={`${appearance.themeDarkLightness}%`}
+            min={THEME_DARK_LIGHTNESS_MIN}
+            max={THEME_DARK_LIGHTNESS_MAX}
+            onChange={appearance.onDarkLightness}
+            disabled={glassDisabled}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Translucency"
         description={
           glassDisabled
-            ? "Main pane glass is unavailable while light mode uses an opaque window."
-            : "Extend the translucent treatment to the main pane behind sessions and editors."
+            ? "Light mode always uses an opaque window, so these are off. Your dark-mode values are preserved."
+            : "How much of the desktop shows through MonoCode. Blur costs more to composite the higher it goes."
         }
       >
-        <Toggle
+        <Row
+          id="sidebar-opacity"
+          label="Sidebar opacity"
+          description="Applies to the project rail and the other glass panes."
+        >
+          <Slider
+            label="Sidebar opacity"
+            value={percent}
+            display={`${percent}%`}
+            min={Math.round(SIDEBAR_OPACITY_MIN * 100)}
+            max={Math.round(SIDEBAR_OPACITY_MAX * 100)}
+            onChange={appearance.onOpacity}
+            disabled={glassDisabled}
+          />
+        </Row>
+        <Row
+          id="blur"
+          label="Blur radius"
+          description="Background blur behind the window."
+        >
+          <Slider
+            label="Blur radius"
+            value={appearance.blur}
+            display={String(appearance.blur)}
+            min={SIDEBAR_BLUR_MIN}
+            max={SIDEBAR_BLUR_MAX}
+            onChange={appearance.onBlur}
+            disabled={glassDisabled}
+          />
+        </Row>
+        <Row
+          id="main-pane-glass"
           label="Main pane glass"
-          on={appearance.bodyGlass}
-          onChange={appearance.onBodyGlass}
-          disabled={glassDisabled}
-        />
-      </Row>
+          description="Extend the translucent treatment to the main pane behind sessions and editors."
+        >
+          <Toggle
+            label="Main pane glass"
+            on={appearance.bodyGlass}
+            onChange={appearance.onBodyGlass}
+            disabled={glassDisabled}
+          />
+        </Row>
+      </Group>
+
       <ChatBackgroundCard appearance={appearance} />
-      <Row
-        label="Interface scale"
-        description="Zoom the whole interface. You can also use Ctrl+=, Ctrl+-, and Ctrl+0 (Cmd on macOS)."
-      >
-        <Slider
+
+      <Group title="Layout">
+        <Row
+          id="interface-scale"
           label="Interface scale"
-          value={Math.round(appearance.uiScale * 100)}
-          display={`${Math.round(appearance.uiScale * 100)}%`}
-          min={Math.round(UI_SCALE_MIN * 100)}
-          max={Math.round(UI_SCALE_MAX * 100)}
-          step={10}
-          onChange={appearance.onUiScale}
-        />
-      </Row>
+          description="Zoom the whole interface. You can also use Ctrl+=, Ctrl+-, and Ctrl+0 (Cmd on macOS)."
+        >
+          <Slider
+            label="Interface scale"
+            value={Math.round(appearance.uiScale * 100)}
+            display={`${Math.round(appearance.uiScale * 100)}%`}
+            min={Math.round(UI_SCALE_MIN * 100)}
+            max={Math.round(UI_SCALE_MAX * 100)}
+            step={10}
+            onChange={appearance.onUiScale}
+          />
+        </Row>
+      </Group>
     </>
   );
 }
@@ -1857,22 +2248,54 @@ function ChatBackgroundCard({
 }) {
   const src = chatBackgroundSrc(appearance.chatBackgroundPath);
   const hasImage = Boolean(appearance.chatBackgroundPath && src);
-  const visibility = Math.round(appearance.chatBackgroundOpacity * 100);
+  const emptyVisibility = Math.round(
+    appearance.chatBackgroundEmptyOpacity * 100,
+  );
+  const sessionVisibility = Math.round(
+    appearance.chatBackgroundSessionOpacity * 100,
+  );
+  const visibility = emptyVisibility;
   const busy = appearance.chatBackgroundBusy;
 
   return (
-    <div className="border-b border-content/5 py-4 last:border-b-0">
-      <div className="flex items-start gap-6">
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium text-content">
-            Chat background
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-content/45">
-            An image behind your chat panes. It stays on this device.
-          </p>
+    <Group
+      id="chat-background"
+      title="Chat background"
+      description="An image behind your chat panes. It stays on this device."
+    >
+      <div className="border-b border-content/5 p-4 last:border-b-0">
+        <div className="overflow-hidden rounded-lg border border-content/10">
+          {hasImage ? (
+            <div className="relative h-36">
+              <img
+                src={src ?? undefined}
+                alt=""
+                draggable={false}
+                className="size-full object-cover"
+                style={{ opacity: appearance.chatBackgroundEmptyOpacity }}
+              />
+              <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
+                Empty chat preview at {emptyVisibility}%
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void appearance.onChooseChatBackground()}
+              disabled={busy}
+              className="flex h-36 w-full flex-col items-center justify-center gap-2 text-content/40 hover:bg-content/5 hover:text-content/70 disabled:cursor-default disabled:opacity-40"
+            >
+              {busy ? (
+                <Loader className="size-5 animate-spin" aria-hidden />
+              ) : (
+                <ImagePlus className="size-5" aria-hidden />
+              )}
+              <span className="text-[12px]">Choose an image</span>
+            </button>
+          )}
         </div>
         {hasImage ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="mt-3 flex items-center justify-end gap-2">
             <SecondaryButton
               onClick={() => void appearance.onChooseChatBackground()}
               disabled={busy}
@@ -1901,7 +2324,7 @@ function ChatBackgroundCard({
               alt=""
               draggable={false}
               className="size-full object-cover"
-              style={{ opacity: appearance.chatBackgroundOpacity }}
+              style={{ opacity: appearance.chatBackgroundEmptyOpacity }}
             />
             <span className="pointer-events-none absolute bottom-2 left-2 text-[11px] text-content/40">
               Preview at {visibility}%
@@ -1997,12 +2420,51 @@ function ChatBackgroundCard({
           </div>
         ) : null}
       </div>
-      {appearance.chatBackgroundError ? (
-        <p className="mt-2 text-[12px] text-red-400">
-          {appearance.chatBackgroundError}
-        </p>
+      {hasImage ? (
+        <>
+          <Row
+            label="Show on"
+            description="Empty sessions only, or every conversation."
+          >
+            <Segmented
+              label="Show background on"
+              value={appearance.chatBackgroundScope}
+              options={[
+                { value: "empty", label: "Empty only" },
+                { value: "all", label: "All sessions" },
+              ]}
+              onChange={appearance.onChatBackgroundScope}
+            />
+          </Row>
+          <Row
+            label="Empty chat visibility"
+            description="Background strength before a chat has messages."
+          >
+            <Slider
+              label="Empty chat background visibility"
+              value={emptyVisibility}
+              display={`${emptyVisibility}%`}
+              min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
+              max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
+              onChange={appearance.onChatBackgroundEmptyOpacity}
+            />
+          </Row>
+          <Row
+            label="Session visibility"
+            description="Background strength once the conversation has messages."
+          >
+            <Slider
+              label="Session background visibility"
+              value={sessionVisibility}
+              display={`${sessionVisibility}%`}
+              min={Math.round(CHAT_BACKGROUND_OPACITY_MIN * 100)}
+              max={Math.round(CHAT_BACKGROUND_OPACITY_MAX * 100)}
+              onChange={appearance.onChatBackgroundSessionOpacity}
+            />
+          </Row>
+        </>
       ) : null}
-    </div>
+    </Group>
   );
 }
 
@@ -2259,25 +2721,29 @@ function KeybindingsPage() {
   );
 
   return (
-    <>
-      <div className="flex items-center justify-end gap-3 pb-3">
-        <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
-          {rows.length} {rows.length === 1 ? "binding" : "bindings"}
-        </span>
-        <label className="flex h-7 w-52 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
-          <Search className="size-3.5 shrink-0" strokeWidth={1.75} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter"
-            aria-label="Filter keybindings"
-            spellCheck={false}
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
-          />
-        </label>
-      </div>
-
+    <Group
+      title="Shortcuts"
+      description="Bindings come from the app menu and the workspace key handler; they aren’t customizable yet."
+      action={
+        <div className="flex items-center gap-3">
+          <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
+            {rows.length} {rows.length === 1 ? "binding" : "bindings"}
+          </span>
+          <label className="flex h-7 w-44 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
+            <Search className="size-3.5 shrink-0" strokeWidth={1.75} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Filter"
+              aria-label="Filter keybindings"
+              spellCheck={false}
+              autoComplete="off"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"
+            />
+          </label>
+        </div>
+      }
+    >
       <div className="overflow-hidden rounded-lg border border-content/10">
         <div className="flex items-center border-b border-content/10 bg-content/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-content/40">
           <span className="min-w-0 flex-1">Command</span>
@@ -2335,11 +2801,13 @@ function KeybindingsPage() {
       {conflict ? (
         <p className="pt-1 text-[12px] text-amber-400/90">{conflict}</p>
       ) : null}
-    </>
+    </Group>
   );
 }
 
 function ProvidersPage() {
+  const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
+  const onClaudeHooks = (next: boolean) => { saveClaudeHooks(next); setClaudeHooks(next); };
   useSyncExternalStore(subscribeModels, getModelSnapshot, getModelSnapshot);
   useSyncExternalStore(
     subscribeHarnessAvailability,
@@ -2352,6 +2820,7 @@ function ProvidersPage() {
   useEffect(() => {
     void probeHarnessAvailability();
   }, []);
+
 
   const onModelChange = (harness: HarnessId, model: string) => {
     saveDefaultModel(harness, model);
@@ -2370,6 +2839,17 @@ function ProvidersPage() {
 
   return (
     <>
+        <Row
+          id="claude-hooks"
+          label="Claude Code hooks"
+          description="Run the hooks configured in your settings.json files — PreToolUse command rewrites, blocks, notifications, and the rest — just as the Claude Code CLI would. Turn this off if a hook is misbehaving and you need the session back. Takes effect on the next turn."
+        >
+          <Toggle
+            label="Claude Code hooks"
+            on={claudeHooks}
+            onChange={onClaudeHooks}
+          />
+        </Row>
       <p className="pb-2 text-[12px] leading-relaxed text-content/45">
         A provider is listed as installed once its CLI is found on your PATH.
         Uninstalled CLIs stay listed here but are omitted from the model picker.
@@ -2543,18 +3023,19 @@ function ArchivePage({
 
   return (
     <>
-      <Heading title="Archived projects" first />
-      {archivedProjects.length === 0 ? (
-        <p className="py-3 text-[12px] text-content/45">
-          Archive a project from the rail to keep its chats without listing it
-          in the sidebar.
-        </p>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-content/10">
-          {archivedProjects.map((project) => (
+      <Group
+        title="Archived projects"
+        description="Archive a project from the rail to keep its chats without listing it in the sidebar."
+      >
+        {archivedProjects.length === 0 ? (
+          <p className="px-4 py-3.5 text-[12px] text-content/45">
+            No archived projects.
+          </p>
+        ) : (
+          archivedProjects.map((project) => (
             <div
               key={project.path}
-              className="flex items-center gap-3 border-b border-content/5 px-3 py-2 last:border-b-0"
+              className="flex items-center gap-3 border-b border-content/5 px-4 py-2.5 last:border-b-0"
             >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px]">
@@ -2575,43 +3056,41 @@ function ArchivePage({
                 </SecondaryButton>
               ) : null}
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </Group>
 
-      <Row
-        label="Show archived in the sidebar"
-        description="Keep archived conversations listed alongside the active ones."
-      >
-        <Toggle
-          label="Show archived in the sidebar"
-          on={filters.showArchived}
-          onChange={onShowArchived}
-        />
-      </Row>
-
-      <Heading
+      <Group
         title={
           looksLikeProject(cwd)
             ? `Archived in ${projectName(cwd)}`
             : "Archived conversations"
         }
-      />
-
-      {!looksLikeProject(cwd) ? (
-        <p className="py-3 text-[12px] text-content/45">
-          Open a project to see its archived conversations.
-        </p>
-      ) : archived.length === 0 ? (
-        <p className="py-3 text-[12px] text-content/45">
-          No archived conversations in this project.
-        </p>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-content/10">
-          {archived.map((session) => (
+      >
+        <Row
+          id="show-archived"
+          label="Show archived in the sidebar"
+          description="Keep archived conversations listed alongside the active ones."
+        >
+          <Toggle
+            label="Show archived in the sidebar"
+            on={filters.showArchived}
+            onChange={onShowArchived}
+          />
+        </Row>
+        {!looksLikeProject(cwd) ? (
+          <p className="px-4 py-3.5 text-[12px] text-content/45">
+            Open a project to see its archived conversations.
+          </p>
+        ) : archived.length === 0 ? (
+          <p className="px-4 py-3.5 text-[12px] text-content/45">
+            No archived conversations in this project.
+          </p>
+        ) : (
+          archived.map((session) => (
             <div
               key={session.id}
-              className="flex items-center gap-3 border-b border-content/5 px-3 py-2 last:border-b-0"
+              className="flex items-center gap-3 border-b border-content/5 px-4 py-2.5 last:border-b-0"
             >
               <HarnessIcon
                 harness={session.harness}
@@ -2639,9 +3118,9 @@ function ArchivePage({
                 Delete
               </SecondaryButton>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </Group>
 
       {deleting ? (
         <RemoveProjectDialog
@@ -2691,40 +3170,80 @@ function PageHeader({
   );
 }
 
-function Heading({
-  title,
-  first = false,
+/**
+ * A titled card of related settings. Everything on a page lives in one, so a
+ * page reads as a handful of topics instead of one long list of switches.
+ */
+function Group({
   id,
+  title,
+  description,
+  action,
+  children,
 }: {
-  title: string;
-  first?: boolean;
+  /** Matches a `SETTINGS_INDEX` id when the whole card is the search target. */
   id?: string;
+  title: ReactNode;
+  description?: string;
+  action?: ReactNode;
+  children: ReactNode;
 }) {
+  const revealed = useContext(RevealedSetting);
+  const flash = id != null && revealed === id;
+
   return (
-    <h2
-      id={id}
-      className={`pb-1 text-[15px] font-semibold text-content ${
-        first ? "" : "pt-8"
-      }`}
+    <section
+      id={id ? settingDomId(id) : undefined}
+      data-setting-id={id}
+      className="pt-8 first:pt-0"
     >
-      {title}
-    </h2>
+      <div className="flex items-end gap-4 pb-2.5">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[13px] font-semibold text-content">{title}</h2>
+          {description ? (
+            <p className="mt-1 text-[12px] leading-relaxed text-content/45">
+              {description}
+            </p>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0 pb-0.5">{action}</div> : null}
+      </div>
+      <div
+        className={`overflow-hidden rounded-xl border bg-content/3 transition-colors ${
+          flash ? "border-accent/60" : "border-content/10"
+        }`}
+      >
+        {children}
+      </div>
+    </section>
   );
 }
 
 function Row({
+  id,
   label,
   description,
   children,
   pk = false,
 }: {
+  /** Matches a `SETTINGS_INDEX` id so search can scroll here. */
+  id?: string;
   label: ReactNode;
   description?: string;
   children?: ReactNode;
   pk?: boolean;
 }) {
+  const revealed = useContext(RevealedSetting);
+  const flash = id != null && revealed === id;
+
   return (
-    <div className="flex items-start gap-6 border-b border-content/5 py-4 last:border-b-0">
+    <div
+      id={id ? settingDomId(id) : undefined}
+      data-setting-id={id}
+      className={`settings-row flex items-start gap-6 border-b border-content/5 px-4 py-3.5 transition-colors last:border-b-0 ${
+        flash ? "bg-accent/10" : ""
+      }`}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-[13px] font-medium text-content">
           {label}
@@ -2736,7 +3255,7 @@ function Row({
           </p>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      <div className="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">
         {children}
       </div>
     </div>
@@ -2791,7 +3310,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-grid shrink-0 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]"
+      className="inline-grid max-w-full shrink-0 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]"
       style={{
         gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
       }}
@@ -2803,9 +3322,9 @@ function Segmented<T extends string>({
           role="radio"
           aria-checked={value === option.value}
           onClick={() => onChange(option.value)}
-          className={`min-w-0 whitespace-nowrap rounded-[5px] px-2.5 py-1 ${
+          className={`min-w-0 rounded-[5px] px-2.5 py-1 ${
             value === option.value
-              ? "bg-content/10 text-content"
+              ? "bg-selection text-content"
               : "text-content/50 hover:text-content"
           }`}
         >
@@ -2837,7 +3356,7 @@ function Slider({
 }) {
   return (
     <div
-      className={`flex w-56 items-center gap-3 ${disabled ? "opacity-40" : ""}`}
+      className={`flex w-56 max-w-full items-center gap-3 ${disabled ? "opacity-40" : ""}`}
     >
       <input
         type="range"
@@ -2860,12 +3379,70 @@ function Slider({
   );
 }
 
-/** macOS keeps the decision after the first prompt; only System Settings can flip it. */
+
+const ACCENT_COLOR_PRESETS = [
+  "#4da3f5", "#8b5cf6", "#ec4899", "#ef4444", "#f59e0b", "#10b981",
+] as const;
+
+function AccentColorPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const colorIndex = value
+    ? ACCENT_COLOR_PRESETS.indexOf(
+        value as (typeof ACCENT_COLOR_PRESETS)[number],
+      )
+    : -1;
+  const presetIndex = value == null ? 0 : colorIndex >= 0 ? colorIndex + 1 : -1;
+
+  return (
+    <div ref={root} className="w-48">
+      <ColorSwatchRow
+        colors={["var(--color-content)", ...ACCENT_COLOR_PRESETS]}
+        labels={["Default", "Blue", "Violet", "Pink", "Red", "Orange", "Green"]}
+        colorIndex={presetIndex >= 0 ? presetIndex : undefined}
+        customColor={presetIndex < 0 ? (value ?? undefined) : undefined}
+        customPickerOpen={open}
+        onPickIndex={(index) => {
+          setOpen(false);
+          onChange(
+            index === 0
+              ? ACCENT_COLOR_DEFAULT
+              : (ACCENT_COLOR_PRESETS[index - 1] ?? ACCENT_COLOR_PRESETS[0]),
+          );
+        }}
+        onToggleCustom={() => setOpen((current) => !current)}
+      />
+      {open ? (
+        <Popover
+          anchor={root}
+          side="bottom"
+          align="end"
+          width={248}
+          onDismiss={() => setOpen(false)}
+          className="px-2 pb-2"
+        >
+          <ColorPickerPopover
+            value={value ?? ACCENT_COLOR_PRESETS[0]}
+            onChange={onChange}
+          />
+        </Popover>
+      ) : null}
+    </div>
+  );
+}
+
+/** macOS keeps the decision after the first prompt; only System Settings can flip it. Windows toasts are governed by Settings > Notifications. */
 function NotificationsBlocked() {
   return (
     <span className="flex items-center gap-2 text-[12px] text-content/45">
       Permission needed
-      {IS_MAC ? (
+      {IS_MAC || IS_WIN ? (
         <button
           type="button"
           onClick={() => {
@@ -3053,7 +3630,7 @@ function Select({
                 onClick={() => pick(option.value)}
                 className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] ${
                   highlighted || isSelected
-                    ? "bg-content/10 text-content"
+                    ? "bg-selection text-content"
                     : "text-content hover:bg-content/5"
                 }`}
               >
@@ -3070,29 +3647,23 @@ function Select({
   );
 }
 
-function SecondaryButton({
-  onClick,
-  disabled = false,
-  danger = false,
-  children,
+function Heading({
+  title,
+  first = false,
+  id,
 }: {
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  children: ReactNode;
+  title: string;
+  first?: boolean;
+  id?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex shrink-0 items-center gap-1.5 rounded-md border border-content/10 px-2.5 py-1 text-[12px] ${
-        danger
-          ? "text-red-400 hover:border-red-400/40 hover:bg-red-400/10"
-          : "text-content/70 hover:bg-content/10 hover:text-content"
-      } disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent`}
+    <h2
+      id={id}
+      className={`pb-1 text-[15px] font-semibold text-content ${
+        first ? "" : "pt-8"
+      }`}
     >
-      {children}
-    </button>
+      {title}
+    </h2>
   );
 }

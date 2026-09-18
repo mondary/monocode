@@ -4,6 +4,7 @@ set -euo pipefail
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 variant="${1:-}"
 build_dir="${PK_BUILD_DIR:-$project_dir/build}"
+install_app="${PK_INSTALL:-1}"
 
 # Deux variantes cohabitent : la version quotidienne (stable) et une version
 # dev que l'agent peut tuer/relancer pendant le développement. L'identifiant
@@ -38,9 +39,11 @@ mkdir -p "$build_dir"
 # Prefere un certificat reel du trousseau; fallback ad-hoc sinon.
 sign_identity="${PK_SIGN_IDENTITY:-}"
 if [[ -z "$sign_identity" ]]; then
+  # Pas de certificat sur la machine (CI) : le pipeline echoue, on retombe
+  # sur la signature ad-hoc definie plus bas.
   sign_identity=$(
-    security find-identity -v -p codesigning 2>/dev/null |
-      grep -E '"(Apple Development|Developer ID Application|monocodePK)' |
+    (security find-identity -v -p codesigning 2>/dev/null || true) |
+      (grep -E '"(Apple Development|Developer ID Application|monocodePK)' || true) |
       head -1 | sed 's/.*"\(.*\)".*/\1/'
   )
 fi
@@ -58,14 +61,11 @@ PK_OVERLAY="$overlay" node -e '
   // MonoCode officiel comme une seule app par LaunchServices (quit confondu,
   // dossier de donnees commun) et s entretuer a la fermeture.
   const name = process.env.PK_PRODUCT_NAME;
-  const overlay = {
-    productName: name,
-    identifier: process.env.PK_IDENTIFIER,
-    // The repository currently has known type-check failures in unrelated
-    // upstream surfaces. Vite still produces the tested frontend bundle; keep
-    // the Tauri packaging path usable until the full typecheck is repaired.
-    build: { beforeBuildCommand: "npx vite build" },
-  };
+  const overlay = { productName: name, identifier: process.env.PK_IDENTIFIER };
+  // Local Dev builds are not updater releases and need no updater signature.
+  if (process.env.PK_IDENTIFIER.endsWith(".dev")) {
+    overlay.bundle = { createUpdaterArtifacts: false };
+  }
   if (base.app && Array.isArray(base.app.windows)) {
     overlay.app = {
       windows: base.app.windows.map((w) => ({ ...w, title: name })),
@@ -73,7 +73,7 @@ PK_OVERLAY="$overlay" node -e '
   }
   const sign = process.env.PK_SIGN_IDENTITY || "";
   if (sign) {
-    overlay.bundle = { macOS: { signingIdentity: sign } };
+    overlay.bundle = { ...overlay.bundle, macOS: { signingIdentity: sign } };
     process.stderr.write("Signing with: " + sign + "\n");
   } else {
     process.stderr.write("No codesigning identity found: ad-hoc signature (TCC prompts will repeat).\n");
@@ -108,7 +108,9 @@ fi
 # which shadows CFBundleIconFile in Dock/Cmd+Tab. That catalog is stale —
 # regenerating it needs actool/Xcode — so drop the key and let macOS render
 # the regenerated icon.icns instead.
-/usr/libexec/PlistBuddy -c 'Delete :CFBundleIconName' "$source_app/Contents/Info.plist"
+if /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$source_app/Contents/Info.plist" >/dev/null 2>&1; then
+  /usr/libexec/PlistBuddy -c 'Delete :CFBundleIconName' "$source_app/Contents/Info.plist"
+fi
 
 # Info.plist is sealed by the bundle signature: re-sign after editing it,
 # keeping tauri's entitlements and hardened runtime. Ad-hoc when no identity.
@@ -130,10 +132,13 @@ codesign --force --deep --options runtime \
   --entitlements "$entitlements" --sign "$sign_identity" "$source_app"
 rm -f "$entitlements"
 
+if [[ "$install_app" == "0" ]]; then
+  echo "Built $source_app (not installed)"
+  exit 0
+fi
+
 if [[ -e "$target_app" ]]; then
-  previous_app="/tmp/$(basename "$target_app").previous.$$.app"
-  mv "$target_app" "$previous_app"
-  echo "Previous app moved to $previous_app"
+  rm -rf "$target_app"
 fi
 
 ditto "$source_app" "$target_app"
