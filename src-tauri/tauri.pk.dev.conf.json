@@ -1,0 +1,31 @@
+{
+  "productName": "MonoCode PK Dev",
+  "identifier": "com.monocode.pk.dev",
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "icon": [
+      "icons/icon-dev.icns"
+    ],
+    "macOS": {
+      "signingIdentity": "Apple Development: cleeement@gmail.com (8CZKU67BTY)"
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MonoCode PK Dev",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 520,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "backgroundColor": "#171717",
+        "backgroundThrottling": "throttle",
+        "shadow": true
+      }
+    ]
+  }
+}

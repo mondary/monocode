@@ -1,0 +1,27 @@
+{
+  "productName": "MonoCode PK",
+  "identifier": "com.monocode.pk",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MonoCode PK",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 520,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "backgroundColor": "#171717",
+        "backgroundThrottling": "throttle",
+        "shadow": true
+      }
+    ]
+  },
+  "bundle": {
+    "macOS": {
+      "signingIdentity": "Apple Development: cleeement@gmail.com (8CZKU67BTY)"
+    }
+  }
+}
