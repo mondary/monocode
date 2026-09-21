@@ -1,3 +1,4 @@
+import type { HarnessId } from "../../features/sessions/model/session";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   clampUsedPercent,
@@ -5,6 +6,9 @@ import {
   formatResetCountdown,
   formatResetDuration,
   formatUsagePercent,
+  formatDisplayedUsagePercent,
+  type UsageDisplayMode,
+  type UsageWindowVisibility,
   formatWindowLabel,
   rateLimitWindowTooltip,
   type ProviderRateLimits,
@@ -50,9 +54,13 @@ export function UsageProviderChip({
   onManageAccounts,
   onConsumeReset,
   onReconnect,
+  displayMode = "used",
+  windowVisibility = "all",
 }: {
   limits: ProviderRateLimits;
   now: number;
+  displayMode?: UsageDisplayMode;
+  windowVisibility?: UsageWindowVisibility;
   project?: string;
   accounts?: ProviderAccount[];
   accountId?: string;
@@ -81,6 +89,7 @@ export function UsageProviderChip({
       !limits.monthly);
   const disconnected = limits.status === "unavailable";
   const windows = usageWindows(limits);
+  const chipWindows = windows.filter((entry) => windowVisibility === "all" || entry.key === windowVisibility);
   const loginView = Boolean(
     onReconnect &&
     windows.length === 0 &&
@@ -182,7 +191,7 @@ export function UsageProviderChip({
         }
         onClick={() => setOpen((value) => !value)}
       >
-        <HarnessIcon harness={limits.provider} className="size-3 shrink-0" />
+        <HarnessIcon harness={limits.provider as HarnessId} className="size-3 shrink-0" />
         {loading ? (
           <span className="animate-pulse text-content/35">···</span>
         ) : disconnected ? (
@@ -198,7 +207,7 @@ export function UsageProviderChip({
             ) : null}
             {tightest ? <MiniBar usedPct={tightest.usedPercent} /> : null}
             <span className="flex min-w-0 items-center gap-1 tabular-nums">
-              {windows.map((entry, index) => (
+              {chipWindows.map((entry, index) => (
                 <span
                   key={entry.key}
                   className="inline-flex items-center gap-1"
@@ -207,7 +216,7 @@ export function UsageProviderChip({
                     <span className="text-content/25">·</span>
                   ) : null}
                   <span>
-                    {formatUsagePercent(entry.window.usedPercent)}{" "}
+                    {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)}{" "}
                     {formatRateLimitWindowChipLabel(entry.window, now)}
                   </span>
                 </span>
@@ -267,7 +276,7 @@ export function UsageProviderChip({
                 />
               ) : null}
               <ProviderSignInPanel
-                harness={limits.provider}
+                harness={limits.provider as HarnessId}
                 state={reconnectState}
                 error={reconnectError}
                 onSignIn={() => void reconnect()}
@@ -277,7 +286,7 @@ export function UsageProviderChip({
             <>
               <div className="flex items-start gap-2.5 px-1 pb-2.5 pt-0.5">
                 <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.06] ring-1 ring-inset ring-content/[0.07]">
-                  <HarnessIcon harness={limits.provider} className="size-4" />
+                  <HarnessIcon harness={limits.provider as HarnessId} className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-[13px] font-medium leading-4">

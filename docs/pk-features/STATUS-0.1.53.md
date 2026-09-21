@@ -19,11 +19,11 @@ appliquée sur Dev, compilée et testée avant de passer à la suivante.
 | 08 | Fournisseurs PK | `diff-06-10-settings-providers.patch` | verified |
 | 09 | Fournisseurs custom | `diff-06-10-settings-providers.patch` | verified |
 | 10 | Modèle et effort | `diff-06-10-settings-providers.patch` | verified |
-| 11 | Comptes et authentification | `diff-11-auth-comptes.patch` | pending |
-| 12 | Quotas CodexBar | `diff-12-quotas-codexbar.patch` | pending |
-| 13 | Accès Codex | `diff-13-codex-acces.patch` | pending |
-| 14 | Rail activité/projets | `diff-14-rail-activite.patch` | pending |
-| 15 | Identité des projets | `diff-15-projets-identite.patch` | pending |
+| 11 | Comptes et authentification | `diff-11-15-accounts-quotas-rail.patch` | verified |
+| 12 | Quotas CodexBar | `diff-11-15-accounts-quotas-rail.patch` | verified |
+| 13 | Accès Codex | `diff-11-15-accounts-quotas-rail.patch` | verified |
+| 14 | Rail activité/projets | `diff-11-15-accounts-quotas-rail.patch` | verified |
+| 15 | Identité des projets | `diff-11-15-accounts-quotas-rail.patch` | verified |
 | 16 | Composer PK | `diff-16-composer.patch` | pending |
 | 17 | Apparence et thèmes | `diff-17-apparence.patch` | pending |
 | 18 | Terminal et dock | `diff-18-terminal.patch` | pending |

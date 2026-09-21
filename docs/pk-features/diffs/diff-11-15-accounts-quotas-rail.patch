@@ -1,0 +1,621 @@
+diff --git a/src/app/shell/UsageFooter.tsx b/src/app/shell/UsageFooter.tsx
+index bf2f8cd..10490bd 100644
+--- a/src/app/shell/UsageFooter.tsx
++++ b/src/app/shell/UsageFooter.tsx
+@@ -287,8 +287,8 @@ export function UsageFooter({
+       const operation = (async () => {
+         try {
+           await (accountId === "default"
+-            ? loginHarness(provider)
+-            : loginHarness(provider, accountId));
++            ? loginHarness(provider as HarnessId)
++            : loginHarness(provider as HarnessId, accountId));
+           const value = await fetchLimits();
+           setLimits(value);
+           if (value.status !== "ok") {
+diff --git a/src/app/shell/UsageProviderChip.tsx b/src/app/shell/UsageProviderChip.tsx
+index 79fa1d5..a0c9f2a 100644
+--- a/src/app/shell/UsageProviderChip.tsx
++++ b/src/app/shell/UsageProviderChip.tsx
+@@ -1,3 +1,4 @@
++import type { HarnessId } from "../../features/sessions/model/session";
+ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+ import {
+   clampUsedPercent,
+@@ -5,6 +6,9 @@ import {
+   formatResetCountdown,
+   formatResetDuration,
+   formatUsagePercent,
++  formatDisplayedUsagePercent,
++  type UsageDisplayMode,
++  type UsageWindowVisibility,
+   formatWindowLabel,
+   rateLimitWindowTooltip,
+   type ProviderRateLimits,
+@@ -50,9 +54,13 @@ export function UsageProviderChip({
+   onManageAccounts,
+   onConsumeReset,
+   onReconnect,
++  displayMode = "used",
++  windowVisibility = "all",
+ }: {
+   limits: ProviderRateLimits;
+   now: number;
++  displayMode?: UsageDisplayMode;
++  windowVisibility?: UsageWindowVisibility;
+   project?: string;
+   accounts?: ProviderAccount[];
+   accountId?: string;
+@@ -81,6 +89,7 @@ export function UsageProviderChip({
+       !limits.monthly);
+   const disconnected = limits.status === "unavailable";
+   const windows = usageWindows(limits);
++  const chipWindows = windows.filter((entry) => windowVisibility === "all" || entry.key === windowVisibility);
+   const loginView = Boolean(
+     onReconnect &&
+     windows.length === 0 &&
+@@ -182,7 +191,7 @@ export function UsageProviderChip({
+         }
+         onClick={() => setOpen((value) => !value)}
+       >
+-        <HarnessIcon harness={limits.provider} className="size-3 shrink-0" />
++        <HarnessIcon harness={limits.provider as HarnessId} className="size-3 shrink-0" />
+         {loading ? (
+           <span className="animate-pulse text-content/35">···</span>
+         ) : disconnected ? (
+@@ -198,7 +207,7 @@ export function UsageProviderChip({
+             ) : null}
+             {tightest ? <MiniBar usedPct={tightest.usedPercent} /> : null}
+             <span className="flex min-w-0 items-center gap-1 tabular-nums">
+-              {windows.map((entry, index) => (
++              {chipWindows.map((entry, index) => (
+                 <span
+                   key={entry.key}
+                   className="inline-flex items-center gap-1"
+@@ -207,7 +216,7 @@ export function UsageProviderChip({
+                     <span className="text-content/25">·</span>
+                   ) : null}
+                   <span>
+-                    {formatUsagePercent(entry.window.usedPercent)}{" "}
++                    {formatDisplayedUsagePercent(entry.window.usedPercent, displayMode)}{" "}
+                     {formatRateLimitWindowChipLabel(entry.window, now)}
+                   </span>
+                 </span>
+@@ -267,7 +276,7 @@ export function UsageProviderChip({
+                 />
+               ) : null}
+               <ProviderSignInPanel
+-                harness={limits.provider}
++                harness={limits.provider as HarnessId}
+                 state={reconnectState}
+                 error={reconnectError}
+                 onSignIn={() => void reconnect()}
+@@ -277,7 +286,7 @@ export function UsageProviderChip({
+             <>
+               <div className="flex items-start gap-2.5 px-1 pb-2.5 pt-0.5">
+                 <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.06] ring-1 ring-inset ring-content/[0.07]">
+-                  <HarnessIcon harness={limits.provider} className="size-4" />
++                  <HarnessIcon harness={limits.provider as HarnessId} className="size-4" />
+                 </span>
+                 <div className="min-w-0 flex-1">
+                   <h2 className="text-[13px] font-medium leading-4">
+diff --git a/src/features/projects/model/projectTerminal.ts b/src/features/projects/model/projectTerminal.ts
+index 545aea1..a3a2851 100644
+--- a/src/features/projects/model/projectTerminal.ts
++++ b/src/features/projects/model/projectTerminal.ts
+@@ -18,6 +18,7 @@ import {
+ import { workspaceTabCwd } from "../../workspace/model/workspaceTabGroups";
+ 
+ export type DockSide = "top" | "bottom" | "left" | "right";
++export type TerminalPlacement = DockSide | "tab";
+ 
+ export type ProjectTerminalDock = {
+   projectPath: string;
+@@ -46,6 +47,54 @@ export function isDockSide(value: unknown): value is DockSide {
+   );
+ }
+ 
++const DEFAULT_DOCK_SIDE_KEY = "monocode.defaultDockSide";
++
++export const DOCK_SIDE_DEFAULT: DockSide = "bottom";
++
++/** Side used when a project gets its first terminal dock (PKmod). */
++export function loadDefaultDockSide(): DockSide {
++  try {
++    const raw = localStorage.getItem(DEFAULT_DOCK_SIDE_KEY);
++    return isDockSide(raw) ? raw : DOCK_SIDE_DEFAULT;
++  } catch {
++    return DOCK_SIDE_DEFAULT;
++  }
++}
++
++export function saveDefaultDockSide(side: DockSide): void {
++  try {
++    localStorage.setItem(DEFAULT_DOCK_SIDE_KEY, side);
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function isTerminalPlacement(value: unknown): value is TerminalPlacement {
++  return value === "tab" || isDockSide(value);
++}
++
++const DEFAULT_TERMINAL_PLACEMENT_KEY = "monocode.defaultTerminalPlacement";
++
++export function loadDefaultTerminalPlacement(): TerminalPlacement {
++  try {
++    const raw = localStorage.getItem(DEFAULT_TERMINAL_PLACEMENT_KEY);
++    if (isTerminalPlacement(raw)) return raw;
++    return loadDefaultDockSide();
++  } catch {
++    return DOCK_SIDE_DEFAULT;
++  }
++}
++
++export function saveDefaultTerminalPlacement(
++  placement: TerminalPlacement,
++): void {
++  try {
++    localStorage.setItem(DEFAULT_TERMINAL_PLACEMENT_KEY, placement);
++  } catch {
++    // private mode / quota
++  }
++}
++
+ export function isVerticalDock(side: DockSide): boolean {
+   return side === "top" || side === "bottom";
+ }
+diff --git a/src/features/projects/ui/ProjectGroups.test.ts b/src/features/projects/ui/ProjectGroups.test.ts
+index 59ce3c2..6215a1c 100644
+--- a/src/features/projects/ui/ProjectGroups.test.ts
++++ b/src/features/projects/ui/ProjectGroups.test.ts
+@@ -18,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
+ }));
+ vi.mock("../../source-control/hooks/useProjectDiffStats", () => ({
+   useProjectDiffStats: () => null,
++  useProjectDiffStatsMap: () => new Map(),
+ }));
+ 
+ let container: HTMLDivElement;
+diff --git a/src/features/projects/ui/ProjectLogoIcon.tsx b/src/features/projects/ui/ProjectLogoIcon.tsx
+index d87803f..b2f23c7 100644
+--- a/src/features/projects/ui/ProjectLogoIcon.tsx
++++ b/src/features/projects/ui/ProjectLogoIcon.tsx
+@@ -1,27 +1,36 @@
+ import { Folder, type IconComponent } from "../../../shared/ui/icons";
+ import { useEffect, useState } from "react";
+ import { projectLogoSrc } from "../model/projectLogos";
++import { projectKey } from "../../../shared/lib/paths";
++import { loadTabGroupLogos } from "../../workspace/model/tabGroups";
+ import {
+   TAB_GROUP_LOGOS_CHANGED,
+   tabGroupLogoDisplayRevision,
+ } from "../../workspace/model/tabGroups";
+ 
+ type Props = {
++  /** Chemin du fichier logo resolu. */
+   path?: string | null;
++  /** Chemin du projet : le logo est resolu depuis la table des logos. */
++  projectPath?: string | null;
+   className?: string;
+   imageClassName?: string;
+   fallback?: IconComponent;
+   fallbackStrokeWidth?: number;
++  onLoadError?: () => void;
+ };
+ 
+ export function ProjectLogoIcon({
+   path,
++  projectPath,
+   className = "size-3.5 shrink-0",
+   imageClassName,
+   fallback: Fallback = Folder,
+   fallbackStrokeWidth = 1.5,
++  onLoadError,
+ }: Props) {
+   const [revision, setRevision] = useState(tabGroupLogoDisplayRevision);
++  const [failed, setFailed] = useState(false);
+ 
+   useEffect(() => {
+     const refresh = () => setRevision(tabGroupLogoDisplayRevision());
+@@ -29,14 +38,23 @@ export function ProjectLogoIcon({
+     return () => window.removeEventListener(TAB_GROUP_LOGOS_CHANGED, refresh);
+   }, []);
+ 
+-  const src = projectLogoSrc(path);
++  useEffect(() => setFailed(false), [path, projectPath]);
++
++  const resolved = projectPath
++    ? loadTabGroupLogos()[projectKey(projectPath)]
++    : path;
++  const src = failed ? null : projectLogoSrc(resolved);
+   if (src) {
+     return (
+       <img
+-        key={`${path ?? ""}:${revision}`}
++        key={`${resolved ?? ""}:${revision}`}
+         src={src}
+         alt=""
+         className={`rounded-sm object-cover ${className} ${imageClassName ?? ""}`}
++        onError={() => {
++          setFailed(true);
++          onLoadError?.();
++        }}
+       />
+     );
+   }
+diff --git a/src/features/providers/model/rateLimits.ts b/src/features/providers/model/rateLimits.ts
+index 916b06f..57bf84c 100644
+--- a/src/features/providers/model/rateLimits.ts
++++ b/src/features/providers/model/rateLimits.ts
+@@ -1,6 +1,167 @@
+ import { asRecord } from "../../../integrations/harness/providers/codex/codexProtocol";
+ 
+-export type RateLimitProvider = "claude" | "codex" | "opencode";
++export type RateLimitProvider = string;
++
++export type UsageDisplayMode = "used" | "remaining";
++export type UsageWindowVisibility = "all" | "session" | "weekly";
++
++/** Stable PK quota picker: discovery must never silently add footer chips. */
++export const USAGE_PROVIDER_IDS = [
++  "claude",
++  "codex",
++  "zai",
++  "opencodego",
++  "mimo",
++  "cursor",
++  "grok",
++  "antigravity",
++  "gemini",
++  "openrouter",
++  "nvidia",
++  "pi",
++  "omp",
++  "fx",
++  "devin",
++  "kilocode",
++  "codebuff",
++] as const;
++
++/** Canonicalize CodexBar/provider labels before applying Settings selections. */
++export function normalizeUsageProviderId(provider: string): string {
++  const value = provider.trim().toLowerCase().replace(/[\s_-]+/g, "");
++  if (value === "kilo" || value === "kilocode") return "kilocode";
++  if (value === "codebuff" || value === "codebuffai") return "codebuff";
++  if (value === "opencode") return "opencodego";
++  return value;
++}
++const DEFAULT_USAGE_PROVIDER_IDS = new Set([
++  "claude",
++  "codex",
++  "zai",
++  "opencodego",
++  "mimo",
++]);
++
++const USAGE_DISPLAY_MODE_KEY = "monocode.usageDisplayMode";
++const USAGE_WINDOW_VISIBILITY_KEY = "monocode.usageWindowVisibility";
++export const USAGE_DISPLAY_MODE_CHANGE_EVENT = "monocode:usage-display-mode";
++export const USAGE_WINDOW_VISIBILITY_CHANGE_EVENT = "monocode:usage-window-visibility";
++export const USAGE_PROVIDER_ORDER_CHANGE_EVENT = "monocode:usage-provider-order";
++const USAGE_PROVIDER_ORDER_KEY = "monocode.usageProviderOrder";
++
++export function loadUsageDisplayMode(): UsageDisplayMode {
++  try {
++    return localStorage.getItem(USAGE_DISPLAY_MODE_KEY) === "used"
++      ? "used"
++      : "remaining";
++  } catch {
++    return "remaining";
++  }
++}
++
++export function saveUsageDisplayMode(mode: UsageDisplayMode): void {
++  try {
++    localStorage.setItem(USAGE_DISPLAY_MODE_KEY, mode);
++  } catch {
++    // private mode / quota
++  }
++  window.dispatchEvent(new Event(USAGE_DISPLAY_MODE_CHANGE_EVENT));
++}
++
++export function loadUsageWindowVisibility(): UsageWindowVisibility {
++  try {
++    const value = localStorage.getItem(USAGE_WINDOW_VISIBILITY_KEY);
++    return value === "weekly" || value === "all" ? value : "session";
++  } catch {
++    return "session";
++  }
++}
++
++export function saveUsageWindowVisibility(value: UsageWindowVisibility): void {
++  try {
++    localStorage.setItem(USAGE_WINDOW_VISIBILITY_KEY, value);
++  } catch {
++    // private mode / quota
++  }
++  window.dispatchEvent(new Event(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT));
++}
++
++export type UsageScope = "active" | "custom";
++
++const USAGE_SCOPE_KEY = "monocode.usageScope";
++const USAGE_HIDDEN_PROVIDERS_KEY = "monocode.usageHiddenProviders";
++const USAGE_PROVIDER_SELECTION_INITIALIZED_KEY =
++  "monocode.usageProviderSelectionInitialized";
++export const USAGE_SCOPE_CHANGE_EVENT = "monocode:usage-scope-change";
++
++export function loadUsageScope(): UsageScope {
++  try {
++    return localStorage.getItem(USAGE_SCOPE_KEY) === "active"
++      ? "active"
++      : "custom";
++  } catch {
++    return "custom";
++  }
++}
++
++export function saveUsageScope(scope: UsageScope): void {
++  try {
++    localStorage.setItem(USAGE_SCOPE_KEY, scope);
++  } catch {
++    // private mode / quota
++  }
++  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
++}
++
++export function loadHiddenUsageProviders(): string[] {
++  try {
++    const stored = localStorage.getItem(USAGE_HIDDEN_PROVIDERS_KEY);
++    if (stored == null) {
++      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
++    }
++    const raw = JSON.parse(stored);
++    if (!Array.isArray(raw)) return [];
++    if (
++      raw.length === 0 &&
++      localStorage.getItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY) !== "1"
++    ) {
++      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
++    }
++    return raw
++      .filter((value): value is string => typeof value === "string")
++      .map(normalizeUsageProviderId);
++  } catch {
++    return [];
++  }
++}
++
++export function saveHiddenUsageProviders(ids: string[]): void {
++  try {
++    localStorage.setItem(USAGE_HIDDEN_PROVIDERS_KEY, JSON.stringify(ids));
++    localStorage.setItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY, "1");
++  } catch {
++    // private mode / quota
++  }
++  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
++}
++
++export function loadUsageProviderOrder(): string[] {
++  try {
++    const raw = JSON.parse(localStorage.getItem(USAGE_PROVIDER_ORDER_KEY) ?? "[]");
++    if (!Array.isArray(raw)) return [...USAGE_PROVIDER_IDS];
++    const known = raw.filter((value): value is string =>
++      typeof value === "string" && USAGE_PROVIDER_IDS.includes(value as never),
++    );
++    return [...known, ...USAGE_PROVIDER_IDS.filter((id) => !known.includes(id))];
++  } catch {
++    return [...USAGE_PROVIDER_IDS];
++  }
++}
++
++export function saveUsageProviderOrder(order: string[]): void {
++  try { localStorage.setItem(USAGE_PROVIDER_ORDER_KEY, JSON.stringify(order)); } catch { /* private mode */ }
++  window.dispatchEvent(new Event(USAGE_PROVIDER_ORDER_CHANGE_EVENT));
++}
+ 
+ export type RateLimitStatus =
+   "idle" | "fetching" | "ok" | "error" | "unavailable";
+@@ -179,6 +340,14 @@ export function formatUsagePercent(usedPercent: number): string {
+   return `${Math.round(clampUsedPercent(usedPercent))}%`;
+ }
+ 
++export function formatDisplayedUsagePercent(
++  usedPercent: number,
++  mode: UsageDisplayMode,
++): string {
++  const value = clampUsedPercent(usedPercent);
++  return `${Math.round(mode === "remaining" ? 100 - value : value)}%`;
++}
++
+ /**
+  * Compact window-size label. 10080 minutes stays "wk" to match the
+  * original status-bar copy.
+@@ -364,6 +533,63 @@ export function parseOpencodeGoUsage(result: unknown): ProviderRateLimits {
+   };
+ }
+ 
++export function parseCodexBarUsage(body: string): ProviderRateLimits[] {
++  let parsed: unknown;
++  try {
++    parsed = JSON.parse(body);
++  } catch {
++    return [];
++  }
++  const records = Array.isArray(parsed)
++    ? parsed
++    : Array.isArray(asRecord(parsed)?.providers)
++      ? (asRecord(parsed)?.providers as unknown[])
++      : [parsed];
++  return records.flatMap((value) => {
++    const record = asRecord(value);
++    const usage = asRecord(record?.usage) ?? record;
++    const provider =
++      stringField(record, "provider") ??
++      stringField(record, "providerId") ??
++      stringField(record, "id");
++    if (!provider || !usage) return [];
++    const windows = [
++      mapCodexBarWindow(usage.primary),
++      mapCodexBarWindow(usage.secondary),
++      mapCodexBarWindow(usage.tertiary),
++    ].filter((window): window is RateLimitWindow => window != null);
++    if (windows.length === 0) return [];
++    return [{
++      provider,
++      session: windows[0] ?? null,
++      weekly: windows[1] ?? null,
++      monthly: windows[2] ?? null,
++      resetCredits: null,
++      updatedAt: Date.now(),
++      error: null,
++      status: "ok",
++    }];
++  });
++}
++function mapCodexBarWindow(value: unknown): RateLimitWindow | null {
++  const record = asRecord(value);
++  if (!record) return null;
++  const used =
++    numberField(record, "usedPercent") ??
++    numberField(record, "used_percentage") ??
++    numberField(record, "utilization");
++  if (used == null) return null;
++  const duration =
++    numberField(record, "windowMinutes") ??
++    numberField(record, "windowDurationMins") ??
++    SESSION_WINDOW_MINUTES;
++  return {
++    usedPercent: clampUsedPercent(used),
++    windowMinutes: duration,
++    resetsAt: parseResetTimestamp(record.resetsAt ?? record.resets_at),
++  };
++}
++
+ function mapOpencodeGoWindow(
+   raw: unknown,
+   windowMinutes: number,
+@@ -519,7 +745,7 @@ function numberField(rec: Record<string, unknown>, key: string): number | null {
+   return null;
+ }
+ 
+-function stringField(rec: Record<string, unknown>, key: string): string | null {
+-  const value = rec[key];
+-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
++function stringField(rec: Record<string, unknown> | null, key: string): string | null {
++  const value = rec?.[key];
++  return typeof value === "string" && value.trim() ? value.trim() : null;
+ }
+diff --git a/src/features/providers/model/rateLimitsFetch.ts b/src/features/providers/model/rateLimitsFetch.ts
+index 4aca4ae..ed64986 100644
+--- a/src/features/providers/model/rateLimitsFetch.ts
++++ b/src/features/providers/model/rateLimitsFetch.ts
+@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
+ import { homeDir } from "../../../platform/tauri/fs";
+ import {
+   errorRateLimits,
++  parseCodexBarUsage,
+   parseClaudeOAuthUsage,
+   parseCodexRateLimits,
+   parseOpencodeGoUsage,
+@@ -81,6 +82,15 @@ type ClaudeUsageFetch = {
+   error?: string | null;
+ };
+ 
++export async function fetchCodexBarRateLimits(): Promise<ProviderRateLimits[]> {
++  try {
++    const body = await invoke<string>("fetch_codexbar_usage");
++    return parseCodexBarUsage(body);
++  } catch {
++    return [];
++  }
++}
++
+ export async function fetchClaudeRateLimits(
+   accountId = "default",
+ ): Promise<ProviderRateLimits> {
+diff --git a/src/features/settings/model/busyGlowSettings.ts b/src/features/settings/model/busyGlowSettings.ts
+new file mode 100644
+index 0000000..ab3fb52
+--- /dev/null
++++ b/src/features/settings/model/busyGlowSettings.ts
+@@ -0,0 +1,47 @@
++const KEY = "monocode.busyGlowColor";
++
++/** Fired on `window` when the busy-title glow color flips. */
++export const BUSY_GLOW_CHANGE_EVENT = "monocode:busy-glow-change";
++
++/** "" follows the theme; every other entry is a literal CSS color. */
++export const BUSY_GLOW_PRESETS: { label: string; value: string }[] = [
++  { label: "Theme", value: "" },
++  { label: "Amber", value: "#f59e0b" },
++  { label: "Emerald", value: "#34d399" },
++  { label: "Sky", value: "#38bdf8" },
++  { label: "Violet", value: "#a78bfa" },
++  { label: "Pink", value: "#f472b6" },
++  { label: "Red", value: "#f87171" },
++];
++
++export const BUSY_GLOW_DEFAULT = "";
++
++export function isBusyGlowColor(value: unknown): value is string {
++  if (typeof value !== "string") return false;
++  if (value === "") return true;
++  return (
++    /^#[0-9a-f]{3,8}$/i.test(value) ||
++    /^(rgb|hsl)a?\(\s*[\d.,%\s\/]+\)$/.test(value)
++  );
++}
++
++/** Highlight color for the shimmer on busy project titles. */
++export function loadBusyGlowColor(): string {
++  try {
++    const raw = localStorage.getItem(KEY);
++    return isBusyGlowColor(raw) ? raw : BUSY_GLOW_DEFAULT;
++  } catch {
++    return BUSY_GLOW_DEFAULT;
++  }
++}
++
++export function saveBusyGlowColor(value: string): void {
++  const next = isBusyGlowColor(value) ? value : BUSY_GLOW_DEFAULT;
++  try {
++    localStorage.setItem(KEY, next);
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") return;
++  window.dispatchEvent(new Event(BUSY_GLOW_CHANGE_EVENT));
++}
+diff --git a/src/features/workspace/model/tabGroups.ts b/src/features/workspace/model/tabGroups.ts
+index 3a96e70..d83b39c 100644
+--- a/src/features/workspace/model/tabGroups.ts
++++ b/src/features/workspace/model/tabGroups.ts
+@@ -238,7 +238,24 @@ export function saveTabGroupLabel(project: string, label: string): void {
+ }
+ 
+ export function loadTabGroupLogos(): Record<string, string> {
+-  return readRecord(LOGO_KEY);
++  const raw = readRecord(LOGO_KEY);
++  // PKmod: l'app a change d'identifiant (com.monocode.desktop -> com.monocode.pk);
++  // les logos sauvegardes pointent vers l'ancien dossier App Support, hors du
++  // scope asset protocol. Normaliser a la lecture suffit.
++  const legacy = "/Application Support/com.monocode.desktop/";
++  let migrated = false;
++  for (const key of Object.keys(raw)) {
++    const path = raw[key];
++    if (typeof path === "string" && path.includes(legacy)) {
++      raw[key] = path.replace(
++        legacy,
++        "/Application Support/com.monocode.pk/",
++      );
++      migrated = true;
++    }
++  }
++  if (migrated) writeRecord(LOGO_KEY, raw);
++  return raw;
+ }
+ 
+ export function saveTabGroupLogo(project: string, path: string | null): void {
