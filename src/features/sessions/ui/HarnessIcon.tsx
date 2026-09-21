@@ -7,21 +7,31 @@ import grok from "../../../assets/providers/grok.svg";
 import hermes from "../../../assets/providers/hermes.svg";
 import omp from "../../../assets/providers/omp.svg";
 import opencode from "../../../assets/providers/opencode.svg";
-import pi from "../../../assets/providers/pi.svg";
+import zai from "../../../assets/providers/zai.svg";
+import mimo from "../../../assets/providers/mimo.svg";
+import openrouter from "../../../assets/providers/openrouter.svg";
+import nvidia from "../../../assets/providers/nvidia.svg";
+import gemini from "../../../assets/providers/gemini.svg";
 import antigravity from "../../../assets/providers/antigravity.svg";
+import pi from "../../../assets/providers/pi.svg";
 import type { HarnessId } from "../model/session";
 
 export const HARNESS_ICONS: Record<HarnessId, string> = {
+  hermes,
   claude,
   codex,
   cursor,
   grok,
   opencode,
+  zai,
+  mimo,
+  openrouter,
+  nvidia,
+  gemini,
+  antigravity,
   pi,
   omp,
   fx,
-  hermes,
-  antigravity,
 };
 
 /** White marks that must follow `currentColor` so they stay visible in light mode. */
@@ -29,6 +39,9 @@ export const MONOCHROME_HARNESSES = new Set<HarnessId>([
   "cursor",
   "grok",
   "opencode",
+  "zai",
+  "mimo",
+  "openrouter",
   "pi",
   "fx",
   "hermes",

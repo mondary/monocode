@@ -1,0 +1,776 @@
+diff --git a/src/features/projects/model/projectTerminal.ts b/src/features/projects/model/projectTerminal.ts
+index 545aea1..a3a2851 100644
+--- a/src/features/projects/model/projectTerminal.ts
++++ b/src/features/projects/model/projectTerminal.ts
+@@ -18,6 +18,7 @@ import {
+ import { workspaceTabCwd } from "../../workspace/model/workspaceTabGroups";
+ 
+ export type DockSide = "top" | "bottom" | "left" | "right";
++export type TerminalPlacement = DockSide | "tab";
+ 
+ export type ProjectTerminalDock = {
+   projectPath: string;
+@@ -46,6 +47,54 @@ export function isDockSide(value: unknown): value is DockSide {
+   );
+ }
+ 
++const DEFAULT_DOCK_SIDE_KEY = "monocode.defaultDockSide";
++
++export const DOCK_SIDE_DEFAULT: DockSide = "bottom";
++
++/** Side used when a project gets its first terminal dock (PKmod). */
++export function loadDefaultDockSide(): DockSide {
++  try {
++    const raw = localStorage.getItem(DEFAULT_DOCK_SIDE_KEY);
++    return isDockSide(raw) ? raw : DOCK_SIDE_DEFAULT;
++  } catch {
++    return DOCK_SIDE_DEFAULT;
++  }
++}
++
++export function saveDefaultDockSide(side: DockSide): void {
++  try {
++    localStorage.setItem(DEFAULT_DOCK_SIDE_KEY, side);
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function isTerminalPlacement(value: unknown): value is TerminalPlacement {
++  return value === "tab" || isDockSide(value);
++}
++
++const DEFAULT_TERMINAL_PLACEMENT_KEY = "monocode.defaultTerminalPlacement";
++
++export function loadDefaultTerminalPlacement(): TerminalPlacement {
++  try {
++    const raw = localStorage.getItem(DEFAULT_TERMINAL_PLACEMENT_KEY);
++    if (isTerminalPlacement(raw)) return raw;
++    return loadDefaultDockSide();
++  } catch {
++    return DOCK_SIDE_DEFAULT;
++  }
++}
++
++export function saveDefaultTerminalPlacement(
++  placement: TerminalPlacement,
++): void {
++  try {
++    localStorage.setItem(DEFAULT_TERMINAL_PLACEMENT_KEY, placement);
++  } catch {
++    // private mode / quota
++  }
++}
++
+ export function isVerticalDock(side: DockSide): boolean {
+   return side === "top" || side === "bottom";
+ }
+diff --git a/src/features/sessions/model/composerResize.ts b/src/features/sessions/model/composerResize.ts
+index afc2327..8238e76 100644
+--- a/src/features/sessions/model/composerResize.ts
++++ b/src/features/sessions/model/composerResize.ts
+@@ -1,5 +1,5 @@
+-/** Matches the composer's `max-h-40`, so the field stops growing where it clips. */
+-export const COMPOSER_MAX_HEIGHT = 160;
++/** Matches the composer's `max-h-60`: ~10 lignes visibles avant de scroller. */
++export const COMPOSER_MAX_HEIGHT = 240;
+ 
+ type Resizable = {
+   style: { height: string };
+diff --git a/src/features/settings/model/appearance.ts b/src/features/settings/model/appearance.ts
+index a180c89..c6bb8ed 100644
+--- a/src/features/settings/model/appearance.ts
++++ b/src/features/settings/model/appearance.ts
+@@ -5,14 +5,15 @@ import { readFlag, writeFlag } from "./storageFlags";
+ import { applyUiScale, loadUiScale } from "./uiScale";
+ 
+ const ACCENT_COLOR_KEY = "monocode.accentColor";
+-const THEME_HUE_KEY = "monocode.themeHue";
+-const THEME_SATURATION_KEY = "monocode.themeSaturation";
+ const THEME_DARK_LIGHTNESS_KEY = "monocode.themeDarkLightness";
+ const OPACITY_KEY = "monocode.sidebarOpacity";
+ const BLUR_KEY = "monocode.sidebarBlur";
+ const PROJECT_RAIL_OPEN_KEY = "monocode.projectRailOpen";
+ const BODY_KEY = "monocode.bodyGlass";
+ const SCHEME_KEY = "monocode.colorScheme";
++const THEME_PRESET_KEY = "monocode.themePreset";
++const THEME_HUE_KEY = "monocode.themeHue";
++const THEME_SATURATION_KEY = "monocode.themeSaturation";
+ const SIDEBAR_TAB_ORDER_KEY = "monocode.sidebarTabOrder";
+ const PROJECT_RAIL_WIDTH_KEY = "monocode.projectRailWidth";
+ const TRANSCRIPT_LAYOUT_KEY = "monocode.transcriptLayout";
+@@ -33,11 +34,19 @@ export const CHAT_BACKGROUND_PATH_CHANGE_EVENT =
+ 
+ export type ColorScheme = "dark" | "light";
+ export type ThemePreference = ColorScheme | "system";
++export type ThemePreset =
++  | "default"
++  | "dracula"
++  | "catppuccin-frappe"
++  | "catppuccin-latte"
++  | "catppuccin-macchiato"
++  | "catppuccin-mocha";
+ export type TranscriptLayout = "full" | "chat";
+ export type ChatBackgroundScope = "empty" | "all";
+ export type ChangesView = "list" | "tree";
+ 
+ export const THEME_PREFERENCE_DEFAULT: ThemePreference = "dark";
++export const THEME_PRESET_DEFAULT: ThemePreset = "catppuccin-frappe";
+ 
+ export const ACCENT_COLOR_DEFAULT = null;
+ 
+@@ -62,13 +71,14 @@ export const SHOW_EXCLUDED_FILES_DEFAULT = false;
+ export const SHOW_EXCLUDED_FILES_CHANGE_EVENT =
+   "monocode:showexcludedfileschange";
+ 
+-export type SidebarTabId = "files" | "sessions" | "changes" | "inbox";
++export type SidebarTabId = "files" | "sessions" | "changes" | "notes" | "inbox";
+ 
+ const DEFAULT_SIDEBAR_TAB_ORDER: SidebarTabId[] = [
+   "sessions",
+   "inbox",
+   "files",
+   "changes",
++  "notes",
+ ];
+ 
+ export const THEME_HUE_MIN = 0;
+@@ -260,10 +270,12 @@ export function applyThemeTint(hue: number, saturation: number) {
+ 
+ export function initAppearance() {
+   document.documentElement.classList.toggle("is-mac", IS_MAC);
++  applyThemePreset(loadThemePreset());
+   document.documentElement.classList.toggle(
+     "has-native-glass",
+     HAS_NATIVE_GLASS,
+   );
++  applyThemeTint(loadThemeHue(), loadThemeSaturation());
+   applyAccentColor(loadAccentColor());
+   applyThemeTint(loadThemeHue(), loadThemeSaturation());
+   applyThemeDarkLightness(loadThemeDarkLightness());
+@@ -273,6 +285,60 @@ export function initAppearance() {
+   applySidebarBlur(loadSidebarBlur());
+   applyBodyGlass(loadBodyGlass());
+   applyChatBackground(loadChatBackgroundPath());
++  applyChatBackgroundOpacity(loadChatBackgroundOpacity());
++  applyChatBackgroundScope(loadChatBackgroundScope());
++  void applyUiScale(loadUiScale());
++  applyBackgroundPanels(loadBackgroundPanels());
++}
++
++function isThemePreset(value: unknown): value is ThemePreset {
++  return (
++    value === "default" ||
++    value === "dracula" ||
++    value === "catppuccin-frappe" ||
++    value === "catppuccin-latte" ||
++    value === "catppuccin-macchiato" ||
++    value === "catppuccin-mocha"
++  );
++}
++
++export function loadThemePreset(): ThemePreset {
++  try {
++    const raw = localStorage.getItem(THEME_PRESET_KEY);
++    // Migrate the old MonoCode neutral default to PKmod's Frappe default.
++    if (raw === "default") return THEME_PRESET_DEFAULT;
++    return isThemePreset(raw) ? raw : THEME_PRESET_DEFAULT;
++  } catch {
++    return THEME_PRESET_DEFAULT;
++  }
++}
++
++export function saveThemePreset(value: ThemePreset) {
++  try {
++    localStorage.setItem(THEME_PRESET_KEY, value);
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function applyThemePreset(value: ThemePreset) {
++  const root = document.documentElement;
++  root.classList.remove(
++    "theme-preset-dracula",
++    "theme-preset-catppuccin-frappe",
++    "theme-preset-catppuccin-latte",
++    "theme-preset-catppuccin-macchiato",
++    "theme-preset-catppuccin-mocha",
++  );
++  // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
++  // literal `default` remains the explicit neutral option in Settings.
++  if (value !== "default") root.classList.add(`theme-preset-${value}`);
++  window.dispatchEvent(
++    new CustomEvent<ThemePreset>("monocode:themepresetchange", {
++      detail: value,
++    }),
++  );
++  return value;
+   applyChatBackgroundEmptyOpacity(loadChatBackgroundEmptyOpacity());
+   applyChatBackgroundSessionOpacity(loadChatBackgroundSessionOpacity());
+   applyChatBackgroundScope(loadChatBackgroundScope());
+@@ -454,7 +520,11 @@ export function chatBackgroundSrc(path: string | null): string | null {
+ }
+ 
+ export function loadChatBackgroundOpacity(): number {
+-  return loadChatBackgroundEmptyOpacity();
++  return clamp(
++    readNumber(CHAT_BACKGROUND_OPACITY_KEY) ?? CHAT_BACKGROUND_OPACITY_DEFAULT,
++    CHAT_BACKGROUND_OPACITY_MIN,
++    CHAT_BACKGROUND_OPACITY_MAX,
++  );
+ }
+ 
+ export function saveChatBackgroundOpacity(value: number) {
+@@ -492,16 +562,67 @@ function saveChatBackgroundOpacityValue(key: string, value: number) {
+   );
+ }
+ 
+-function applyChatBackgroundOpacityValue(variable: string, value: number) {
++function applyChatBackgroundOpacityValue(_variable: string, value: number) {
+   const next = clamp(
+     value,
+     CHAT_BACKGROUND_OPACITY_MIN,
+     CHAT_BACKGROUND_OPACITY_MAX,
+   );
+-  document.documentElement.style.setProperty(variable, String(next));
++  document.documentElement.style.setProperty(
++    "--chat-background-opacity",
++    String(next),
++  );
+   return next;
+ }
+ 
++const BACKGROUND_PANELS_KEY = "monocode.backgroundPanels";
++export const BACKGROUND_PANELS_CHANGE_EVENT =
++  "monocode:background-panels-change";
++
++export const BACKGROUND_PANELS_DEFAULT: Record<BackgroundPanel, boolean> = {
++  chat: true,
++  workspace: false,
++  terminal: false,
++};
++
++export type BackgroundPanel = "chat" | "workspace" | "terminal";
++
++/** Which app panes receive the background image (chat is on by default). */
++export function loadBackgroundPanels(): Record<BackgroundPanel, boolean> {
++  try {
++    const raw = JSON.parse(
++      localStorage.getItem(BACKGROUND_PANELS_KEY) ?? "{}",
++    ) as Record<string, unknown>;
++    return {
++      chat: typeof raw.chat === "boolean" ? raw.chat : true,
++      workspace: raw.workspace === true,
++      terminal: raw.terminal === true,
++    };
++  } catch {
++    return { ...BACKGROUND_PANELS_DEFAULT };
++  }
++}
++
++export function saveBackgroundPanels(
++  value: Record<BackgroundPanel, boolean>,
++): void {
++  try {
++    localStorage.setItem(BACKGROUND_PANELS_KEY, JSON.stringify(value));
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") return;
++  window.dispatchEvent(new Event(BACKGROUND_PANELS_CHANGE_EVENT));
++}
++
++export function applyBackgroundPanels(value: Record<BackgroundPanel, boolean>) {
++  const root = document.documentElement;
++  root.classList.toggle("background-workspace", !!value.workspace);
++  root.classList.toggle("background-terminal", !!value.terminal);
++  root.classList.toggle("no-background-chat", !value.chat);
++  return value;
++}
++
+ export function loadChatBackgroundEmptyOpacity(): number {
+   return loadChatBackgroundOpacityValue(CHAT_BACKGROUND_EMPTY_OPACITY_KEY);
+ }
+@@ -566,6 +687,7 @@ function isSidebarTabId(value: unknown): value is SidebarTabId {
+     value === "files" ||
+     value === "sessions" ||
+     value === "changes" ||
++    value === "notes" ||
+     value === "inbox"
+   );
+ }
+diff --git a/src/features/settings/model/busyGlowSettings.ts b/src/features/settings/model/busyGlowSettings.ts
+new file mode 100644
+index 0000000..ab3fb52
+--- /dev/null
++++ b/src/features/settings/model/busyGlowSettings.ts
+@@ -0,0 +1,47 @@
++const KEY = "monocode.busyGlowColor";
++
++/** Fired on `window` when the busy-title glow color flips. */
++export const BUSY_GLOW_CHANGE_EVENT = "monocode:busy-glow-change";
++
++/** "" follows the theme; every other entry is a literal CSS color. */
++export const BUSY_GLOW_PRESETS: { label: string; value: string }[] = [
++  { label: "Theme", value: "" },
++  { label: "Amber", value: "#f59e0b" },
++  { label: "Emerald", value: "#34d399" },
++  { label: "Sky", value: "#38bdf8" },
++  { label: "Violet", value: "#a78bfa" },
++  { label: "Pink", value: "#f472b6" },
++  { label: "Red", value: "#f87171" },
++];
++
++export const BUSY_GLOW_DEFAULT = "";
++
++export function isBusyGlowColor(value: unknown): value is string {
++  if (typeof value !== "string") return false;
++  if (value === "") return true;
++  return (
++    /^#[0-9a-f]{3,8}$/i.test(value) ||
++    /^(rgb|hsl)a?\(\s*[\d.,%\s\/]+\)$/.test(value)
++  );
++}
++
++/** Highlight color for the shimmer on busy project titles. */
++export function loadBusyGlowColor(): string {
++  try {
++    const raw = localStorage.getItem(KEY);
++    return isBusyGlowColor(raw) ? raw : BUSY_GLOW_DEFAULT;
++  } catch {
++    return BUSY_GLOW_DEFAULT;
++  }
++}
++
++export function saveBusyGlowColor(value: string): void {
++  const next = isBusyGlowColor(value) ? value : BUSY_GLOW_DEFAULT;
++  try {
++    localStorage.setItem(KEY, next);
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") return;
++  window.dispatchEvent(new Event(BUSY_GLOW_CHANGE_EVENT));
++}
+diff --git a/src/features/settings/model/projectInit.ts b/src/features/settings/model/projectInit.ts
+new file mode 100644
+index 0000000..b6d18dd
+--- /dev/null
++++ b/src/features/settings/model/projectInit.ts
+@@ -0,0 +1,116 @@
++import type { ProjectInitResult } from "../../../platform/tauri/fs";
++
++const SETTINGS_KEY = "monocode.projectInitialization";
++
++export type ProjectInitLink = {
++  source: string;
++  target: string;
++};
++
++export type ProjectInitSettings = {
++  links: ProjectInitLink[];
++  linkAgentInstructions: boolean;
++  ensureGitignore: boolean;
++  createMetadataFiles: boolean;
++};
++
++export const DEFAULT_PROJECT_INIT_SETTINGS: ProjectInitSettings = {
++  links: [
++    { source: "~/Documents/GitHub/-agent", target: ".agent" },
++    { source: "~/Documents/GitHub/-inspi", target: ".inspi" },
++  ],
++  linkAgentInstructions: true,
++  ensureGitignore: true,
++  createMetadataFiles: true,
++};
++
++function copyDefaults(): ProjectInitSettings {
++  return {
++    links: DEFAULT_PROJECT_INIT_SETTINGS.links.map((link) => ({ ...link })),
++    linkAgentInstructions: DEFAULT_PROJECT_INIT_SETTINGS.linkAgentInstructions,
++    ensureGitignore: DEFAULT_PROJECT_INIT_SETTINGS.ensureGitignore,
++    createMetadataFiles: DEFAULT_PROJECT_INIT_SETTINGS.createMetadataFiles,
++  };
++}
++
++function validLink(value: unknown): value is ProjectInitLink {
++  if (!value || typeof value !== "object") return false;
++  const link = value as { source?: unknown; target?: unknown };
++  return (
++    typeof link.source === "string" &&
++    typeof link.target === "string" &&
++    link.source.trim().length > 0 &&
++    link.target.trim().length > 0
++  );
++}
++
++export function loadProjectInitSettings(): ProjectInitSettings {
++  try {
++    const raw = localStorage.getItem(SETTINGS_KEY);
++    if (!raw) return copyDefaults();
++    const parsed: unknown = JSON.parse(raw);
++    if (!parsed || typeof parsed !== "object") return copyDefaults();
++    const value = parsed as Partial<ProjectInitSettings>;
++    const links = Array.isArray(value.links)
++      ? value.links.filter(validLink).map((link) => ({
++          source: link.source.trim(),
++          target: link.target.trim(),
++        }))
++      : copyDefaults().links;
++    return {
++      links: links.slice(0, 24),
++      linkAgentInstructions:
++        typeof value.linkAgentInstructions === "boolean"
++          ? value.linkAgentInstructions
++          : DEFAULT_PROJECT_INIT_SETTINGS.linkAgentInstructions,
++      ensureGitignore:
++        typeof value.ensureGitignore === "boolean"
++          ? value.ensureGitignore
++          : DEFAULT_PROJECT_INIT_SETTINGS.ensureGitignore,
++      createMetadataFiles:
++        typeof value.createMetadataFiles === "boolean"
++          ? value.createMetadataFiles
++          : DEFAULT_PROJECT_INIT_SETTINGS.createMetadataFiles,
++    };
++  } catch {
++    return copyDefaults();
++  }
++}
++
++export function saveProjectInitSettings(value: ProjectInitSettings): void {
++  const next: ProjectInitSettings = {
++    links: value.links
++      .map((link) => ({
++        source: link.source.trim(),
++        target: link.target.trim(),
++      }))
++      .filter(validLink)
++      .slice(0, 24),
++    linkAgentInstructions: value.linkAgentInstructions,
++    ensureGitignore: value.ensureGitignore,
++    createMetadataFiles: value.createMetadataFiles,
++  };
++  try {
++    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function projectInitResultMessage(result: ProjectInitResult): string {
++  const linked = result.created.length + result.updated.length;
++  const stable = result.existing.length;
++  const skipped = result.skipped.length;
++  const missing = result.missing.length;
++  const metadata = result.metadataCreated.length;
++  const parts = [`${linked} link${linked === 1 ? "" : "s"} ready`];
++  if (stable > 0) parts.push(`${stable} already present`);
++  if (skipped > 0)
++    parts.push(`${skipped} local item${skipped === 1 ? "" : "s"} kept`);
++  if (missing > 0)
++    parts.push(`${missing} source${missing === 1 ? "" : "s"} missing`);
++  if (metadata > 0)
++    parts.push(`${metadata} metadata file${metadata === 1 ? "" : "s"} created`);
++  if (result.gitignoreUpdated) parts.push(".gitignore updated");
++  return `${parts.join(", ")}.`;
++}
+diff --git a/src/features/skills/ui/SkillsPage.test.ts b/src/features/skills/ui/SkillsPage.test.ts
+index 80ed432..5dee592 100644
+--- a/src/features/skills/ui/SkillsPage.test.ts
++++ b/src/features/skills/ui/SkillsPage.test.ts
+@@ -88,6 +88,7 @@ beforeEach(() => {
+   localStorage.clear();
+   vi.mocked(invoke).mockReset();
+   vi.mocked(invoke).mockImplementation(async (command) => {
++    console.log("INVOKE:", command);
+     if (command === "list_skills") return skills;
+     if (command === "read_text_file") return markdown;
+     throw new Error(`Unexpected command: ${command}`);
+diff --git a/src/features/workspace/model/keybindings.ts b/src/features/workspace/model/keybindings.ts
+new file mode 100644
+index 0000000..06fcd0c
+--- /dev/null
++++ b/src/features/workspace/model/keybindings.ts
+@@ -0,0 +1,240 @@
++/**
++ * PK keybinding overrides: one JSON file shared by the native menu (Rust) and
++ * the webview key handler. Defaults come from `keybindings.defaults.json` at
++ * the repo root; user overrides live in
++ * `~/Library/Application Support/com.monocode.desktop/keybindings.json`.
++ *
++ * Canonical binding format (Tauri accelerators): `CmdOrCtrl+Shift+K`.
++ * `CmdOrCtrl` matches Meta OR Ctrl on every platform (the webview handler has
++ * always treated both as "mod"); `Ctrl` alone matches Ctrl without Meta
++ * (e.g. Ctrl+Tab tab cycling).
++ */
++import defaultsJson from "../../../../keybindings.defaults.json";
++import { invoke } from "@tauri-apps/api/core";
++import { IS_MAC } from "../../../platform/tauri/platform";
++
++export type BindingDef = {
++  label: string;
++  group: string;
++  when: string;
++  binding: string;
++};
++
++export const KEYBINDING_DEFAULTS = defaultsJson as Record<string, BindingDef>;
++
++export const KEYBINDINGS_CHANGE_EVENT = "monocode:keybindingschange";
++
++export type KeyEventLike = Pick<
++  KeyboardEvent,
++  "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"
++>;
++
++let overrides: Record<string, string> = {};
++let loaded = false;
++
++export function loadKeybindingOverrides(): void {
++  loaded = true;
++  invoke<Record<string, string>>("get_keybindings")
++    .then((map) => {
++      overrides = map ?? {};
++      window.dispatchEvent(new Event(KEYBINDINGS_CHANGE_EVENT));
++    })
++    .catch(() => {
++      // no Tauri (tests / plain browser): defaults only
++    });
++}
++
++export function bindingFor(id: string): string | null {
++  return overrides[id] ?? KEYBINDING_DEFAULTS[id]?.binding ?? null;
++}
++
++export function isOverridden(id: string): boolean {
++  return Boolean(overrides[id]);
++}
++
++export function setKeybindingOverride(
++  id: string,
++  binding: string | null,
++): void {
++  if (binding == null) delete overrides[id];
++  else overrides[id] = binding;
++  if (typeof window !== "undefined") {
++    window.dispatchEvent(new Event(KEYBINDINGS_CHANGE_EVENT));
++  }
++  const map = { ...overrides };
++  void invoke("save_keybindings", { map }).catch(() => {
++    // not fatal: the live handler already uses the in-memory override
++  });
++}
++
++// -- parsing ---------------------------------------------------------------
++
++type ParsedBinding = {
++  mod: boolean;
++  ctrlOnly: boolean;
++  shift: boolean;
++  alt: boolean;
++  key: string;
++};
++
++const CODE_TOKENS: Record<string, string> = {
++  Backquote: "`",
++  BracketLeft: "[",
++  BracketRight: "]",
++  Equal: "=",
++  Minus: "-",
++  Comma: ",",
++  Period: ".",
++  Slash: "/",
++  Semicolon: ";",
++  Quote: "'",
++  Backslash: "\\",
++  Tab: "Tab",
++  ArrowLeft: "Left",
++  ArrowRight: "Right",
++  ArrowUp: "Up",
++  ArrowDown: "Down",
++};
++
++/** Stable key token: prefers the physical code so layouts can't shift it. */
++function keyToken(e: KeyEventLike): string | null {
++  if (CODE_TOKENS[e.code]) return CODE_TOKENS[e.code];
++  if (/^Digit\d$/.test(e.code)) return e.code.slice(5);
++  if (/^Numpad\d$/.test(e.code)) return e.code.slice(6);
++  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3).toLowerCase();
++  const key = e.key;
++  if (key.length === 1) return key.toLowerCase();
++  if (key.startsWith("Arrow")) return key.slice(5);
++  if (key === " ") return "Space";
++  return key || null;
++}
++
++export function parseBinding(binding: string): ParsedBinding | null {
++  const parts = binding.split("+");
++  if (parts.length < 2) return null;
++  let key = parts[parts.length - 1];
++  if (key.length === 1) key = key.toLowerCase();
++  let mod = false;
++  let ctrlOnly = false;
++  let shift = false;
++  let alt = false;
++  for (const part of parts.slice(0, -1)) {
++    if (part === "CmdOrCtrl" || part === "Cmd" || part === "Super") mod = true;
++    else if (part === "Ctrl") ctrlOnly = true;
++    else if (part === "Shift") shift = true;
++    else if (part === "Alt" || part === "Option") alt = true;
++    else return null;
++  }
++  return { mod, ctrlOnly, shift, alt, key };
++}
++
++export function matchesAction(e: KeyEventLike, id: string): boolean {
++  const binding = bindingFor(id);
++  if (!binding) return false;
++  const parsed = parseBinding(binding);
++  if (!parsed) return false;
++  const token = keyToken(e);
++  if (!token || token !== parsed.key) return false;
++  const mod = e.metaKey || e.ctrlKey;
++  const ctrlOnly = e.ctrlKey && !e.metaKey;
++  if (parsed.ctrlOnly) {
++    if (!ctrlOnly) return false;
++  } else if (parsed.mod !== mod) {
++    return false;
++  }
++  return parsed.shift === e.shiftKey && parsed.alt === e.altKey;
++}
++
++/**
++ * Zoom keeps its legacy tolerant matcher for defaults (=, +, NumpadAdd all
++ * zoom in); overridden zoom bindings are matched strictly so the override
++ * wins before the legacy path runs.
++ */
++export function overrideZoomCommand(
++  e: KeyEventLike,
++): "zoom-in" | "zoom-out" | "zoom-reset" | null {
++  for (const [id, cmd] of [
++    ["zoom_in", "zoom-in"],
++    ["zoom_out", "zoom-out"],
++    ["zoom_reset", "zoom-reset"],
++  ] as const) {
++    if (overrides[id] && matchesAction(e, id)) return cmd;
++  }
++  return null;
++}
++
++// -- capture & display -----------------------------------------------------
++
++const MODIFIER_KEYS = new Set([
++  "Shift",
++  "Control",
++  "Meta",
++  "Alt",
++  "CapsLock",
++  "Fn",
++  "FnLock",
++  "Dead",
++]);
++
++/** Canonical binding string for a freshly pressed combo, or null while the
++ *  user is still holding bare modifiers (or pressed something unusable). */
++export function captureAccelerator(e: KeyEventLike): string | null {
++  if (MODIFIER_KEYS.has(e.key) || e.key === "") return null;
++  const token = keyToken(e);
++  if (!token) return null;
++  const parts: string[] = [];
++  const ctrlOnly = e.ctrlKey && !e.metaKey && token === "Tab";
++  if (ctrlOnly) parts.push("Ctrl");
++  else if (e.metaKey || e.ctrlKey) parts.push("CmdOrCtrl");
++  if (e.altKey) parts.push("Alt");
++  if (e.shiftKey) parts.push("Shift");
++  if (parts.length === 0) return null;
++  parts.push(token.length === 1 ? token.toUpperCase() : token);
++  return parts.join("+");
++}
++
++export function formatAccelerator(binding: string): string {
++  const parsed = parseBinding(binding);
++  if (!parsed) return binding;
++  const head = IS_MAC
++    ? parsed.ctrlOnly && !parsed.mod
++      ? "⌃"
++      : "⌘"
++    : "Ctrl+";
++  const alt = parsed.alt ? (IS_MAC ? "⌥" : "Alt+") : "";
++  const shift = parsed.shift ? (IS_MAC ? "⇧" : "Shift+") : "";
++  return `${head}${alt}${shift}${prettyKey(parsed.key)}`;
++}
++
++function prettyKey(key: string): string {
++  if (key === "Space") return "Space";
++  if (key.length === 1) return key.toUpperCase();
++  if (["Left", "Right", "Up", "Down"].includes(key)) {
++    return { Left: "←", Right: "→", Up: "↑", Down: "↓" }[key] ?? key;
++  }
++  return key;
++}
++
++export function subscribeKeybindings(onStoreChange: () => void): () => void {
++  if (typeof window === "undefined") return () => {};
++  window.addEventListener(KEYBINDINGS_CHANGE_EVENT, onStoreChange);
++  return () =>
++    window.removeEventListener(KEYBINDINGS_CHANGE_EVENT, onStoreChange);
++}
++
++/** Label of another action already using `binding`, if any. */
++export function findBindingOwner(
++  excludeId: string,
++  binding: string,
++): string | null {
++  for (const [id, def] of Object.entries(KEYBINDING_DEFAULTS)) {
++    if (id === excludeId) continue;
++    if (bindingFor(id) === binding) return def.label;
++  }
++  return null;
++}
++
++/** true once overrides have been fetched (or fetch failed). */
++export function keybindingsReady(): boolean {
++  return loaded;
++}
+diff --git a/src/platform/tauri/terminalActivity.ts b/src/platform/tauri/terminalActivity.ts
+new file mode 100644
+index 0000000..214ecec
+--- /dev/null
++++ b/src/platform/tauri/terminalActivity.ts
+@@ -0,0 +1,35 @@
++/**
++ * PKmod: tracks which terminals produced pty output recently, so the UI can
++ * show a live activity cue (the little chomping pac) even while a runtime
++ * runs silently in a terminal you're not staring at.
++ */
++
++/** How long after the last byte a terminal still counts as active. */
++export const ACTIVITY_DECAY_MS = 1200;
++
++const lastOutput = new Map<string, number>();
++
++export function markTerminalOutput(id: string): void {
++  lastOutput.set(id, Date.now());
++}
++
++export function forgetTerminal(id: string): void {
++  lastOutput.delete(id);
++}
++
++export function forgetAllTerminals(): void {
++  lastOutput.clear();
++}
++
++export function terminalActive(id: string): boolean {
++  const at = lastOutput.get(id);
++  return at != null && Date.now() - at < ACTIVITY_DECAY_MS;
++}
++
++export function anyTerminalActive(ids: readonly string[]): boolean {
++  return ids.some(terminalActive);
++}
++
++export function activeTerminalIds(ids: readonly string[]): string[] {
++  return ids.filter(terminalActive);
++}

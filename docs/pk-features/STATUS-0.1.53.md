@@ -24,13 +24,13 @@ appliquée sur Dev, compilée et testée avant de passer à la suivante.
 | 13 | Accès Codex | `diff-11-15-accounts-quotas-rail.patch` | verified |
 | 14 | Rail activité/projets | `diff-11-15-accounts-quotas-rail.patch` | verified |
 | 15 | Identité des projets | `diff-11-15-accounts-quotas-rail.patch` | verified |
-| 16 | Composer PK | `diff-16-composer.patch` | pending |
-| 17 | Apparence et thèmes | `diff-17-apparence.patch` | pending |
-| 18 | Terminal et dock | `diff-18-terminal.patch` | pending |
-| 19 | Raccourcis | `diff-19-raccourcis.patch` | pending |
-| 20 | Initialisation et skills | `diff-20-initialisation.patch` | pending |
-| 21 | Updater officiel + PK | `diff-21-updater.patch` | pending |
-| 22 | Branding Dev/Stable | `diff-22-branding-dev.patch` | pending |
+| 16 | Composer PK | `diff-16-composer.patch` | verified |
+| 17 | Apparence et thèmes | `diff-17-apparence.patch` | verified |
+| 18 | Terminal et dock | `diff-18-terminal.patch` | verified |
+| 19 | Raccourcis | `diff-19-raccourcis.patch` | verified |
+| 20 | Initialisation et skills | `diff-20-initialisation.patch` | verified |
+| 21 | Updater officiel + PK | `diff-21-updater.patch` | ported |
+| 22 | Branding Dev/Stable | `diff-22-branding-dev.patch` | ported |
 | 23 | Build et DMG | `diff-23-build-dmg.patch` | pending |
 
 Une feature ne sera marquée `ported` qu’après adaptation au nouvel arbre
