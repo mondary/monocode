@@ -44,6 +44,7 @@ import {
   subscribeHarnessAvailability,
   getHarnessAvailabilitySnapshot,
 } from "../../../integrations/harness/core/availability";
+import { loadCustomProviders } from "../model/customProviders";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
 import { HARNESSES, HARNESS_TITLE, type HarnessId } from "../model/session";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
@@ -289,7 +290,10 @@ export function ModelPicker({
   const pickerHarnesses = useMemo(() => {
     void availabilityVersion;
     void visibilityVersion;
-    return HARNESSES.filter((id) =>
+    return [
+      ...HARNESSES,
+      ...loadCustomProviders().map((provider: { id: string }) => provider.id as HarnessId),
+    ].filter((id) =>
       showProviderInModelPicker(
         id,
         isHarnessAvailable(id),

@@ -891,3 +891,22 @@ export function filterKeybindings(
       row.when.toLowerCase().includes(needle),
   );
 }
+
+const NOTES_AUTO_EXPORT_KEY = "monocode.notesAutoExport";
+
+/** PK : mirror notes into their source project's .monocode/notes folder. */
+export function loadNotesAutoExport(): boolean {
+  try {
+    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function saveNotesAutoExport(value: boolean) {
+  try {
+    localStorage.setItem(NOTES_AUTO_EXPORT_KEY, value ? "1" : "0");
+  } catch {
+    // private mode / quota
+  }
+}

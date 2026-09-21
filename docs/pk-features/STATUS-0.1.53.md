@@ -14,11 +14,11 @@ appliquée sur Dev, compilée et testée avant de passer à la suivante.
 | 03 | Notes par projet | `diff-03-05-notes.patch` | verified |
 | 04 | Édition et tags des notes | `diff-03-05-notes.patch` | verified |
 | 05 | Export Markdown des notes | `diff-03-05-notes.patch` | verified |
-| 06 | Notifications par projet | `diff-06-notifications.patch` | pending |
-| 07 | Réglages/recherche PK | `diff-07-settings.patch` | pending |
-| 08 | Fournisseurs PK | `diff-08-providers-pk.patch` | pending |
-| 09 | Fournisseurs custom | `diff-09-providers-custom.patch` | pending |
-| 10 | Modèle et effort | `diff-10-model-effort.patch` | pending |
+| 06 | Notifications par projet | `diff-06-10-settings-providers.patch` | verified |
+| 07 | Réglages/recherche PK | `diff-06-10-settings-providers.patch` | verified |
+| 08 | Fournisseurs PK | `diff-06-10-settings-providers.patch` | verified |
+| 09 | Fournisseurs custom | `diff-06-10-settings-providers.patch` | verified |
+| 10 | Modèle et effort | `diff-06-10-settings-providers.patch` | verified |
 | 11 | Comptes et authentification | `diff-11-auth-comptes.patch` | pending |
 | 12 | Quotas CodexBar | `diff-12-quotas-codexbar.patch` | pending |
 | 13 | Accès Codex | `diff-13-codex-acces.patch` | pending |

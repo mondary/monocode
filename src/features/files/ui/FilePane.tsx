@@ -60,6 +60,8 @@ type Props = {
   editorNavigation?: EditorNavigationTarget | null;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
+  /** PK : masque les onglets terminal dans le pane (réglage Changes/terminal). */
+  hideTerminalTabs?: boolean;
 };
 
 function FilePaneComponent({

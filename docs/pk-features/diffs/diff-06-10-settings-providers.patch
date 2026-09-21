@@ -1,0 +1,1185 @@
+diff --git a/src/app/App.tsx b/src/app/App.tsx
+index 7bc48e1..b029e52 100644
+--- a/src/app/App.tsx
++++ b/src/app/App.tsx
+@@ -8253,9 +8253,10 @@ export default function App({
+           run("prev-project", () => a.onNavigateProjectList(-1));
+         else if (cmd === "next-project")
+           run("next-project", () => a.onNavigateProjectList(1));
+-        else if ("focus" in cmd)
++        else if (typeof cmd === "object" && "focus" in cmd)
+           run(`focus-${cmd.focus}`, () => a.onFocusDir(cmd.focus));
+-        else run(`activate-${cmd.activate}`, () => a.onActivate(cmd.activate));
++        else if (typeof cmd === "object" && "activate" in cmd)
++          run(`activate-${cmd.activate}`, () => a.onActivate(cmd.activate));
+         return;
+       }
+       if (
+diff --git a/src/features/files/ui/FilePane.tsx b/src/features/files/ui/FilePane.tsx
+index 9adaec4..67bb3ff 100644
+--- a/src/features/files/ui/FilePane.tsx
++++ b/src/features/files/ui/FilePane.tsx
+@@ -60,6 +60,8 @@ type Props = {
+   editorNavigation?: EditorNavigationTarget | null;
+   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
+   onTerminalMetaChange?: (fileId: string, patch: TerminalMetaPatch) => void;
++  /** PK : masque les onglets terminal dans le pane (réglage Changes/terminal). */
++  hideTerminalTabs?: boolean;
+ };
+ 
+ function FilePaneComponent({
+diff --git a/src/features/sessions/model/customProviders.ts b/src/features/sessions/model/customProviders.ts
+new file mode 100644
+index 0000000..6fcfa1a
+--- /dev/null
++++ b/src/features/sessions/model/customProviders.ts
+@@ -0,0 +1,126 @@
++import { invoke } from "@tauri-apps/api/core";
++
++const KEY = "monocode.customProviders";
++
++export type CustomProvider = {
++  /** OpenCode config id: pk-custom-<slug>. */
++  id: string;
++  name: string;
++  baseUrl: string;
++  apiKey: string;
++  /** Model ids reported by the endpoint during the last test. */
++  models: string[];
++};
++
++export type CustomProviderProbe = {
++  ok: boolean;
++  status: number;
++  models: string[];
++  error: string | null;
++};
++
++export const CUSTOM_PROVIDERS_CHANGE_EVENT = "monocode:custom-providers-change";
++
++
++let changeVersion = 0;
++const changeListeners = new Set<() => void>();
++
++/** React store over the saved custom providers (ModelPicker tabs). */
++export function subscribeCustomProviders(onStoreChange: () => void): () => void {
++  if (typeof window === "undefined") return () => undefined;
++  window.addEventListener(CUSTOM_PROVIDERS_CHANGE_EVENT, onStoreChange);
++  return () =>
++    window.removeEventListener(CUSTOM_PROVIDERS_CHANGE_EVENT, onStoreChange);
++}
++
++export function getCustomProvidersSnapshot(): number {
++  return changeVersion;
++}
++export function slugCustomProviderId(name: string): string {
++  const slug = name
++    .trim()
++    .toLowerCase()
++    .replace(/[^a-z0-9-]/g, "-");
++  return `pk-custom-${slug}`;
++}
++
++export function loadCustomProviders(): CustomProvider[] {
++  try {
++    const raw = JSON.parse(localStorage.getItem(KEY) ?? "[]") as unknown;
++    if (!Array.isArray(raw)) return [];
++    return raw.flatMap((value) => {
++      if (!value || typeof value !== "object") return [];
++      const record = value as Record<string, unknown>;
++      if (
++        typeof record.id !== "string" ||
++        typeof record.name !== "string" ||
++        typeof record.baseUrl !== "string" ||
++        typeof record.apiKey !== "string"
++      ) {
++        return [];
++      }
++      return [
++        {
++          id: record.id,
++          name: record.name,
++          baseUrl: record.baseUrl,
++          apiKey: record.apiKey,
++          models: Array.isArray(record.models)
++            ? record.models.filter(
++                (model): model is string => typeof model === "string",
++              )
++            : [],
++        },
++      ];
++    });
++  } catch {
++    return [];
++  }
++}
++
++export function saveCustomProviders(providers: CustomProvider[]): void {
++  try {
++    localStorage.setItem(KEY, JSON.stringify(providers));
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") {
++    changeVersion += 1;
++    return;
++  }
++  changeVersion += 1;
++  for (const listener of changeListeners) listener();
++  window.dispatchEvent(new Event("monocode:custom-providers-change"));
++  // Push the current set into OpenCode's config so the runtime can route.
++  void invoke("custom_provider_sync", { providers }).catch(() => undefined);
++}
++
++export function upsertCustomProvider(
++  provider: CustomProvider,
++): CustomProvider[] {
++  const next = loadCustomProviders().filter(
++    (entry) => entry.id !== provider.id,
++  );
++  next.push(provider);
++  saveCustomProviders(next);
++  return next;
++}
++
++export function deleteCustomProvider(id: string): CustomProvider[] {
++  const next = loadCustomProviders().filter((entry) => entry.id !== id);
++  saveCustomProviders(next);
++  return next;
++}
++
++export function customProviderTestLabel(
++  probe: CustomProviderProbe | null,
++): string | null {
++  if (!probe) return null;
++  if (probe.ok) {
++    const count = probe.models.length;
++    return count > 0
++      ? `OK — ${count} model${count === 1 ? "" : "s"} found`
++      : "OK";
++  }
++  return probe.error ?? `Failed (HTTP ${probe.status})`;
++}
+diff --git a/src/features/sessions/model/models.ts b/src/features/sessions/model/models.ts
+index 0c1edd0..9878b44 100644
+--- a/src/features/sessions/model/models.ts
++++ b/src/features/sessions/model/models.ts
+@@ -1,5 +1,6 @@
+ import type { HarnessId } from "./session";
+ import { HARNESSES } from "./session";
++import { loadCustomProviders } from "./customProviders";
+ 
+ export type ModelSettingChoice = {
+   value: string;
+@@ -157,6 +158,88 @@ export const MODELS: AgentModel[] = [
+     name: "Claude Sonnet 4.6",
+   },
+   { id: "opencode:gpt-5.4", harness: "opencode", name: "GPT-5.4" },
++  {
++    id: "zai:glm-5.2",
++    harness: "zai",
++    name: "GLM-5.2",
++    nativeId: "zai-coding-plan/glm-5.2",
++    contextWindow: 200_000,
++  },
++  {
++    id: "zai:glm-5.1",
++    harness: "zai",
++    name: "GLM-5.1",
++    nativeId: "zai-coding-plan/glm-5.1",
++    contextWindow: 202_752,
++  },
++  {
++    id: "zai:glm-5.3",
++    harness: "zai",
++    name: "GLM-5.3",
++    nativeId: "zai-coding-plan/glm-5.3",
++    contextWindow: 1_000_000,
++  },
++  {
++    id: "zai:glm-5.3-flash",
++    harness: "zai",
++    name: "GLM-5.3 Flash",
++    nativeId: "zai-coding-plan/glm-5.3-flash",
++    contextWindow: 1_000_000,
++  },
++  {
++    id: "mimo:mimo-v2.5-pro",
++    harness: "mimo",
++    name: "MiMo V2.5 Pro",
++    nativeId: "xiaomi-token-plan-ams/mimo-v2.5-pro",
++    contextWindow: 1_048_576,
++  },
++  {
++    id: "mimo:mimo-v2.5",
++    harness: "mimo",
++    name: "MiMo V2.5",
++    nativeId: "xiaomi-token-plan-ams/mimo-v2.5",
++    contextWindow: 1_000_000,
++  },
++  {
++    id: "openrouter:deepseek/deepseek-chat-v3.1",
++    harness: "openrouter",
++    name: "DeepSeek Chat V3.1",
++    nativeId: "openrouter/deepseek/deepseek-chat-v3.1",
++  },
++  {
++    id: "nvidia:nvidia/llama-3.3-nemotron-super-49b-v1.5",
++    harness: "nvidia",
++    name: "NVIDIA Nemotron Super 49B v1.5",
++    nativeId: "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
++  },
++  {
++    id: "gemini:google/gemini-3-flash-preview",
++    harness: "gemini",
++    name: "Gemini 3 Flash Preview",
++    nativeId: "google/gemini-3-flash-preview",
++    contextWindow: 1_048_576,
++  },
++  {
++    id: "gemini:google/gemini-2.5-pro",
++    harness: "gemini",
++    name: "Gemini 2.5 Pro",
++    nativeId: "google/gemini-2.5-pro",
++    contextWindow: 1_048_576,
++  },
++  {
++    id: "antigravity:antigravity/gemini-3-pro",
++    harness: "antigravity",
++    name: "Gemini 3 Pro",
++    nativeId: "antigravity/gemini-3-pro",
++    contextWindow: 1_048_576,
++  },
++  {
++    id: "antigravity:antigravity/gemini-3-flash",
++    harness: "antigravity",
++    name: "Gemini 3 Flash",
++    nativeId: "antigravity/gemini-3-flash",
++    contextWindow: 1_048_576,
++  },
+   {
+     id: "pi:default",
+     harness: "pi",
+@@ -195,11 +278,16 @@ export const DEFAULT_MODEL_ID: Record<HarnessId, string> = {
+   cursor: "cursor:composer-2.5",
+   grok: "grok:grok-4.6",
+   opencode: "opencode:glm-5",
++  zai: "zai:glm-5.2",
++  mimo: "mimo:mimo-v2.5-pro",
++  openrouter: "openrouter:deepseek/deepseek-chat-v3.1",
++  nvidia: "nvidia:nvidia/nemotron-3.5-lightning-30b-a3b",
++  gemini: "gemini:google/gemini-3-flash-preview",
++  antigravity: "antigravity:antigravity/gemini-3-pro",
+   pi: "pi:default",
+   omp: "omp:default",
+   fx: "fx:zai/glm-5.2-fast",
+   hermes: "hermes:default",
+-  antigravity: "antigravity:gemini-3.8-flash-high",
+ };
+ 
+ const FAVORITES_KEY = "monocode.favoriteModels";
+@@ -224,6 +312,12 @@ const HARNESS_ORDER: HarnessId[] = [
+   "cursor",
+   "grok",
+   "opencode",
++  "zai",
++  "mimo",
++  "openrouter",
++  "nvidia",
++  "gemini",
++  "antigravity",
+   "pi",
+   "omp",
+   "fx",
+@@ -497,7 +591,10 @@ export function saveFavoriteModels(ids: string[]) {
+ }
+ 
+ function isHarnessId(value: string): value is HarnessId {
+-  return HARNESS_ORDER.includes(value as HarnessId);
++  return (
++    HARNESS_ORDER.includes(value as HarnessId) ||
++    value.startsWith("pk-custom-")
++  );
+ }
+ 
+ export function loadModelPickerTab(): ModelPickerTab {
+@@ -591,7 +688,10 @@ export function showProviderInModelPicker(
+ export function modelPickerTabs(
+   available: (id: HarnessId) => boolean,
+ ): ModelPickerTab[] {
+-  return ["favorites", ...HARNESSES.filter(available)];
++  const customIds = loadCustomProviders().map(
++    (provider) => provider.id as HarnessId,
++  );
++  return ["favorites", ...HARNESSES.filter(available), ...customIds];
+ }
+ 
+ export function coerceModelPickerTab(
+diff --git a/src/features/sessions/model/session.ts b/src/features/sessions/model/session.ts
+index 79f66c3..b84a0f1 100644
+--- a/src/features/sessions/model/session.ts
++++ b/src/features/sessions/model/session.ts
+@@ -1,6 +1,7 @@
+ import type { ContextUsage } from "./contextUsage";
+ import type { UserQuestionPrompt } from "./userQuestion";
+ import type { HandoffComposerCard } from "./handoff";
++import { loadCustomProviders } from "./customProviders";
+ import type { InboxComposerCard } from "../../inbox/model/githubTasks";
+ import type { InboxAskContext } from "../../inbox/model/inboxAsk";
+ import type { NoteCardMeta, NoteComposerCard } from "../../notes";
+@@ -13,29 +14,48 @@ import {
+   resolveModel,
+ } from "./models";
+ 
+-export type HarnessId =
++export type BuiltinHarnessId =
+   | "claude"
+   | "codex"
+   | "cursor"
+   | "grok"
+   | "opencode"
++  | "zai"
++  | "mimo"
++  | "openrouter"
++  | "nvidia"
++  | "gemini"
++  | "antigravity"
+   | "pi"
+   | "omp"
+   | "fx"
+-  | "hermes"
+-  | "antigravity";
++  | "hermes";
+ 
+-export const HARNESSES: HarnessId[] = [
++/** Custom providers managed from Settings; ids are `pk-custom-<slug>`. */
++export type CustomHarnessId = `pk-custom-${string}`;
++
++export type HarnessId = BuiltinHarnessId | CustomHarnessId;
++
++export function isCustomHarness(id: string): id is CustomHarnessId {
++  return id.startsWith("pk-custom-");
++}
++
++export const HARNESSES: BuiltinHarnessId[] = [
+   "claude",
+   "codex",
+   "cursor",
+   "grok",
+   "opencode",
++  "zai",
++  "mimo",
++  "openrouter",
++  "nvidia",
++  "gemini",
++  "antigravity",
+   "pi",
+   "omp",
+   "fx",
+   "hermes",
+-  "antigravity",
+ ];
+ 
+ export type BlockRole =
+@@ -90,7 +110,7 @@ export type PlanBlockMeta = {
+ export type ModelTarget = {
+   harness: HarnessId;
+   model: string;
+-  modelSettings: Record<string, string>;
++  modelSettings?: Record<string, string>;
+ };
+ 
+ export type PlanBuildTarget = ModelTarget;
+@@ -388,32 +408,60 @@ export type PendingHarnessSwitch = {
+   fromProviderAccountId?: string;
+ };
+ 
+-export const HARNESS_LABEL: Record<HarnessId, string> = {
++export const HARNESS_LABEL: Record<string, string> = {
+   claude: "claude",
+   codex: "codex",
+   cursor: "cursor",
+   grok: "grok",
+   opencode: "opencode",
++  zai: "zai",
++  mimo: "mimo",
++  openrouter: "openrouter",
++  nvidia: "nvidia",
++  gemini: "gemini",
++  antigravity: "antigravity",
+   pi: "pi",
+   omp: "omp",
+   fx: "fx",
+   hermes: "hermes",
+-  antigravity: "antigravity",
+ };
+ 
+-export const HARNESS_TITLE: Record<HarnessId, string> = {
++export const HARNESS_TITLE: Record<string, string> = {
+   claude: "Claude Code",
+   codex: "Codex",
+   cursor: "Cursor",
+   grok: "Grok Build",
+   opencode: "OpenCode",
++  zai: "Z.AI",
++  mimo: "MiMo",
++  openrouter: "OpenRouter",
++  nvidia: "NVIDIA",
++  gemini: "Gemini",
++  antigravity: "Antigravity",
+   pi: "Pi",
+   omp: "omp",
+   fx: "fx",
+   hermes: "Hermes Agent",
+-  antigravity: "Antigravity",
+ };
+ 
++/**
++ * Runtime titles: custom providers come from Settings and have no entry in
++ * the builtin record, so fall back to their configured name.
++ */
++export function harnessTitle(id: HarnessId): string {
++  if (isCustomHarness(id)) return customProviderName(id) ?? id;
++  return HARNESS_TITLE[id];
++}
++
++export function harnessLabel(id: HarnessId): string {
++  if (isCustomHarness(id)) return customProviderName(id) ?? id;
++  return HARNESS_LABEL[id];
++}
++
++function customProviderName(id: CustomHarnessId): string | undefined {
++  return loadCustomProviders().find((provider) => provider.id === id)?.name;
++}
++
+ /** fx ACP rejects attachment prompt blocks. */
+ export function harnessSupportsAttachments(id: HarnessId): boolean {
+   return id !== "fx";
+@@ -433,7 +481,7 @@ export function newSession(
+     model: resolved.id,
+     modelSettings: preferredModelSettings(resolved, modelSettings),
+     runtimeMode,
+-    title: HARNESS_LABEL[harness],
++    title: harnessLabel(harness),
+     cwd,
+     blocks: [],
+   };
+@@ -475,7 +523,7 @@ export function titleFromPrompt(
+           .join(", ")
+       : "";
+   const seed = line || fromFiles;
+-  if (!seed) return HARNESS_LABEL[harness];
++  if (!seed) return harnessLabel(harness);
+   const max = 72;
+   const short = seed.length > max ? `${seed.slice(0, max - 1)}…` : seed;
+   return formatSessionTitle(harness, short);
+@@ -483,8 +531,8 @@ export function titleFromPrompt(
+ 
+ export function formatSessionTitle(harness: HarnessId, title: string): string {
+   const trimmed = title.trim();
+-  if (!trimmed) return HARNESS_LABEL[harness];
+-  return `${HARNESS_LABEL[harness]} · ${trimmed}`;
++  if (!trimmed) return harnessLabel(harness);
++  return `${harnessLabel(harness)} · ${trimmed}`;
+ }
+ 
+ /** True when the stored title is still a placeholder the LLM may replace. */
+@@ -495,8 +543,8 @@ export function canReplaceSessionTitle(
+ ): boolean {
+   return (
+     current === seed ||
+-    current === HARNESS_LABEL[harness] ||
+-    current === HARNESS_TITLE[harness]
++    current === harnessLabel(harness) ||
++    current === harnessTitle(harness)
+   );
+ }
+ 
+@@ -546,9 +594,9 @@ export function removeSessionDraft(
+ 
+ /** Title without the harness prefix stored for the tab strip. */
+ export function sessionDisplayTitle(title: string, harness: HarnessId): string {
+-  const prefix = `${HARNESS_LABEL[harness]} · `;
++  const prefix = `${harnessLabel(harness)} · `;
+   if (title.startsWith(prefix)) return title.slice(prefix.length);
+-  if (title === HARNESS_LABEL[harness] || title === HARNESS_TITLE[harness]) {
++  if (title === harnessLabel(harness) || title === harnessTitle(harness)) {
+     return "New session";
+   }
+   return title;
+diff --git a/src/features/sessions/ui/ModelPicker.tsx b/src/features/sessions/ui/ModelPicker.tsx
+index 0ca3c10..bca1821 100644
+--- a/src/features/sessions/ui/ModelPicker.tsx
++++ b/src/features/sessions/ui/ModelPicker.tsx
+@@ -44,6 +44,7 @@ import {
+   subscribeHarnessAvailability,
+   getHarnessAvailabilitySnapshot,
+ } from "../../../integrations/harness/core/availability";
++import { loadCustomProviders } from "../model/customProviders";
+ import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
+ import { HARNESSES, HARNESS_TITLE, type HarnessId } from "../model/session";
+ import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
+@@ -289,7 +290,10 @@ export function ModelPicker({
+   const pickerHarnesses = useMemo(() => {
+     void availabilityVersion;
+     void visibilityVersion;
+-    return HARNESSES.filter((id) =>
++    return [
++      ...HARNESSES,
++      ...loadCustomProviders().map((provider: { id: string }) => provider.id as HarnessId),
++    ].filter((id) =>
+       showProviderInModelPicker(
+         id,
+         isHarnessAvailable(id),
+diff --git a/src/features/sessions/ui/SecondOpinionButton.tsx b/src/features/sessions/ui/SecondOpinionButton.tsx
+index d04245a..4d38116 100644
+--- a/src/features/sessions/ui/SecondOpinionButton.tsx
++++ b/src/features/sessions/ui/SecondOpinionButton.tsx
+@@ -37,7 +37,7 @@ import {
+ import { LAYER } from "../../../shared/lib/layers";
+ import { secondOpinionTargets } from "../model/secondOpinion";
+ import {
+-  HARNESS_TITLE,
++  harnessTitle,
+   type HarnessId,
+   type ModelTarget,
+ } from "../model/session";
+@@ -435,7 +435,7 @@ export function SecondOpinionButton({
+                   >
+                     <HarnessIcon harness={harness} className="size-3.5" />
+                     <span className="min-w-0 flex-1 truncate">
+-                      {HARNESS_TITLE[harness]}
++                      {harnessTitle(harness)}
+                     </span>
+                     {modelsFor(harness).length > 0 ? (
+                       <ChevronRight
+@@ -460,7 +460,7 @@ export function SecondOpinionButton({
+               maxHeight={SUBMENU_MAX_HEIGHT}
+               layer={LAYER.submenu}
+               role="menu"
+-              aria-label={`${HARNESS_TITLE[activeHarness]} models`}
++              aria-label={`${harnessTitle(activeHarness)} models`}
+               ignore={SELF}
+               onMouseEnter={() =>
+                 setMenuLevel((level) =>
+diff --git a/src/features/settings/model/appearance.ts b/src/features/settings/model/appearance.ts
+index a180c89..c6bb8ed 100644
+--- a/src/features/settings/model/appearance.ts
++++ b/src/features/settings/model/appearance.ts
+@@ -5,14 +5,15 @@ import { readFlag, writeFlag } from "./storageFlags";
+ import { applyUiScale, loadUiScale } from "./uiScale";
+ 
+ const ACCENT_COLOR_KEY = "monocode.accentColor";
+-const THEME_HUE_KEY = "monocode.themeHue";
+-const THEME_SATURATION_KEY = "monocode.themeSaturation";
+ const THEME_DARK_LIGHTNESS_KEY = "monocode.themeDarkLightness";
+ const OPACITY_KEY = "monocode.sidebarOpacity";
+ const BLUR_KEY = "monocode.sidebarBlur";
+ const PROJECT_RAIL_OPEN_KEY = "monocode.projectRailOpen";
+ const BODY_KEY = "monocode.bodyGlass";
+ const SCHEME_KEY = "monocode.colorScheme";
++const THEME_PRESET_KEY = "monocode.themePreset";
++const THEME_HUE_KEY = "monocode.themeHue";
++const THEME_SATURATION_KEY = "monocode.themeSaturation";
+ const SIDEBAR_TAB_ORDER_KEY = "monocode.sidebarTabOrder";
+ const PROJECT_RAIL_WIDTH_KEY = "monocode.projectRailWidth";
+ const TRANSCRIPT_LAYOUT_KEY = "monocode.transcriptLayout";
+@@ -33,11 +34,19 @@ export const CHAT_BACKGROUND_PATH_CHANGE_EVENT =
+ 
+ export type ColorScheme = "dark" | "light";
+ export type ThemePreference = ColorScheme | "system";
++export type ThemePreset =
++  | "default"
++  | "dracula"
++  | "catppuccin-frappe"
++  | "catppuccin-latte"
++  | "catppuccin-macchiato"
++  | "catppuccin-mocha";
+ export type TranscriptLayout = "full" | "chat";
+ export type ChatBackgroundScope = "empty" | "all";
+ export type ChangesView = "list" | "tree";
+ 
+ export const THEME_PREFERENCE_DEFAULT: ThemePreference = "dark";
++export const THEME_PRESET_DEFAULT: ThemePreset = "catppuccin-frappe";
+ 
+ export const ACCENT_COLOR_DEFAULT = null;
+ 
+@@ -62,13 +71,14 @@ export const SHOW_EXCLUDED_FILES_DEFAULT = false;
+ export const SHOW_EXCLUDED_FILES_CHANGE_EVENT =
+   "monocode:showexcludedfileschange";
+ 
+-export type SidebarTabId = "files" | "sessions" | "changes" | "inbox";
++export type SidebarTabId = "files" | "sessions" | "changes" | "notes" | "inbox";
+ 
+ const DEFAULT_SIDEBAR_TAB_ORDER: SidebarTabId[] = [
+   "sessions",
+   "inbox",
+   "files",
+   "changes",
++  "notes",
+ ];
+ 
+ export const THEME_HUE_MIN = 0;
+@@ -260,10 +270,12 @@ export function applyThemeTint(hue: number, saturation: number) {
+ 
+ export function initAppearance() {
+   document.documentElement.classList.toggle("is-mac", IS_MAC);
++  applyThemePreset(loadThemePreset());
+   document.documentElement.classList.toggle(
+     "has-native-glass",
+     HAS_NATIVE_GLASS,
+   );
++  applyThemeTint(loadThemeHue(), loadThemeSaturation());
+   applyAccentColor(loadAccentColor());
+   applyThemeTint(loadThemeHue(), loadThemeSaturation());
+   applyThemeDarkLightness(loadThemeDarkLightness());
+@@ -273,6 +285,60 @@ export function initAppearance() {
+   applySidebarBlur(loadSidebarBlur());
+   applyBodyGlass(loadBodyGlass());
+   applyChatBackground(loadChatBackgroundPath());
++  applyChatBackgroundOpacity(loadChatBackgroundOpacity());
++  applyChatBackgroundScope(loadChatBackgroundScope());
++  void applyUiScale(loadUiScale());
++  applyBackgroundPanels(loadBackgroundPanels());
++}
++
++function isThemePreset(value: unknown): value is ThemePreset {
++  return (
++    value === "default" ||
++    value === "dracula" ||
++    value === "catppuccin-frappe" ||
++    value === "catppuccin-latte" ||
++    value === "catppuccin-macchiato" ||
++    value === "catppuccin-mocha"
++  );
++}
++
++export function loadThemePreset(): ThemePreset {
++  try {
++    const raw = localStorage.getItem(THEME_PRESET_KEY);
++    // Migrate the old MonoCode neutral default to PKmod's Frappe default.
++    if (raw === "default") return THEME_PRESET_DEFAULT;
++    return isThemePreset(raw) ? raw : THEME_PRESET_DEFAULT;
++  } catch {
++    return THEME_PRESET_DEFAULT;
++  }
++}
++
++export function saveThemePreset(value: ThemePreset) {
++  try {
++    localStorage.setItem(THEME_PRESET_KEY, value);
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function applyThemePreset(value: ThemePreset) {
++  const root = document.documentElement;
++  root.classList.remove(
++    "theme-preset-dracula",
++    "theme-preset-catppuccin-frappe",
++    "theme-preset-catppuccin-latte",
++    "theme-preset-catppuccin-macchiato",
++    "theme-preset-catppuccin-mocha",
++  );
++  // `THEME_PRESET_DEFAULT` is the personal app's initial preset, while the
++  // literal `default` remains the explicit neutral option in Settings.
++  if (value !== "default") root.classList.add(`theme-preset-${value}`);
++  window.dispatchEvent(
++    new CustomEvent<ThemePreset>("monocode:themepresetchange", {
++      detail: value,
++    }),
++  );
++  return value;
+   applyChatBackgroundEmptyOpacity(loadChatBackgroundEmptyOpacity());
+   applyChatBackgroundSessionOpacity(loadChatBackgroundSessionOpacity());
+   applyChatBackgroundScope(loadChatBackgroundScope());
+@@ -454,7 +520,11 @@ export function chatBackgroundSrc(path: string | null): string | null {
+ }
+ 
+ export function loadChatBackgroundOpacity(): number {
+-  return loadChatBackgroundEmptyOpacity();
++  return clamp(
++    readNumber(CHAT_BACKGROUND_OPACITY_KEY) ?? CHAT_BACKGROUND_OPACITY_DEFAULT,
++    CHAT_BACKGROUND_OPACITY_MIN,
++    CHAT_BACKGROUND_OPACITY_MAX,
++  );
+ }
+ 
+ export function saveChatBackgroundOpacity(value: number) {
+@@ -492,16 +562,67 @@ function saveChatBackgroundOpacityValue(key: string, value: number) {
+   );
+ }
+ 
+-function applyChatBackgroundOpacityValue(variable: string, value: number) {
++function applyChatBackgroundOpacityValue(_variable: string, value: number) {
+   const next = clamp(
+     value,
+     CHAT_BACKGROUND_OPACITY_MIN,
+     CHAT_BACKGROUND_OPACITY_MAX,
+   );
+-  document.documentElement.style.setProperty(variable, String(next));
++  document.documentElement.style.setProperty(
++    "--chat-background-opacity",
++    String(next),
++  );
+   return next;
+ }
+ 
++const BACKGROUND_PANELS_KEY = "monocode.backgroundPanels";
++export const BACKGROUND_PANELS_CHANGE_EVENT =
++  "monocode:background-panels-change";
++
++export const BACKGROUND_PANELS_DEFAULT: Record<BackgroundPanel, boolean> = {
++  chat: true,
++  workspace: false,
++  terminal: false,
++};
++
++export type BackgroundPanel = "chat" | "workspace" | "terminal";
++
++/** Which app panes receive the background image (chat is on by default). */
++export function loadBackgroundPanels(): Record<BackgroundPanel, boolean> {
++  try {
++    const raw = JSON.parse(
++      localStorage.getItem(BACKGROUND_PANELS_KEY) ?? "{}",
++    ) as Record<string, unknown>;
++    return {
++      chat: typeof raw.chat === "boolean" ? raw.chat : true,
++      workspace: raw.workspace === true,
++      terminal: raw.terminal === true,
++    };
++  } catch {
++    return { ...BACKGROUND_PANELS_DEFAULT };
++  }
++}
++
++export function saveBackgroundPanels(
++  value: Record<BackgroundPanel, boolean>,
++): void {
++  try {
++    localStorage.setItem(BACKGROUND_PANELS_KEY, JSON.stringify(value));
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") return;
++  window.dispatchEvent(new Event(BACKGROUND_PANELS_CHANGE_EVENT));
++}
++
++export function applyBackgroundPanels(value: Record<BackgroundPanel, boolean>) {
++  const root = document.documentElement;
++  root.classList.toggle("background-workspace", !!value.workspace);
++  root.classList.toggle("background-terminal", !!value.terminal);
++  root.classList.toggle("no-background-chat", !value.chat);
++  return value;
++}
++
+ export function loadChatBackgroundEmptyOpacity(): number {
+   return loadChatBackgroundOpacityValue(CHAT_BACKGROUND_EMPTY_OPACITY_KEY);
+ }
+@@ -566,6 +687,7 @@ function isSidebarTabId(value: unknown): value is SidebarTabId {
+     value === "files" ||
+     value === "sessions" ||
+     value === "changes" ||
++    value === "notes" ||
+     value === "inbox"
+   );
+ }
+diff --git a/src/features/settings/model/busyGlowSettings.ts b/src/features/settings/model/busyGlowSettings.ts
+new file mode 100644
+index 0000000..ab3fb52
+--- /dev/null
++++ b/src/features/settings/model/busyGlowSettings.ts
+@@ -0,0 +1,47 @@
++const KEY = "monocode.busyGlowColor";
++
++/** Fired on `window` when the busy-title glow color flips. */
++export const BUSY_GLOW_CHANGE_EVENT = "monocode:busy-glow-change";
++
++/** "" follows the theme; every other entry is a literal CSS color. */
++export const BUSY_GLOW_PRESETS: { label: string; value: string }[] = [
++  { label: "Theme", value: "" },
++  { label: "Amber", value: "#f59e0b" },
++  { label: "Emerald", value: "#34d399" },
++  { label: "Sky", value: "#38bdf8" },
++  { label: "Violet", value: "#a78bfa" },
++  { label: "Pink", value: "#f472b6" },
++  { label: "Red", value: "#f87171" },
++];
++
++export const BUSY_GLOW_DEFAULT = "";
++
++export function isBusyGlowColor(value: unknown): value is string {
++  if (typeof value !== "string") return false;
++  if (value === "") return true;
++  return (
++    /^#[0-9a-f]{3,8}$/i.test(value) ||
++    /^(rgb|hsl)a?\(\s*[\d.,%\s\/]+\)$/.test(value)
++  );
++}
++
++/** Highlight color for the shimmer on busy project titles. */
++export function loadBusyGlowColor(): string {
++  try {
++    const raw = localStorage.getItem(KEY);
++    return isBusyGlowColor(raw) ? raw : BUSY_GLOW_DEFAULT;
++  } catch {
++    return BUSY_GLOW_DEFAULT;
++  }
++}
++
++export function saveBusyGlowColor(value: string): void {
++  const next = isBusyGlowColor(value) ? value : BUSY_GLOW_DEFAULT;
++  try {
++    localStorage.setItem(KEY, next);
++  } catch {
++    // private mode / quota
++  }
++  if (typeof window === "undefined") return;
++  window.dispatchEvent(new Event(BUSY_GLOW_CHANGE_EVENT));
++}
+diff --git a/src/features/settings/model/pkUpdateDialog.ts b/src/features/settings/model/pkUpdateDialog.ts
+new file mode 100644
+index 0000000..a7b8f33
+--- /dev/null
++++ b/src/features/settings/model/pkUpdateDialog.ts
+@@ -0,0 +1,90 @@
++import { ask, message } from "@tauri-apps/plugin-dialog";
++
++/**
++ * One update axis of the PK flow: the official upstream, or the PK branch.
++ * `availableVersion` null with `behind === 0` means the axis is up to date.
++ */
++export type PkUpdateAxis = {
++  label: string;
++  currentVersion: string;
++  availableVersion: string | null;
++  behind: number;
++  /** Local commits not pushed yet (PK axis only). */
++  ahead: number;
++  commits: string[];
++};
++
++export type PkUpdateDialogRequest = {
++  /** True when every axis is up to date — the dialog becomes a status card. */
++  upToDate: boolean;
++  axes: PkUpdateAxis[];
++};
++
++export type PkUpdateDialogHandler = (
++  request: PkUpdateDialogRequest,
++) => Promise<boolean>;
++
++let handler: PkUpdateDialogHandler | null = null;
++
++/** The in-app dialog registers on mount; tests and headless runs stay native. */
++export function registerPkUpdateDialog(next: PkUpdateDialogHandler | null): void {
++  handler = next;
++}
++
++export function isPkUpdateDialogRegistered(): boolean {
++  return handler != null;
++}
++
++/** Resolve through the in-app dialog when mounted, else the native one. */
++export async function requestPkUpdateDecision(
++  request: PkUpdateDialogRequest,
++): Promise<boolean> {
++  if (handler) return handler(request);
++  return nativePkUpdateDialog(request);
++}
++
++async function nativePkUpdateDialog(
++  request: PkUpdateDialogRequest,
++): Promise<boolean> {
++  const lines = request.axes.map((axis) => axisLine(axis));
++  if (request.upToDate) {
++    await message(lines.join("\n"), { title: "Mise à jour PKmod" });
++    return false;
++  }
++  const lists = request.axes.map((axis) => axisCommitList(axis)).join("");
++  const proceed = await ask(
++    `${lines.join("\n")}${lists}\n\nPKmod va récupérer la dernière version PK validée, reconstruire l'application et la relancer.`,
++    {
++      title: "Mise à jour PKmod",
++      kind: "info",
++      okLabel: "Mettre à jour",
++      cancelLabel: "Plus tard",
++    },
++  );
++  return proceed;
++}
++
++function axisLine(axis: PkUpdateAxis): string {
++  const unpushed =
++    axis.ahead > 0
++      ? ` — ${axis.ahead} commit${axis.ahead === 1 ? "" : "s"} local${axis.ahead === 1 ? "" : "aux"} non poussé${axis.ahead === 1 ? "" : "s"}`
++      : "";
++  if (axis.behind === 0) {
++    return `${axis.label} : ${axis.currentVersion} — à jour${unpushed}`;
++  }
++  const target = axis.availableVersion
++    ? `${axis.currentVersion} → ${axis.availableVersion}`
++    : axis.currentVersion;
++  return `${axis.label} : ${target} (${axis.behind} commit${axis.behind === 1 ? "" : "s"} disponible${axis.behind === 1 ? "" : "s"}${axis.label.includes("PK") ? " sur GitHub" : ""})${unpushed}`;
++}
++
++function axisCommitList(axis: PkUpdateAxis): string {
++  if (axis.commits.length === 0) return "";
++  const extra =
++    axis.behind > axis.commits.length
++      ? `\n• … et ${axis.behind - axis.commits.length} autres`
++      : "";
++  return `\n\nCommits ${axis.label} :\n${axis.commits
++    .map((commit) => `• ${commit}`)
++    .join("\n")}${extra}`;
++}
+diff --git a/src/features/settings/model/pkVariant.ts b/src/features/settings/model/pkVariant.ts
+new file mode 100644
+index 0000000..c5ebc5a
+--- /dev/null
++++ b/src/features/settings/model/pkVariant.ts
+@@ -0,0 +1,37 @@
++import { useEffect, useState } from "react";
++import { getIdentifier } from "@tauri-apps/api/app";
++
++/** Which installed PK variant this window runs as. */
++export type PkVariant = "dev" | "stable" | "official";
++
++let cached: PkVariant | null = null;
++
++/** Resolves once per app run; the bundle identifier never changes mid-run. */
++export function pkVariant(): Promise<PkVariant> {
++  if (cached) return Promise.resolve(cached);
++  return (async () => {
++    try {
++      const identifier = await getIdentifier();
++      if (identifier === "com.monocode.pk.dev") cached = "dev";
++      else if (identifier === "com.monocode.pk") cached = "stable";
++      else cached = "official";
++    } catch {
++      cached = "official";
++    }
++    return cached;
++  })();
++}
++
++export function usePkVariant(): PkVariant | null {
++  const [variant, setVariant] = useState<PkVariant | null>(null);
++  useEffect(() => {
++    let cancelled = false;
++    void pkVariant().then((value) => {
++      if (!cancelled) setVariant(value);
++    });
++    return () => {
++      cancelled = true;
++    };
++  }, []);
++  return variant;
++}
+diff --git a/src/features/settings/model/pkVersion.ts b/src/features/settings/model/pkVersion.ts
+new file mode 100644
+index 0000000..a5d0f9b
+--- /dev/null
++++ b/src/features/settings/model/pkVersion.ts
+@@ -0,0 +1,3 @@
++import rawVersion from "../../../../VERSION?raw";
++
++export const PK_VERSION = rawVersion.trim();
+diff --git a/src/features/settings/model/projectInit.ts b/src/features/settings/model/projectInit.ts
+new file mode 100644
+index 0000000..b6d18dd
+--- /dev/null
++++ b/src/features/settings/model/projectInit.ts
+@@ -0,0 +1,116 @@
++import type { ProjectInitResult } from "../../../platform/tauri/fs";
++
++const SETTINGS_KEY = "monocode.projectInitialization";
++
++export type ProjectInitLink = {
++  source: string;
++  target: string;
++};
++
++export type ProjectInitSettings = {
++  links: ProjectInitLink[];
++  linkAgentInstructions: boolean;
++  ensureGitignore: boolean;
++  createMetadataFiles: boolean;
++};
++
++export const DEFAULT_PROJECT_INIT_SETTINGS: ProjectInitSettings = {
++  links: [
++    { source: "~/Documents/GitHub/-agent", target: ".agent" },
++    { source: "~/Documents/GitHub/-inspi", target: ".inspi" },
++  ],
++  linkAgentInstructions: true,
++  ensureGitignore: true,
++  createMetadataFiles: true,
++};
++
++function copyDefaults(): ProjectInitSettings {
++  return {
++    links: DEFAULT_PROJECT_INIT_SETTINGS.links.map((link) => ({ ...link })),
++    linkAgentInstructions: DEFAULT_PROJECT_INIT_SETTINGS.linkAgentInstructions,
++    ensureGitignore: DEFAULT_PROJECT_INIT_SETTINGS.ensureGitignore,
++    createMetadataFiles: DEFAULT_PROJECT_INIT_SETTINGS.createMetadataFiles,
++  };
++}
++
++function validLink(value: unknown): value is ProjectInitLink {
++  if (!value || typeof value !== "object") return false;
++  const link = value as { source?: unknown; target?: unknown };
++  return (
++    typeof link.source === "string" &&
++    typeof link.target === "string" &&
++    link.source.trim().length > 0 &&
++    link.target.trim().length > 0
++  );
++}
++
++export function loadProjectInitSettings(): ProjectInitSettings {
++  try {
++    const raw = localStorage.getItem(SETTINGS_KEY);
++    if (!raw) return copyDefaults();
++    const parsed: unknown = JSON.parse(raw);
++    if (!parsed || typeof parsed !== "object") return copyDefaults();
++    const value = parsed as Partial<ProjectInitSettings>;
++    const links = Array.isArray(value.links)
++      ? value.links.filter(validLink).map((link) => ({
++          source: link.source.trim(),
++          target: link.target.trim(),
++        }))
++      : copyDefaults().links;
++    return {
++      links: links.slice(0, 24),
++      linkAgentInstructions:
++        typeof value.linkAgentInstructions === "boolean"
++          ? value.linkAgentInstructions
++          : DEFAULT_PROJECT_INIT_SETTINGS.linkAgentInstructions,
++      ensureGitignore:
++        typeof value.ensureGitignore === "boolean"
++          ? value.ensureGitignore
++          : DEFAULT_PROJECT_INIT_SETTINGS.ensureGitignore,
++      createMetadataFiles:
++        typeof value.createMetadataFiles === "boolean"
++          ? value.createMetadataFiles
++          : DEFAULT_PROJECT_INIT_SETTINGS.createMetadataFiles,
++    };
++  } catch {
++    return copyDefaults();
++  }
++}
++
++export function saveProjectInitSettings(value: ProjectInitSettings): void {
++  const next: ProjectInitSettings = {
++    links: value.links
++      .map((link) => ({
++        source: link.source.trim(),
++        target: link.target.trim(),
++      }))
++      .filter(validLink)
++      .slice(0, 24),
++    linkAgentInstructions: value.linkAgentInstructions,
++    ensureGitignore: value.ensureGitignore,
++    createMetadataFiles: value.createMetadataFiles,
++  };
++  try {
++    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
++  } catch {
++    // private mode / quota
++  }
++}
++
++export function projectInitResultMessage(result: ProjectInitResult): string {
++  const linked = result.created.length + result.updated.length;
++  const stable = result.existing.length;
++  const skipped = result.skipped.length;
++  const missing = result.missing.length;
++  const metadata = result.metadataCreated.length;
++  const parts = [`${linked} link${linked === 1 ? "" : "s"} ready`];
++  if (stable > 0) parts.push(`${stable} already present`);
++  if (skipped > 0)
++    parts.push(`${skipped} local item${skipped === 1 ? "" : "s"} kept`);
++  if (missing > 0)
++    parts.push(`${missing} source${missing === 1 ? "" : "s"} missing`);
++  if (metadata > 0)
++    parts.push(`${metadata} metadata file${metadata === 1 ? "" : "s"} created`);
++  if (result.gitignoreUpdated) parts.push(".gitignore updated");
++  return `${parts.join(", ")}.`;
++}
+diff --git a/src/features/settings/model/settings.ts b/src/features/settings/model/settings.ts
+index 5368294..8f33dc6 100644
+--- a/src/features/settings/model/settings.ts
++++ b/src/features/settings/model/settings.ts
+@@ -891,3 +891,22 @@ export function filterKeybindings(
+       row.when.toLowerCase().includes(needle),
+   );
+ }
++
++const NOTES_AUTO_EXPORT_KEY = "monocode.notesAutoExport";
++
++/** PK : mirror notes into their source project's .monocode/notes folder. */
++export function loadNotesAutoExport(): boolean {
++  try {
++    return localStorage.getItem(NOTES_AUTO_EXPORT_KEY) !== "0";
++  } catch {
++    return true;
++  }
++}
++
++export function saveNotesAutoExport(value: boolean) {
++  try {
++    localStorage.setItem(NOTES_AUTO_EXPORT_KEY, value ? "1" : "0");
++  } catch {
++    // private mode / quota
++  }
++}
+diff --git a/src/features/settings/model/sounds.ts b/src/features/settings/model/sounds.ts
+index ee151cb..f79a07f 100644
+--- a/src/features/settings/model/sounds.ts
++++ b/src/features/settings/model/sounds.ts
+@@ -18,6 +18,7 @@ export const SOUNDS_CHANGE_EVENT = "monocode:sounds-change";
+ 
+ export type SoundCue =
+   | "turnFinished"
++  | "agentInput"
+   | "inboxUnseen"
+   | "linkedActivity"
+   | "updateAvailable"
+@@ -26,6 +27,7 @@ export type SoundCue =
+ 
+ const CUES: Record<SoundCue, SoundName> = {
+   turnFinished: "success",
++  agentInput: "droplet",
+   inboxUnseen: "bloom",
+   linkedActivity: "chime",
+   updateAvailable: "arrival",
+diff --git a/src/integrations/harness/core/availability.ts b/src/integrations/harness/core/availability.ts
+index 3b3cce4..1228b80 100644
+--- a/src/integrations/harness/core/availability.ts
++++ b/src/integrations/harness/core/availability.ts
+@@ -29,6 +29,11 @@ const CLI: Record<HarnessId, { name: string; install?: string }> = {
+     install: "curl -fsSL https://x.ai/cli/install.sh | bash",
+   },
+   opencode: { name: "OpenCode CLI" },
++  zai: { name: "Z.AI via OpenCode CLI" },
++  mimo: { name: "MiMo via OpenCode CLI" },
++  openrouter: { name: "OpenRouter via OpenCode CLI" },
++  nvidia: { name: "NVIDIA via OpenCode CLI" },
++  gemini: { name: "Gemini via OpenCode CLI" },
+   pi: { name: "Pi CLI", install: "npm i -g @earendil-works/pi-coding-agent" },
+   omp: { name: "omp CLI", install: "curl -fsSL https://omp.sh/install | sh" },
+   fx: { name: "fx CLI", install: "curl -fsSL https://fx.sh/setup.sh | bash" },
+@@ -46,6 +51,11 @@ let availability: HarnessAvailability = {
+   cursor: false,
+   grok: false,
+   opencode: false,
++  zai: false,
++  mimo: false,
++  openrouter: false,
++  nvidia: false,
++  gemini: false,
+   pi: false,
+   omp: false,
+   fx: false,
