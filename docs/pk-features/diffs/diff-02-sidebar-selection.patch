@@ -1,0 +1,57 @@
+diff --git a/src/app/shell/Sidebar.tsx b/src/app/shell/Sidebar.tsx
+index 61ff31d..fd29180 100644
+--- a/src/app/shell/Sidebar.tsx
++++ b/src/app/shell/Sidebar.tsx
+@@ -15,6 +15,7 @@ import {
+   GitBranch,
+   GitPullRequest,
+   Inbox,
++  StickyNote,
+   ListFilter,
+   MessageMultiple,
+   PanelLeft,
+@@ -23,7 +24,6 @@ import {
+   Search,
+   Share,
+   Settings,
+-  StickyNote,
+   Zap,
+ } from "../../shared/ui/icons";
+ import {
+@@ -160,11 +160,13 @@ const TAB_LABELS: Record<SidebarTab, string> = {
+   inbox: "Inbox",
+   files: "Explorer",
+   changes: "Changes",
++  notes: "Notes",
+ };
+ 
+ const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
+   sessions: MessageMultiple,
+   inbox: Inbox,
++  notes: StickyNote,
+   files: Files,
+   changes: GitBranch,
+ };
+@@ -2020,7 +2022,7 @@ function CompactProjectRail({
+           aria-orientation="vertical"
+           className="flex flex-col items-center gap-1.5"
+         >
+-          {tabs.map((itemId) => (
++          {tabs.filter((itemId) => itemId !== "notes").map((itemId) => (
+             <CompactRailAction
+               key={itemId}
+               tab
+diff --git a/src/app/shell/SidebarRename.test.ts b/src/app/shell/SidebarRename.test.ts
+index 3ca72b5..c6b78ad 100644
+--- a/src/app/shell/SidebarRename.test.ts
++++ b/src/app/shell/SidebarRename.test.ts
+@@ -613,7 +613,8 @@ describe("sidebar reorder affordances", () => {
+     act(() => render());
+ 
+     const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+-    expect(tabs).toHaveLength(3);
++    // PK also exposes project notes as a workspace tab.
++    expect([...tabs].map((tab) => tab.textContent)).toEqual(expect.arrayContaining(["Sessions", "Explorer", "Changes", "Notes"]));
+     for (const tab of tabs) {
+       expect(tab.className).not.toContain("cursor-grab");
+       expect(tab.parentElement?.className).not.toContain("cursor-grab");
