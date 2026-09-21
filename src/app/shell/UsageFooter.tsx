@@ -294,7 +294,7 @@ export function UsageFooter({
           if (value.status !== "ok") {
             throw new Error(
               value.error ||
-                `${HARNESS_TITLE[provider as HarnessId]} sign-in could not be verified`,
+                `${HARNESS_TITLE[provider]} sign-in could not be verified`,
             );
           }
         } catch (error) {

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { HARNESSES, type HarnessId, type Session } from "../../sessions/model/session";
+import { HARNESSES, isCustomHarness, type HarnessId, type Session } from "../../sessions/model/session";
 import { pathKey } from "../../../shared/lib/paths";
 import type { ApprovalDecision, HarnessEvent } from "../../../integrations/harness/core/types";
 import { pendingApprovalForSession } from "../../notifications/model/approvalToast";
@@ -1023,7 +1023,7 @@ export class Orchestrator {
           throw new Error("This run has reached its 40-task limit");
         const harness = text(input.harness, "harness") as HarnessId;
         if (
-          !HARNESSES.includes(harness as (typeof HARNESSES)[number]) ||
+          (!isCustomHarness(harness) && !HARNESSES.includes(harness)) ||
           !run.allowedHarnesses.includes(harness)
         )
           throw new Error(

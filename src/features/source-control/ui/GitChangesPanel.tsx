@@ -36,6 +36,7 @@ import {
   loadGraphPanelHeight,
   saveGraphPanelHeight,
 } from "./GitHistoryGraph";
+import { GithubMark, GitlabMark } from "../../inbox/ui/ProviderMarks";
 import {
   basename,
   gitCommit,
@@ -159,6 +160,9 @@ export function GitChangesPanel({
                 ↓{index.behind}
               </span>
             ) : null}
+            {index.remoteUrl ? (
+              <OpenRemoteButton remoteUrl={index.remoteUrl} />
+            ) : null}
           </span>
         ) : (
           <span className="ml-auto" />
@@ -219,6 +223,60 @@ export function GitChangesPanel({
         />
       </div>
     </div>
+  );
+}
+
+function remoteWebUrl(remote: string): string | null {
+  const value = remote.trim();
+  if (!value) return null;
+  if (value.startsWith("git@")) {
+    const match = value.match(/^git@([^:]+):(.+)$/);
+    if (!match) return null;
+    return `https://${match[1]}/${match[2].replace(/\.git$/, "")}`;
+  }
+  if (value.startsWith("ssh://git@")) {
+    return value.replace(/^ssh:\/\/git@/, "https://").replace(/\.git$/, "");
+  }
+  return value.replace(/\.git$/, "");
+}
+
+function remoteHost(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function OpenRemoteButton({ remoteUrl }: { remoteUrl: string }) {
+  const url = remoteWebUrl(remoteUrl);
+  if (!url) return null;
+  const host = remoteHost(url);
+  const github = host === "github.com" || host.endsWith(".github.com");
+  const gitlab = host === "gitlab.com" || host.endsWith(".gitlab.com");
+  const label = github
+    ? "Open on GitHub"
+    : gitlab
+      ? "Open on GitLab"
+      : "Open repository";
+  return (
+    <button
+      type="button"
+      className="ml-1 grid size-5 shrink-0 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content"
+      title={label}
+      aria-label={label}
+      onClick={() => {
+        void openUrl(url).catch(() => undefined);
+      }}
+    >
+      {github ? (
+        <GithubMark className="size-3" />
+      ) : gitlab ? (
+        <GitlabMark className="size-3" />
+      ) : (
+        <ExternalLink className="size-3" strokeWidth={1.75} />
+      )}
+    </button>
   );
 }
 
@@ -1425,13 +1483,13 @@ function useDiffIndex(
         indexByCwd.set(cwd, next);
         indexRef.current = next;
         setIndex(next);
-        applyProjectDiffStats(cwd, {
-          files: next.files.length,
-          additions: next.additions,
-          deletions: next.deletions,
-          ahead: 0,
-          behind: 0,
-        });
+          applyProjectDiffStats(cwd, {
+            files: next.files.length,
+            additions: next.additions,
+            deletions: next.deletions,
+            ahead: next.ahead,
+            behind: next.behind,
+          });
         if (prev) {
           const paths = changedFilePaths(prev, next);
           invalidateWatchedFiles(paths);

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "../../../platform/tauri/fs";
 import {
   errorRateLimits,
+  parseCodexBarUsage,
   parseClaudeOAuthUsage,
   parseCodexRateLimits,
   parseOpencodeGoUsage,
@@ -80,6 +81,15 @@ type ClaudeUsageFetch = {
   body?: string | null;
   error?: string | null;
 };
+
+export async function fetchCodexBarRateLimits(): Promise<ProviderRateLimits[]> {
+  try {
+    const body = await invoke<string>("fetch_codexbar_usage");
+    return parseCodexBarUsage(body);
+  } catch {
+    return [];
+  }
+}
 
 export async function fetchClaudeRateLimits(
   accountId = "default",

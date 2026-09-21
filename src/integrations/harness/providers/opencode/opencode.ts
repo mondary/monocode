@@ -80,6 +80,7 @@ type Live = {
   openCodeSessionId: string;
   cwd: string;
   runtimeMode: RuntimeMode;
+  taskDisabled: boolean;
   planning: boolean;
   onEvent: (event: HarnessEvent) => void;
   approvals: Map<number, PendingApproval>;
@@ -289,9 +290,19 @@ export function bindOpenCodeSession(
   resumeByThread.set(threadId, { sessionId, cwd });
 }
 
+// GLM (zai-coding-plan) calls the task tool with subtask:"" and opencode's
+// schema validation kills the turn before any deny permission is consulted.
+// The tool must be removed from the agent's toolset, which is only possible
+// through agent config at server start.
+const isZaiModel = (model: string) => model.startsWith("zai-coding-plan/");
+const ZAI_SERVER_ENV: Record<string, string> = {
+  OPENCODE_CONFIG_CONTENT: '{"agent":{"build":{"tools":{"task":false}}}}',
+};
+
 async function ensureLive(input: HarnessSessionInput): Promise<Live> {
+  const zai = isZaiModel(nativeModelId(input.model));
   const existing = liveByThread.get(input.sessionId);
-  if (existing && existing.cwd === input.cwd) {
+  if (existing && existing.cwd === input.cwd && existing.taskDisabled === zai) {
     existing.onEvent = input.onEvent;
     if (existing.runtimeMode !== input.runtimeMode) {
       await existing.client.updateSession(existing.openCodeSessionId, {
@@ -351,6 +362,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     path,
     ["serve", `--hostname=127.0.0.1`, `--port=${port}`],
     input.cwd,
+    isZaiModel(nativeModelId(input.model)) ? ZAI_SERVER_ENV : undefined,
   );
 
   try {
@@ -364,6 +376,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
       resume: canResume ? resume : undefined,
       runtimeMode: input.runtimeMode,
       cwd: input.cwd,
+      model: input.model,
     });
     if (canResume) {
       await repairUnsupportedFileTurn(client, openCodeSession.id).catch(
@@ -377,6 +390,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
       openCodeSessionId: openCodeSession.id,
       cwd: input.cwd,
       runtimeMode: input.runtimeMode,
+      taskDisabled: zai,
       planning: input.intent === "plan",
       onEvent: input.onEvent,
       approvals: new Map(),
@@ -470,9 +484,12 @@ async function resolveSession(
     resume?: Resume;
     runtimeMode: RuntimeMode;
     cwd: string;
+    model: string;
   },
 ) {
-  const permission = buildOpenCodePermissionRules(input.runtimeMode);
+  const permission = buildOpenCodePermissionRules(input.runtimeMode, {
+    allowTask: !isZaiModel(nativeModelId(input.model)),
+  });
   if (input.resume) {
     try {
       const adopted = await client.getSession(input.resume.sessionId);

@@ -149,6 +149,10 @@ pub(crate) fn list_skills_from(
         }
     }
     if let Some(home) = home {
+        // OpenCode keeps its user-level skills in its XDG config directory.
+        // Scan this canonical location so newly added skills are picked up
+        // without copying or maintaining per-skill symlinks.
+        add_root(home.join(".config/opencode/skills"), "user", "opencode");
         add_root(home.join(".pi/agent/skills"), "user", "pi");
         add_root(home.join(".omp/agent/skills"), "user", "omp");
         // New-provider roots come after every pre-existing root so an

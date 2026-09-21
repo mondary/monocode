@@ -88,6 +88,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.mocked(invoke).mockReset();
   vi.mocked(invoke).mockImplementation(async (command) => {
+    console.log("INVOKE:", command);
     if (command === "list_skills") return skills;
     if (command === "read_text_file") return markdown;
     throw new Error(`Unexpected command: ${command}`);

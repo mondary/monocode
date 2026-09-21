@@ -238,7 +238,24 @@ export function saveTabGroupLabel(project: string, label: string): void {
 }
 
 export function loadTabGroupLogos(): Record<string, string> {
-  return readRecord(LOGO_KEY);
+  const raw = readRecord(LOGO_KEY);
+  // PKmod: l'app a change d'identifiant (com.monocode.desktop -> com.monocode.pk);
+  // les logos sauvegardes pointent vers l'ancien dossier App Support, hors du
+  // scope asset protocol. Normaliser a la lecture suffit.
+  const legacy = "/Application Support/com.monocode.desktop/";
+  let migrated = false;
+  for (const key of Object.keys(raw)) {
+    const path = raw[key];
+    if (typeof path === "string" && path.includes(legacy)) {
+      raw[key] = path.replace(
+        legacy,
+        "/Application Support/com.monocode.pk/",
+      );
+      migrated = true;
+    }
+  }
+  if (migrated) writeRecord(LOGO_KEY, raw);
+  return raw;
 }
 
 export function saveTabGroupLogo(project: string, path: string | null): void {

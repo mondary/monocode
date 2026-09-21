@@ -974,6 +974,8 @@ fn stats_from_status(status: &CheckpointStatus) -> GitDiffStats {
         files: status.files.len() as i64,
         additions,
         deletions,
+        ahead: 0,
+        behind: 0,
     }
 }
 

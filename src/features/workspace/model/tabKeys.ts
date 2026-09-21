@@ -12,8 +12,8 @@
  *   Forward in history  cmd-]
  *   Activate tab 1–8    cmd-1 … cmd-8
  *   Last tab            cmd-9
- *   Cycle next tab      ctrl-tab
- *   Cycle previous tab  ctrl-shift-tab
+ *   Cycle next tab      cmd-opt-right
+ *   Cycle previous tab  cmd-opt-left
  *   Focus pane          cmd-opt-arrows
  *   New terminal        cmd-`
  *   New terminal tab    shift-cmd-`
@@ -29,6 +29,7 @@
  *   Stop focused turn   escape
  */
 
+import { matchesAction } from "./keybindings";
 import type { FocusDir } from "./layout";
 
 export type TabCommand =
@@ -36,8 +37,13 @@ export type TabCommand =
   | "close-others"
   | "close-all"
   | "close"
+  | "close-all"
   | "next"
   | "prev"
+  | "cycle-next"
+  | "cycle-prev"
+  | "move-left"
+  | "move-right"
   | "back"
   | "forward"
   | "split-right"
@@ -53,34 +59,54 @@ export type TabCommand =
   | { activate: number }
   | { focus: FocusDir };
 
+/**
+ * PKmod: bindings come from `keybindings.defaults.json` plus user overrides
+ * (see `src/lib/keybindings.ts`). Check order defines precedence when two
+ * actions share a binding; tab-activation digits stay fixed and last.
+ */
 export function tabCommand(e: KeyboardEvent): TabCommand | null {
   if (e.isComposing) return null;
 
+  if (matchesAction(e, "cycle_next_tab")) return "cycle-next";
+  if (matchesAction(e, "cycle_prev_tab")) return "cycle-prev";
+  if (matchesAction(e, "move_tab_left")) return "move-left";
+  if (matchesAction(e, "move_tab_right")) return "move-right";
+  if (matchesAction(e, "close_other_tabs")) return "close-others";
+  if (matchesAction(e, "focus_left")) return { focus: "left" };
+  if (matchesAction(e, "focus_right")) return { focus: "right" };
+  if (matchesAction(e, "focus_up")) return { focus: "up" };
+  if (matchesAction(e, "focus_down")) return { focus: "down" };
+
+  if (matchesAction(e, "new_terminal_tab")) return "new-terminal-tab";
+  if (matchesAction(e, "new_terminal")) return "new-terminal";
+
+  if (matchesAction(e, "archive_session") && !e.repeat) {
+    return "archive-session";
+  }
+  if (matchesAction(e, "next_tab")) return "next";
+  if (matchesAction(e, "prev_tab")) return "prev";
+  if (matchesAction(e, "prev_session")) return "prev-session";
+  if (matchesAction(e, "next_session")) return "next-session";
+  if (matchesAction(e, "prev_project")) return "prev-project";
+  if (matchesAction(e, "next_project")) return "next-project";
+  if (matchesAction(e, "split_down")) return "split-down";
+
+  if (matchesAction(e, "new_tab")) return "new";
+  if (matchesAction(e, "close_tab")) return "close";
+  if (matchesAction(e, "split_right")) return "split-right";
+  if (matchesAction(e, "toggle_terminal")) return "toggle-terminal";
+  if (matchesAction(e, "back_tab")) return "back";
+  if (matchesAction(e, "forward_tab")) return "forward";
+
   const mod = e.metaKey || e.ctrlKey;
-
-  if (mod && e.altKey && !e.shiftKey) {
-    if (e.key.toLowerCase() === "t") return "close-others";
-    if (e.key === "ArrowLeft") return { focus: "left" };
-    if (e.key === "ArrowRight") return { focus: "right" };
-    if (e.key === "ArrowUp") return { focus: "up" };
-    if (e.key === "ArrowDown") return { focus: "down" };
-    return null;
-  }
-
-  if (e.key === "Tab" && e.ctrlKey && !e.metaKey && !e.altKey) {
-    return e.shiftKey ? "prev" : "next";
-  }
-
-  if (!mod || e.altKey) return null;
-
-  if (e.key === "`" || e.code === "Backquote") {
-    return e.shiftKey ? "new-terminal-tab" : "new-terminal";
-  }
-
   const key = e.key.toLowerCase();
+  if (mod && !e.altKey && !e.shiftKey) {
+    if (key >= "1" && key <= "8") return { activate: Number(key) - 1 };
+    if (key === "9") return { activate: -1 };
+  }
 
-  if (e.shiftKey) {
-    if (key === "a" && !e.repeat) return "archive-session";
+  if (e.shiftKey && (e.metaKey || e.ctrlKey)) {
+    if (key === "a" && !e.altKey && !e.repeat) return "archive-session";
     if (e.key === "]" || e.key === "}") return "next";
     if (e.key === "[" || e.key === "{") return "prev";
     if (e.key === "ArrowUp") return "prev-session";
@@ -91,15 +117,6 @@ export function tabCommand(e: KeyboardEvent): TabCommand | null {
     if (key === "w") return "close-all";
     return null;
   }
-
-  if (key === "t") return "new";
-  if (key === "w") return "close";
-  if (key === "d") return "split-right";
-  if (key === "j") return "toggle-terminal";
-  if (e.key === "[" || e.code === "BracketLeft") return "back";
-  if (e.key === "]" || e.code === "BracketRight") return "forward";
-  if (key >= "1" && key <= "8") return { activate: Number(key) - 1 };
-  if (key === "9") return { activate: -1 };
   return null;
 }
 

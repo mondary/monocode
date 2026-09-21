@@ -18,6 +18,7 @@ import {
 import { workspaceTabCwd } from "../../workspace/model/workspaceTabGroups";
 
 export type DockSide = "top" | "bottom" | "left" | "right";
+export type TerminalPlacement = DockSide | "tab";
 
 export type ProjectTerminalDock = {
   projectPath: string;
@@ -44,6 +45,54 @@ export function isDockSide(value: unknown): value is DockSide {
     value === "left" ||
     value === "right"
   );
+}
+
+const DEFAULT_DOCK_SIDE_KEY = "monocode.defaultDockSide";
+
+export const DOCK_SIDE_DEFAULT: DockSide = "bottom";
+
+/** Side used when a project gets its first terminal dock (PKmod). */
+export function loadDefaultDockSide(): DockSide {
+  try {
+    const raw = localStorage.getItem(DEFAULT_DOCK_SIDE_KEY);
+    return isDockSide(raw) ? raw : DOCK_SIDE_DEFAULT;
+  } catch {
+    return DOCK_SIDE_DEFAULT;
+  }
+}
+
+export function saveDefaultDockSide(side: DockSide): void {
+  try {
+    localStorage.setItem(DEFAULT_DOCK_SIDE_KEY, side);
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function isTerminalPlacement(value: unknown): value is TerminalPlacement {
+  return value === "tab" || isDockSide(value);
+}
+
+const DEFAULT_TERMINAL_PLACEMENT_KEY = "monocode.defaultTerminalPlacement";
+
+export function loadDefaultTerminalPlacement(): TerminalPlacement {
+  try {
+    const raw = localStorage.getItem(DEFAULT_TERMINAL_PLACEMENT_KEY);
+    if (isTerminalPlacement(raw)) return raw;
+    return loadDefaultDockSide();
+  } catch {
+    return DOCK_SIDE_DEFAULT;
+  }
+}
+
+export function saveDefaultTerminalPlacement(
+  placement: TerminalPlacement,
+): void {
+  try {
+    localStorage.setItem(DEFAULT_TERMINAL_PLACEMENT_KEY, placement);
+  } catch {
+    // private mode / quota
+  }
 }
 
 export function isVerticalDock(side: DockSide): boolean {

@@ -416,6 +416,7 @@ pub fn harness_spawn(
     command: String,
     args: Vec<String>,
     cwd: String,
+    env: Option<HashMap<String, String>>,
     account: Option<HarnessAccount>,
 ) -> Result<u32, String> {
     let workdir = expand_home(&cwd);
@@ -439,6 +440,11 @@ pub fn harness_spawn(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     prepare_child(&mut cmd, &command);
+    if let Some(env) = &env {
+        for (key, value) in env {
+            cmd.env(key, value);
+        }
+    }
     apply_provider_account(&app, &mut cmd, account.as_ref())?;
 
     crate::control::configure_child(&app, &session_id, &mut cmd);

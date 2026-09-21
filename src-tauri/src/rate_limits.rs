@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use std::process::Command;
 use serde_json::Value;
 #[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};
@@ -407,6 +408,58 @@ pub async fn fetch_claude_usage(
     tauri::async_runtime::spawn_blocking(move || fetch_claude_usage_sync(config_dir))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn fetch_codexbar_usage() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(fetch_codexbar_usage_sync)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+fn fetch_codexbar_usage_sync() -> Result<String, String> {
+    let path = crate::harness::resolve_gui_binary("codexbar")
+        .ok_or_else(|| "CodexBar CLI not found".to_string())?;
+    let output = Command::new(path)
+        .args(["usage", "--format", "json", "--pretty", "--provider", "all"])
+        .env("NO_COLOR", "1")
+        .output()
+        .map_err(|error| error.to_string())?;
+    if output.stdout.is_empty() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Instant provider list for the Settings picker: reads CodexBar's enabled
+/// providers straight from its config, without spawning the CLI (whose full
+/// usage pass scrapes the web for a minute and kept "Loading providers…"
+/// stuck in Settings).
+#[tauri::command]
+pub async fn codexbar_provider_list() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let home = dirs_home().ok_or("Could not resolve the home directory")?;
+        let path = Path::new(&home).join(".codexbar").join("config.json");
+        let raw =
+            std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let config: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|error| error.to_string())?;
+        let providers = config
+            .get("providers")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default();
+        Ok(providers
+            .into_iter()
+            .filter_map(|provider| {
+                let enabled = provider.get("enabled")?.as_bool()?;
+                let id = provider.get("id")?.as_str()?.to_string();
+                enabled.then_some(id.to_string())
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn fetch_claude_usage_sync(config_dir: Option<PathBuf>) -> Result<ClaudeUsageFetch, String> {

@@ -1,3 +1,96 @@
+<!-- MONOCODE-PK-START -->
+<p align="center"><img src="public/monocode-pk.png" alt="MonoCode PK" width="88" /></p>
+
+# MonoCode PK
+
+[🇫🇷 PK (FR)](#monocode-pk) · [🇬🇧 README officiel (EN) ci-dessous](#monocode)
+
+Fork personnel de [MonoCode](https://github.com/hardbeat920/monocode), maintenu via intégration validée de l'amont — version applicative **0.1.50**, distribution PK **2026.09.43**.
+
+<p align="center">
+  <img src="store/screenshots/01-monocode-pk.png" alt="MonoCode PK — workspace" width="784" />
+</p>
+
+## 🎯 Pourquoi ce fork
+
+MonoCode PK garde **tout MonoCode officiel** (intégration validée de l'amont, `tauri.conf.json` identique → zéro conflit) et ajoute une couche personnelle : pilotage multi-providers réel, rail projets vivant, initialisation de projet en un clic, et une boucle de mise à jour à deux axes. Chaque réglage modifié porte un badge **PK** dans Settings.
+
+| Domaine | MonoCode officiel | MonoCode PK |
+|---|---|---|
+| Providers directs | Claude, Codex, Cursor, Grok, OpenCode, Pi, omp, fx | + **Z.ai (GLM)**, **Xiaomi MiMo**, Zen, onglets OpenAI-compatibles |
+| Quotas en footer | — | Vrais chiffres **CodexBar** : providers sélectionnables (Claude, Codex, ZAI, OpenCode Go, MiMo, Cursor, Grok, Devin, Kilo Code, CodeBuff…), fenêtres 5 h/hebdo/mensuelle et détails au clic |
+| **Providers custom** | — | Endpoints OpenAI-compatibles (base URL + API key + **bouton Test**), **onglet dédié** dans le picker, routés via OpenCode |
+| Rail projets | Statique | **Glow paramétrable** sur les projets en travail + badge **« terminé — à vérifier »** quand l'agent a fini |
+| Initialisation projet | — | Bouton **Initialize** : symlinks `.agent`/`.inspi`/templates, fichiers d'instructions, `.gitignore`, `VERSION`/`CHANGELOG.md` — jamais d'écrasement |
+| Mises à jour | Updater binaire officiel | Deux axes : release amont **+ branche PK GitHub**, **dialog in-app stylé** avec liste des commits, un clic = fast-forward PK validé + build + relance |
+| Environnement de dev | — | Variante **dev isolée** (`build:pk:dev`) : je code/tue/relance sans toucher à ta version quotidienne |
+
+## ✨ En détail
+
+### Rail projets & agents
+- Titre du projet en travail balayé d'une lumière dont la **couleur se choisit** (Theme, Amber, Emerald, Sky, Violet, Pink, Red).
+- Quand un agent **termine** pendant que tu es ailleurs : pastille ✓ émeraude « finished — needs review » sur le projet, effacée quand tu ouvres la session.
+- Commits non poussés `↑n` par projet, bouton dépôt avec le **logo officiel GitHub** (ou GitLab selon le remote).
+- Cycle global des onglets chat/terminal (⌘⌥ flèches), carte des agents en cours.
+
+### Notes & Explorer
+- **Onglet Notes par projet** à côté de Sessions / Explorer / Changes : les notes du projet en cours, recherche, création rapide, suppression, et ouverture dans la vue Notes complète centrée sur la note.
+- **Initialize project** (baguette ✨) : crée les liens symboliques de tes templates/skills et expose `AGENT.md`, `CLAUDE.md`, etc. à la racine — sources et options éditables dans *Settings > Skills*.
+- Bouton **Changes masquable** (l'onglet Source Control fait déjà le travail) et **accent PK** sur les boutons Reveal / Initialize.
+
+### Usage & providers
+- Footer usage : **Current chat** (suit la conversation) ou **Choose** (coche Codex, ZAI, OpenCode Go, Xiaomi MiMo… affichés en permanence, quel que soit le chat ouvert).
+- En mode **Full access**, Codex exécute les commandes et modifications sans demandes « Allow » intermédiaires ; les consentements MCP explicites restent soumis à validation.
+- Les réglages affichent toujours les providers de quota PK (Codex, Claude, ZAI, OpenCode Go, Xiaomi MiMo), même lorsqu'un provider n'est pas encore détecté par CodexBar.
+- Tous les providers CodexBar connus peuvent être cochés ou décochés individuellement dans *Choose* ; le footer reste compact et le détail s'ouvre au clic.
+### Apparence
+- Presets **Dracula** et **Catppuccin** complets : Latte (bascule en light), Frappé, Macchiato, Mocha — palette officielle.
+- Teinte/saturation du thème réglables, fonds de sidebar personnalisés, transparence.
+- Icône app custom (ton `iconique.png`), About en tête de General, nouveautés officielles et PK côte à côte, badges PK sur les réglages du fork.
+- Texte et endpoints des Settings sélectionnables à la souris pour faciliter la copie.
+
+### Terminal & raccourcis
+- **Variante dev** marquée d'un badge **DEV** (title bar + About) : impossible de confondre le build cobaye avec la version quotidienne.
+- Position du dock terminal configurable (bottom/right/left/top/tab), vrais onglets, indicateur d'activité.
+- Page **Keybindings** dédiée : capture native des touches, détection de conflits, menu reconstruit à la volée.
+
+## 🧠 Utilisation
+
+- `scripts/sync-pk-update.sh` — récupère la branche PK validée en fast-forward, build, relance l'app ; les merges amont restent validés dans `perso/pk` avant installation.
+- `npm run build:pk:dev` — build la variante **dev** (`/Applications/MonoCodePK-Dev.app`, identifiant `com.monocode.pk.dev`) : données et permissions isolées, cohabite avec la version quotidienne pour valider les nouveautés sans tuer MonoCode PK. Le « Check for Updates » de chaque variante reconstruit et relance sa propre variante.
+
+## ⚙️ Réglages
+- Tout se règle dans Settings : thème, raccourcis, position du dock terminal, footer usage (*Current chat* / *Choose*), glow des projets en travail, options Explorer, initialisation de projet (liens, `.gitignore`, fichiers metadata). Les options modifiées par rapport à l'officiel portent un badge PK.
+
+## 📦 Installation
+
+**Homebrew** (Apple Silicon) :
+
+```bash
+brew install --cask mondary/tap/monocode-pk
+```
+
+Mise à jour : `brew upgrade --cask mondary/tap/monocode-pk`
+
+**DMG signé** : télécharger [MonoCodePK_2026.09.43_aarch64.dmg](https://github.com/mondary/monocode/releases/latest), ouvrir et glisser MonoCode PK dans Applications. Chaque release PK publie son DMG sur [GitHub Releases](https://github.com/mondary/monocode/releases) (tag `pk-<version>`).
+
+**Depuis les sources** : `npm run build:pk` installe `/Applications/MonoCodePK.app`.
+
+## 📦 Build & Package
+
+- `npm run build:pk` — build release avec overlay de branding PK (`tauri.conf.json` identique à l'amont, zéro conflit de merge), installe `/Applications/MonoCodePK.app` (identifiant dédié `com.monocode.pk`, signature Apple Development stable).
+
+## 📋 Historique
+
+- Versions PK détaillées : sections `[2026.09.x]` dans le [CHANGELOG](CHANGELOG.md) ; le reste suit les releases officielles.
+
+## 🔗 Liens
+
+- [MonoCode officiel](https://github.com/hardbeat920/monocode) · branche `perso/pk` = ce fork · branche `main` = miroir de l'amont.
+
+<!-- MONOCODE-PK-END -->
+
+
 <p align="center">
   <img src="public/monocode.png" alt="MonoCode" width="88" />
 </p>
@@ -12,7 +105,7 @@
   <img width="1680" height="1050" alt="Screenshot 2026-09-04 at 06 34 00" src="https://github.com/user-attachments/assets/2cd4a6ec-eb1e-4b45-8627-a76442ea3874" />
 </p>
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Antigravity, Pi, omp, fx, and Hermes Agent. If they’re installed and logged in, MonoCode can run them. Tabs are sessions. The composer is the input. MonoCode does not sell tokens.
+Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, fx, and Hermes Agent. If they’re installed and logged in, MonoCode can run them. Tabs are sessions. The composer is the input. MonoCode does not sell tokens.
 
 ## Install
 
@@ -23,7 +116,6 @@ Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCod
 > - [Cursor CLI](https://cursor.com/cli) - `agent login`
 > - [Grok Build](https://docs.x.ai/build/overview) - `curl -fsSL https://x.ai/cli/install.sh | bash` then `grok login`
 > - [OpenCode](https://opencode.ai) - `opencode auth login`
-> - [Antigravity](https://antigravity.google/docs/cli-install) (macOS/Linux) - `curl -fsSL https://antigravity.google/cli/install.sh | bash`, then run `agy` once to sign in
 > - [Pi](https://pi.dev/) - `npm install -g @earendil-works/pi-coding-agent`
 > - [omp](https://omp.sh) - `curl -fsSL https://omp.sh/install | sh`
 > - [fx](https://fx.sh) - `curl -fsSL https://fx.sh/setup.sh | bash` then `fx login`

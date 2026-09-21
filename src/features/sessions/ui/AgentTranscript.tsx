@@ -795,10 +795,16 @@ function TurnDuration({
           <Check className="size-3.5" strokeWidth={1.75} />
         )}
         {fromHarness && onHandoff ? (
-          <HandoffButton from={fromHarness} onPick={onHandoff} />
+          <HandoffButton
+            from={fromHarness}
+            onPick={onHandoff}
+          />
         ) : null}
         {fromHarness && onSecondOpinion ? (
-          <SecondOpinionButton from={fromHarness} onPick={onSecondOpinion} />
+          <SecondOpinionButton
+            from={fromHarness}
+            onPick={onSecondOpinion}
+          />
         ) : null}
         <TurnMetricsBadge metrics={metrics} elapsedMs={elapsedMs} />
       </span>

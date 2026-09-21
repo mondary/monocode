@@ -5,7 +5,478 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2026.09.43] - 2026-09-18
+
+### Fixed
+
+- Le logo du header du workspace se résout depuis le logo personnalisé ou l'icon.png racine du projet.
+- Les projets « en cours » suivent l'ordre du rail : cliquer un projet ne le fait plus remonter.
+- Dossier `.monocode/` (exports de notes) ignoré par git.
+
+### Changed
+
+- Effort visible par défaut en bouton horizontal dans le composeur (choix PK : lisible sans ouvrir le popover).
+
+## [2026.09.42] - 2026-09-18
+
+### Added
+
+- Logo du projet affiché à gauche du nom dans le header du workspace.
+- Sélecteur Steer/Queue par message dans le composeur pendant un tour actif : Entrée applique le choix du message sans modifier le réglage global.
+- Page store v2 avec kit média régénérable (démo HTML, GIF, MP4, bannière, card OG) et captures réelles de l'app.
+
+### Changed
+
+- Défauts PK alignés : usage display « Remaining », fenêtre de quota « 5 heures », auto-export des notes activé, Highlight custom actions activé, titre workspace = nom du projet (badge PK).
+- Les projets « en cours » gardent un ordre stable : cliquer un projet ne le fait plus remonter dans la carte.
+
+## [2026.09.41] - 2026-09-18
+
+### Changed
+
+- Base officielle 0.1.50 réintégrée dans l'arbre PK (127 commits amont, fin du port à la main).
+- Port complet des 23 features PK sur la base 0.1.50 : sidebar multisélection/tags, notes (filtre, chips, édition, export), paramètres, providers PK et personnalisés, quotas CodexBar, thèmes, terminaux, raccourcis.
+- Catalogue `docs/pk-features/` : 23/23 fiches vérifiées (tests + build + inspection DMG).
+
+### Fixed
+
+- Doubles imports et collisions de merge résolus (HarnessIcon, harness env PK, modules lib.rs).
+
+## [2026.09.40] - 2026-09-17
+
+### Changed
+
+- L'onglet sélectionné porte une barre d'accent en haut : le glow de travail (bas) ne masque plus la sélection.
+- Le nom du projet s'affiche par défaut dans le header au lieu de « Workspace ».
+- Le composeur grandit ligne par ligne jusqu'à ~10 lignes puis défile, avec le texte rendu synchronisé.
+- Les instructions d'installation (Homebrew, DMG) sont documentées dans le README.
+
+### Fixed
+
+- L'update in-app stash et restaure le WIP au lieu d'abandonner sur un arbre de travail non propre.
+
+## [0.1.46] - 2026-09-15
+
+### Changed
+
+- Le build PK reste aligné sur la version officielle applicative 0.1.46.
+- La mise à jour automatique ne fusionne plus un amont divergent sans validation ; elle installe uniquement la branche PK validée.
+
+## [2026.09.39] - 2026-09-13
+
+### Added
+
+- Fournisseurs Gemini (API) et Antigravity en onglets de première classe via l'OpenCode CLI, avec icônes de marque et badge PK.
+- Export d'une note en markdown (frontmatter titre/tags/dates) depuis la vue Notes.
+- Option d'auto-export des notes rattachées à un projet vers `<projet>/.monocode/notes/<slug>.md`, réécrite à chaque édition et supprimée avec la note ; activation = export immédiat des notes existantes.
+
+### Fixed
+
+- La fenêtre « Mise à jour installée » ne demande plus un redémarrage redondant juste après que la mise à jour PK a déjà relancé l'application.
+- Z.AI/GLM-5.3 ne plante plus sur `SchemaError ... at ["subtask"]` : l'outil `task` est retiré du toolset des modèles zai-coding-plan au démarrage du serveur OpenCode.
+
+## [2026.09.38] - 2026-09-12
+
+- Version PK incrémentée après les huit commits PK en attente.
+
+## [2026.09.29] - 2026-09-11
+
+### Changed
+
+- Quota provider ordering now uses a dedicated vertical list with clear visibility toggles, positions, and move controls.
+
+## [2026.09.28] - 2026-09-11
+
+### Fixed
+
+- Provider quota aliases such as Kilo, Kilo Code, and KiloCode now share one selection state.
+- The quota provider ordering controls are visible regardless of the selected provider mode.
+- A finished project now shows its review check indicator in place of the project logo until it is opened.
+
+## [2026.09.27] - 2026-09-11
+
+### Changed
+
+- The update-launch dialog remains visible for three seconds before the application exits for its rebuild and restart.
+
+## [2026.09.26] - 2026-09-11
+
+### Changed
+
+- The workspace now opens on the Changes tab when MonoCode starts.
+
+## [2026.09.25] - 2026-09-11
+
+### Fixed
+
+- The post-update restart notification is now displayed globally above the application, even when the sidebar is hidden.
+
+## [2026.09.24] - 2026-09-11
+
+### Changed
+
+- Quota providers now normalize CodexBar aliases such as `kilo`/Kilo Code, and their footer order can be customized from Settings.
+
+## [2026.09.23] - 2026-09-11
+
+### Added
+
+- Project context menus can open the detected GitHub/GitLab repository directly.
+- Root `icon.png`, `icon.jpg`, or `icon.jpeg` is used automatically as the project logo when no custom logo is set.
+- The project logo picker now exposes the detected root icon as the default without replacing a manually chosen logo.
+
+## [2026.09.22] - 2026-09-11
+
+### Added
+
+- A persistent post-update notification with an explicit Redémarrer button.
+
+- The quota picker now includes Devin, Kilo Code, and CodeBuff, and provider details open in a readable click-based card.
+
+## [2026.09.21] - 2026-09-11
+
+### Changed
+
+- PK release version bumped after the quota provider selection and click-to-open quota details updates.
+
+## [2026.09.20] - 2026-09-11
+
+### Fixed
+
+- The update dialog always shows both MonoCode official and MonoCodePK axes, including delayed PK commits, even when the official updater also has a release available.
+- Stable updates now identify the current PK release separately from the official MonoCode version.
+
+## [2026.09.19] - 2026-09-11
+
+### Changed
+
+- Custom providers get their own tab in the model picker and their own row in Settings > Providers (models, default, picker visibility), instead of nesting inside OpenCode. Brand-less marks render as an initial-letter chip.
+
+### Fixed
+
+- Full access no longer sends ordinary Codex command and file-change requests through an `on-request` approval flow, so the app does not repeatedly ask for « Allow » after Full access is selected. Explicit MCP consent remains interactive.
+- The project rail now receives the active agent paths, restoring the working glow and the finished « needs review » indicator.
+- Settings text and provider endpoints can be selected and copied with the mouse.
+- PK quota choices keep Claude, Codex, ZAI, OpenCode Go, and Xiaomi MiMo visible even when CodexBar has not detected one of them yet.
+
+## [2026.09.18] - 2026-09-11
+
+### Added
+
+- Dev variant marker: a DEV badge in the title bar and Settings > About distinguishes the cobaye build from the daily MonoCode PK at a glance (bundle-identifier driven).
+
+## [2026.09.17] - 2026-09-11
+
+### Added
+
+- Catppuccin theme presets: Latte, Macchiato, and Mocha join Frappé (official palette hexes). Picking Latte switches to the light scheme automatically since that flavor is designed for light surfaces.
+
+## [2026.09.16] - 2026-09-11
+
+### Added
+
+- Background image panel scope: after picking an image, enable it per panel — Chat, Workspace (sidebar + project rail), Terminal (transparent xterm canvases) — from Settings > Appearance.
+- Custom OpenAI-compatible providers (Settings > Providers > Custom providers): endpoint + API key + Test button that lists the models the endpoint returns. Saved providers are merged into OpenCode's config (`opencode.json`) so their models appear in the OpenCode tab; keys stay on this device.
+
+## [2026.09.15] - 2026-09-11
+
+### Added
+
+- Per-project Notes tab next to Sessions / Explorer / Changes: the project's notes with search, quick create, delete, and handoff to the full Notes view (opens it focused on the note).
+
+## [2026.09.14] - 2026-09-11
+
+### Changed
+
+- Provider icons: Nvidia now uses the official green eye mark (#76B900, no longer tinted), and omp renders its real gradient logo instead of the monochrome bars. ZAI, MiMo, and OpenRouter keep their official monochrome marks (those brands have no colored logo).
+
+## [2026.09.13] - 2026-09-11
+
+### Changed
+
+- The PK update prompt is now an in-app dialog styled like What's New: two panes (official + PK) with commit lists, per-axis up-to-date chips, unpushed-commit warnings, and Mettre à jour / Plus tard buttons — replacing the native macOS dialog. Headless runs keep the native fallback.
+
+## [2026.09.12] - 2026-09-11
+
+### Added
+
+- Working glow color setting: pick the shimmer highlight on busy project titles (theme or six presets), and a "needs review" badge marks projects whose agent finished while you were elsewhere.
+
+### Changed
+
+- Usage providers: "Current chat" / "Choose" replace the unclear Active/Custom labels, the Choose scope fetches its picks regardless of the focused conversation, provider names render properly (ZAI, OpenCode Go, Xiaomi MiMo), and OpenCode sessions match the OpenCode Go chip.
+
+## [2026.09.11] - 2026-09-10
+
+### Added
+
+- Dev variant (`npm run build:pk:dev`): `/Applications/MonoCodePK-Dev.app` with its own bundle identifier, data, and TCC permissions, so agent-driven rebuilds never touch the daily MonoCode PK. Each variant's update flow rebuilds and relaunches itself.
+
+## [2026.09.10] - 2026-09-10
+
+### Changed
+
+- The Changes header "Open repository" button now shows the official GitHub mark (GitLab logo on gitlab.com remotes) instead of a generic link icon.
+
+## [2026.09.9] - 2026-09-10
+
+### Fixed
+
+- Cmd+Tab and Dock now render the custom PK icon: the stale compiled asset catalog no longer shadows the regenerated `icon.icns` (build strips `CFBundleIconName` and re-signs the bundle).
+
+## [2026.09.8] - 2026-09-10
+
+### Added
+
+- Settings > General > Explorer can hide the header Changes button when the Source Control tab already covers it.
+- Settings > General > Explorer can tint the Reveal and Initialize project buttons with the PK accent color; both apply live.
+
+## [2026.09.7] - 2026-09-10
+
+### Added
+
+- Explorer now has a PK project initialization button for configurable `.agent`, `.inspi`, template, and skill symlinks.
+- Settings > Skills now stores editable initialization links and options for agent instructions, `.gitignore`, `VERSION`, and `CHANGELOG.md`.
+
+### Changed
+
+- Project initialization never overwrites real local files or folders; existing symlinks are reused or updated safely.
+
+## [2026.09.6] - 2026-09-10
+
+### Fixed
+
+- Explorer uses the current project path for its workspace button and resolves the Git repository root before opening Finder.
+- Directory reveal actions open the Git repository root instead of selecting the repository's parent folder.
+
+## [2026.09.5] - 2026-09-10
+
+### Added
+
+- General settings now starts with the About and update block, marked with a PK badge; What's new opens official MonoCode and MonoCodePK release notes side by side.
+- Explorer's Finder button opens the Git repository root that contains `.git`.
+
+### Changed
+
+- The update status copy distinguishes official MonoCode releases from MonoCodePK updates.
+- README includes the supplied MonoCodePK workspace capture.
+
+## [2026.09.4] - 2026-09-10
+
+### Changed
+
+- The PKmod update dialog now reports both axes with clear labels: MonoCode officiel (upstream semver) and MonoCodePK (CalVer), including PK commits available on GitHub and unpushed local commits.
+- App icon regenerated from the reference artwork (Catppuccin-tinted MonoCode glyph).
+
+### Fixed
+
+- The PK update flow pulls the fork branch from GitHub before merging upstream, so updates pushed from another machine are installed too.
+
+## [2026.09.3] - 2026-09-10
+
+### Added
+
+- Reveal workspace in Finder button in the Explorer tab toolbar.
+
+## [2026.09.2] - 2026-09-10
+
+### Changed
+
+- The MonoCode PK icon (official glyph in Catppuccin mauve) is used everywhere: app bundle, dock, boot splash, favicon, update card, and README.
+
+## [2026.09.1] - 2026-09-10
+
+### Fixed
+
+- Right-clicking an HTML file in the file tree and choosing Open in Browser now works: the opener capability allows local `file://` URLs, filenames containing `#`, `%`, or spaces are encoded correctly, and failures surface in the sidebar instead of being silently ignored.
+
+## [0.1.50] - 2026-09-17
+
+### Added
+
+- Hermes Agent is available as an ACP harness with live model discovery, image and file attachments, permission prompts, in-flight redirects, and persisted session resume. Install Hermes, configure a provider with `hermes model`, and MonoCode will add it to the model picker. In #282.
+- Projects can be organized into persistent, collapsible groups in the project rail, with custom names, colors, and mascots. Projects can be assigned or returned to the ungrouped section from their context menu.
+- On Windows, closing a window can hide it to the system tray so running agents continue; the behavior is enabled by default, configurable in Settings, and paired with tray actions to reopen or fully quit MonoCode. Full quits coordinate every window, count all running turns, ask once, wait for workspace saves, recover from stale confirmations, and abort safely if required persistence fails. In #224 by @goujandev.
+- Claude Code and Codex support multiple named accounts. Add or switch accounts from the usage footer; each project remembers its selection, and existing conversations remain pinned to the account that started them. In #280.
+- OpenCode Go usage appears in the status-bar footer with five-hour, weekly, and monthly limits and reset countdowns. Credential discovery supports environment overrides, JSON and JSONC configuration, and XDG data directories. In #263 by @D3nnis72.
+- The branch picker can create a branch through a dedicated name dialog, with the new branch immediately available for selection.
+- Files can be dragged from the Explorer into the Composer, with a drag preview and the same attachment handling as files added through the picker.
+- Project menus can open a project in a detected external editor on macOS, Windows, and Linux.
+- Binary and image viewers can copy the original file to the macOS clipboard from their toolbar or context menu, with temporary success feedback.
+- GitHub pull-request headers include an action to copy the head branch name. Closes #248 in #273 by @bluzername.
+- Contributors can set `MONOCODE_DEV_APP_NAME` to run a separately named macOS development app without changing the default bundle identity. Invalid names and path traversal are rejected. In #284 by @MichaelOgunjimi.
+
+### Changed
+
+- Workspace and file tabs have more consistent alignment, spacing, active-state highlighting, rounded corners, and cursor behavior, while the terminal dock uses a simpler trailing layout.
+- Changing an OpenCode session's access mode updates its live permissions immediately, and switching to Full Access automatically resolves residual approval prompts.
+- Orchestrated workers use private scratch directories and canonical write-path checks. Paused runs remain inspectable, interrupted work can be retried after resuming, and invalid orchestration proposals are repaired before results are published.
+
+### Fixed
+
+- Pasting or dropping files from Finder into the file tree works reliably on macOS, including safe handling of symlink aliases; drop targeting also accounts for Windows display scaling. In #264 by @kartava.
+- The Composer regains focus after answering a question, finishing an agent turn, or returning to the MonoCode window without stealing focus from another Composer or an open picker. In #292 by @MichaelOgunjimi.
+- Context menus can use their intrinsic height, tab-group menus open on the correct side, light-theme popovers remain opaque, and reorderable tabs use the default cursor.
+- Unix orchestration scratch directories retain restrictive `0700` permissions when their ownership is transferred to the worker.
+
+## [0.1.49] - 2026-09-16
+
+### Added
+
+- Usage controls open detailed Claude and Codex limit views with per-window progress, reset times, and refreshed status. Codex accounts can inspect and redeem banked rate-limit resets with confirmation, while project mascots reflect whether resets are available.
+- The Inbox menu and Inbox view can mark all visible activity as read with persistent state. In #253 by @ognjeeen.
+- GitHub Inbox aggregation discovers work items from both fork and parent repositories and keeps operations and caches scoped to the correct repository.
+- Shift-click selects a range of sidebar sessions, while Command/Ctrl-click adds or removes individual sessions from the selection. In #259 by @ognjeeen.
+- Provider footer controls can launch the official browser sign-in flow for Claude Code, Codex, Cursor, Grok Build, and fx when authentication is required. Submitting while signed out opens the same focused sign-in experience instead of printing the CLI error into the transcript.
+
+### Changed
+
+- Settled turns fold advisor interjections, status rows, and delegated runs into the work trail while keeping errors, interruptions, and failed runs visible. Folded prose is visually quieter and status-only groups use a clearer label. In #237 by @elijah7x.
+- Linked work-item panels remain mounted across workspace-tab switches for instant restoration, and their external-link action now sits in the responsive panel header.
+- The first editor opened beside a conversation is placed to its left, preserving the session on the right.
+- Transparent macOS windows use native visual-effect backing, and stationary glass layers are isolated from modal, popover, and notice animations for more stable compositing.
+- Markdown mode tabs, skill selection, and Orchestrator controls have simpler styling and improved contrast across light and dark themes.
+
+### Fixed
+
+- Orchestration waits wake as soon as a worker requests approval or other input, including when input was already pending, and unavailable approval controls stay hidden.
+- GitHub pull-request actions accept successful commands that produce no stdout and then refresh the pull request state.
+- Inbox alerts are suppressed for activity created by the current user across GitHub, GitLab, and Linear.
+- PowerShell and Windows shell commands preserve quoted and partially quoted arguments, recognize option aliases, and stop wrapper-flag parsing at file scripts. In #233 by @notsapinho.
+- The branch picker focuses its search field after the popover becomes visible. In #246 by @actuallyakshat.
+- The Claude usage footer no longer refreshes or writes credentials owned by Claude Code, avoiding refresh-token rotation races that could force frequent reauthentication.
+
+## [0.1.48] - 2026-09-16
+
+### Added
+
+- Drag a split pane into the title-bar tab strip to detach it as a separate workspace tab. Chat, editor, and terminal panes keep their contents and focus.
+- Configure sounds, desktop banners, and sidebar indicators by category for each project from Settings or the project and Inbox menus. Projects can be muted for one, four, or eight hours, until a custom time, or until manually resumed; bulk controls and persistent mute indicators are included, and muting hides Inbox badges without clearing unread activity. In #242 by @ognjeeen.
+- GitHub pull-request details include confirmed actions to merge, convert between draft and ready, close, and reopen the pull request, then refresh the Inbox with its new state.
+- Title-bar tabs show a teal completion check for an unseen agent response until the tab is viewed, while active runs keep their busy indicator.
+
+### Changed
+
+- Linked GitHub issues and pull requests open in a resizable panel beside their session instead of replacing it with the Inbox. Item identity stays pinned while the details scroll as one view, related threads are omitted from the side-panel layout, and review actions remain visually distinct.
+- The usage footer names the active terminal process in place of the generic terminal label and uses tighter control and icon spacing.
+- Moving a note to another project now uses the same searchable, keyboard-accessible project picker as the sidebar.
+- Selection highlights, structural separators, and primary actions use shared theme-aware styling across the interface, and the application icons have been refreshed.
+- Terminals answer OSC color queries with resolved colors from the active theme, and the project terminal dock no longer applies its own background tint.
+
+### Fixed
+
+- Paragraphs and lists in agent replies have clear, consistent spacing without adding trailing whitespace to the message. Fixes #218 in #239 by @bluzername.
+
+## [0.1.47] - 2026-09-15
+
+### Added
+
+- Settings can now be searched by name or keyword across every page. Results jump directly to the matching row, the navigation is organized into **App**, **Agents**, and **Workspace** groups, and transcript and composer preferences have their own **Chat** page.
+- Drag an inactive workspace tab onto any edge of an open pane to merge its complete layout into that workspace. Files, terminals, split arrangements, and focus move together, while dropping onto a blank session replaces it.
+- Settings → Appearance includes a persistent **Accent color** control with named presets and a custom picker. The chosen color is applied to the composer send button and user-message bubbles with an automatically legible foreground.
+- Model flyouts for handoffs, second opinions, alternate Plan builds, and orchestration assignments open an adjacent effort picker when the hovered model supports reasoning levels, and apply the chosen model and effort together.
+- Windows now delivers native toast notifications for completed turns, input requests, and reminders. Notification clicks restore a minimized window and open the related session, while blocked notifications are reported with a link to Windows Settings. In #220 by @ardevdevts.
+- Inbox issue details show when the issue was created. In #231 by @ognjeeen.
+- Orchestration lead cards show a compact subagent summary with per-task status in a hover or keyboard-focus tooltip, and expand their full controls while active, selected, or busy.
+- The **Working agents** preview remains available in the sidebar when the project rail is collapsed, including project identity, elapsed time, current activity, status, selection, and expandable overflow.
+- The GitHub issue chooser includes a structured feature-request template and again permits blank issues.
+
+### Changed
+
+- OpenCode models are grouped under readable provider names in the model picker, and provider names are included in search.
+- Activating a session now loads that harness's live model catalog immediately instead of waiting for the model picker to open.
+- Codex shell activity unwraps launcher commands and presents file inspection as readable **Read**, **Find**, and **List** steps while preserving the underlying command preview, including in saved transcripts.
+- Project terminal creation and activation controls have moved from the title bar to the usage footer, leaving more room for workspace tabs.
+
+### Fixed
+
+- Paused orchestration runs explain why resumption is unavailable, link to another running session that is blocking the checkout, wait for interrupted work to stop, and keep composer text, attachments, and the selected mode when a submission is rejected.
+- Orchestration scopes accept valid absolute paths by rebasing them to the project root, reject paths outside the project with a clear error, and compare Windows drive, UNC, separator, case, and extended-length path forms consistently.
+- Codex installations managed by Bun are detected when locating the CLI. In #82 by @jagadhis.
+- Expanding an orchestration card no longer shifts its header downward.
+
+## [0.1.46] - 2026-09-14
+
+### Added
+
+- **Agent orchestration v1** lets a lead agent coordinate up to four workers in the same checkout. Choose worker providers and models, review and edit the proposed assignments before starting, and let the lead manage dependencies, review results, request corrections, and redirect supported workers mid-turn. Overlapping write scopes are queued, and worker approvals and questions are routed through the lead. In #228.
+- Orchestration workers are grouped under their lead in the sidebar, with status, model, and expandable details. **View agents** opens their transcripts beside the lead. Run history survives restarts, interrupted work pauses for review, and stopping the lead stops its workers too.
+- Completed agent turns show provider-reported token usage, cache metrics, and output rate in a hover or keyboard-focus preview, with metrics retained in saved conversations.
+- Web links in user messages show compact page-title and favicon previews while preserving the surrounding text. Preview requests validate public destinations and keep fetching outside the webview.
+- Settings → Appearance includes a **Dark-mode lightness** slider and remembers its value independently of light mode.
+- Chat backgrounds have separate opacity controls for empty and active sessions, including project-specific overrides. In #191 by @shxntanu.
+- GitHub pull-request reviews in the Inbox can switch between changed hunks and full-file context. In #189 by @UtkarshRahim.
+- **Close All Tabs** is available from the menu and Command/Ctrl+Shift+W. It closes the active tab's editor files first, then closes the workspace tabs on a subsequent invocation, retaining a blank session and confirming unsaved files and running terminals. In #215 by @kartava.
+- Notes can be moved between projects without changing their order or losing edits during navigation. In #187 by @ognjeeen.
+
+### Changed
+
+- Closed conversations are prefetched on hover or press and retained in a bounded cache for faster reopening, with safeguards against stale loads and duplicate tabs.
+- Inbox cards mount progressively to keep large lists responsive. In #209 by @notsapinho.
+- Reordering tabs and projects uses shared motion settings, with smoother scrolling and consecutive drag gestures. In #206 by @ognjeeen.
+- Sidebar session cards place linked work-item and archive controls together in the footer, show a single provider icon, and retain the default cursor on reorderable items.
+- Linked work-item update notices now sit inside their session pane, make the agent action more prominent, and offer clearer open and dismiss controls.
+
+### Fixed
+
+- OpenCode falls back to readable local paths for unsupported attachment formats instead of sending provider-rejected file parts, and repairs sessions already stuck on an unsupported file turn. Fixes #211.
+- **Supervised** access explicitly sets Claude Code's permission mode, preventing local default settings from silently switching the session to automatic approvals or bypassed permissions. In #203 by @prkl78.
+- OMP advisor interjections no longer fold away complete answers or break assistant streams. Saved conversations recover interjection boundaries and status-split continuations, while long interjections collapse by default. In #156 by @elijah7x.
+- Continuing a conversation dismisses its due reminder and linked-update notices while preserving future reminders. Linked-activity sounds no longer repeat when the same update remounts.
+- Opening the sidebar project picker focuses its search field reliably. In #226 by @actuallyakshat.
+- Background GitHub CLI and related helper commands no longer flash console windows on Windows. In #221 by @korefs.
+- Nested transcript scrollers keep receiving wheel gestures when the outer transcript reaches an edge, including gestures over SVG icons and containers that scroll on only one axis.
+- Orchestration cleanup releases checkout reservations when a window closes and removes stale run and worker ownership records when conversations are deleted. Worker tabs wait for their lead to open, sidebar controls remain independently keyboard accessible, and completed or stopped runs release the Undo lock.
+
+## [0.1.45] - 2026-09-13
+
+### Added
+
+- Subagent rows show the child's model beside its step count when the provider reports it, and retain it in saved conversations.
+- Subagent trails now include OpenCode child sessions and Pi/omp progress, including separate rows for parallel and chained tasks. Cursor recovers child messages and tools from its local stores, names foreground tasks correctly, and restores expandable rows in saved conversations. Cursor, Grok Build, and fx also route child updates carrying a parent tool ID into the same trails. OpenCode pairs concurrent runs by session ID, and repeated progress updates merge into their existing steps.
+- Subagents now get a row each in the transcript, sitting under the agent's own work with an animated mascot, a shimmering name while the run is live, and a count of the steps it has taken. Clicking a row opens the subagent's trail inline, grouped into phases the same way the main transcript groups work, so a long run reads as what it said and the calls that followed rather than one flat dump. The rows keep their place while the work above them folds and re-folds. Claude and Codex both report their subagents' work; Codex spawns are named from their brief, stay running until the agent itself reports otherwise, and one spawned agent no longer shows up as several rows.
+- GitLab's **Needs attention** Inbox view now uses pending GitLab To-Dos to include assignments, mentions, and review requests from every accessible repository. Remote-only items support details, discussions, comments, and merge-request diffs without requiring a local checkout.
+- Sessions linked to a GitHub issue or pull request now surface unseen comments, reviews, commits, and state changes in the sidebar and in an activity notice. Open the new activity directly, add it to the composer for an agent to address, or archive or delete the session after its issue closes or pull request closes or merges.
+- Settings → General can show an optional standalone effort picker beside the model picker for quicker changes, and remembers the preference. When the standalone control is hidden, the combined model picker shows the selected effort beside the model name.
+- Click a skill in Settings → Skills to inspect its `SKILL.md` in a responsive inline panel, switch between rendered Markdown and source, and expand its metadata. The preview supports keyboard focus restoration and Escape-to-close. In #172 by @ognjeeen.
+
+### Changed
+
+- While an agent is busy, entering a follow-up replaces the **Stop** action with **Send** instead of showing both controls at once.
+
+### Fixed
+
+- Clicking or dragging a session card no longer selects its text.
+- Computer Use access confirmations are accepted automatically when Codex is already running in Full Access mode; other MCP confirmations still require an explicit decision.
+- GitLab Inbox repository detection no longer flashes console windows when it invokes Git on Windows. In #200.
+- Claude Sonnet 5 appears only with Claude Code 2.1.197 or newer, preventing older CLI versions from receiving an unsupported model argument. In #199 by @nulljosh.
+- Claude model choices resolve consistently between the CLI's short live aliases and MonoCode's full startup model IDs, so relaunching no longer switches a saved session to a different model family.
+
+## [0.1.44] - 2026-09-12
+
+### Added
+
+- Set a reminder from a session's menu using a preset or custom date and time. MonoCode persists scheduled reminders, delivers a notification when one is due, keeps reminder notices available in the session, and shows the scheduled time when cancelling one.
+- The model picker remembers the six most recently used models. Right-click the current model or press Command/Ctrl+Period to switch among them quickly.
+- Notes support normalized tags that can be edited and searched, and selected text from an agent transcript can be saved directly as a note.
+- File and terminal tab menus include **Close Others**, with confirmation before closing unsaved files or running terminals.
+
+### Changed
+
+- Model selection and model settings now share one searchable, keyboard-accessible picker with nested menus, provider tabs, favorites, and inline setting controls.
+- Returning to a project restores its last active session, editor, or terminal instead of choosing a different pane. In #144 by @kinsomicrote.
+- Failed tool activity stays concise by default and can be expanded directly from its transcript summary to inspect the error.
+- Transcripts preserve the provider and model used for each turn, including across reloads, handoffs, second opinions, and Claude model switches.
+
+### Fixed
+
+- Markdown file links distinguish document headings from local paths, handle bare and percent-encoded filenames, reject encoded network paths, and navigate to the requested source location reliably after reload. In #146 by @yankawai.
+- Codex transport retries and fallback diagnostics no longer appear as transcript events, while terminal errors and unrelated runtime warnings remain visible.
+- Background tabs preserve the composer's measured height, so returning to a tab no longer collapses a multi-line draft to one row. In #182 by @goujandev.
+- File attachments now reach Codex, Claude Code, Pi, and omp through a local-path fallback when they cannot be sent inline, including attachment-only messages and mid-turn follow-ups. ACP resource links and OpenCode file parts keep their native formats. Fixes #174.
+- Approvals and questions from nested Claude, Codex, and OpenCode sessions route to the correct active parent session, queue safely when several arrive, and surface reply failures instead of leaving the turn stuck.
+- Files selected from search, the file picker, or the filesystem open by their exact path instead of being redirected by fuzzy path matching.
+- Web links in agent messages now open in the system browser instead of relying on unavailable in-webview navigation. Fixes #175.
 
 ### Fixed
 

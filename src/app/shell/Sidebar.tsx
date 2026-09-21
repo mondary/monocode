@@ -15,6 +15,7 @@ import {
   GitBranch,
   GitPullRequest,
   Inbox,
+  StickyNote,
   ListFilter,
   MessageMultiple,
   PanelLeft,
@@ -23,7 +24,6 @@ import {
   Search,
   Share,
   Settings,
-  StickyNote,
   Zap,
 } from "../../shared/ui/icons";
 import {
@@ -161,11 +161,13 @@ const TAB_LABELS: Record<SidebarTab, string> = {
   inbox: "Inbox",
   files: "Explorer",
   changes: "Changes",
+  notes: "Notes",
 };
 
 const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
   sessions: MessageMultiple,
   inbox: Inbox,
+  notes: StickyNote,
   files: Files,
   changes: GitBranch,
 };
@@ -2021,7 +2023,7 @@ function CompactProjectRail({
           aria-orientation="vertical"
           className="flex flex-col items-center gap-1.5"
         >
-          {tabs.map((itemId) => (
+          {tabs.filter((itemId) => itemId !== "notes").map((itemId) => (
             <CompactRailAction
               key={itemId}
               tab

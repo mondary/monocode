@@ -37,7 +37,7 @@ import {
 import { LAYER } from "../../../shared/lib/layers";
 import { secondOpinionTargets } from "../model/secondOpinion";
 import {
-  HARNESS_TITLE,
+  harnessTitle,
   type HarnessId,
   type ModelTarget,
 } from "../model/session";
@@ -435,7 +435,7 @@ export function SecondOpinionButton({
                   >
                     <HarnessIcon harness={harness} className="size-3.5" />
                     <span className="min-w-0 flex-1 truncate">
-                      {HARNESS_TITLE[harness]}
+                      {harnessTitle(harness)}
                     </span>
                     {modelsFor(harness).length > 0 ? (
                       <ChevronRight
@@ -460,7 +460,7 @@ export function SecondOpinionButton({
               maxHeight={SUBMENU_MAX_HEIGHT}
               layer={LAYER.submenu}
               role="menu"
-              aria-label={`${HARNESS_TITLE[activeHarness]} models`}
+              aria-label={`${harnessTitle(activeHarness)} models`}
               ignore={SELF}
               onMouseEnter={() =>
                 setMenuLevel((level) =>

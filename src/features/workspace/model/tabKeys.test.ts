@@ -120,18 +120,18 @@ describe("tabCommand", () => {
     ).toBe("next");
   });
 
-  it("uses shift-mod arrows for session and project navigation", () => {
+  it("cycles chat and terminal tabs with alt arrows", () => {
     expect(
-      tabCommand(key({ key: "ArrowUp", metaKey: true, shiftKey: true })),
-    ).toBe("prev-session");
+      tabCommand(key({ key: "ArrowLeft", metaKey: true, altKey: true })),
+    ).toBe("cycle-prev");
     expect(
-      tabCommand(key({ key: "ArrowDown", metaKey: true, shiftKey: true })),
-    ).toBe("next-session");
+      tabCommand(key({ key: "ArrowRight", metaKey: true, altKey: true })),
+    ).toBe("cycle-next");
     expect(
-      tabCommand(key({ key: "ArrowLeft", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowUp", metaKey: true, altKey: true })),
     ).toBe("prev-project");
     expect(
-      tabCommand(key({ key: "ArrowRight", metaKey: true, shiftKey: true })),
+      tabCommand(key({ key: "ArrowDown", metaKey: true, altKey: true })),
     ).toBe("next-project");
   });
 

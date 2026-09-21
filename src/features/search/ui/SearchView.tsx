@@ -572,7 +572,7 @@ function rowCopy(
   return {
     icon: (
       <ProjectLogoIcon
-        path={hit.path}
+        projectPath={hit.path}
         className="size-3.5 rounded-sm"
         fallback={Folder}
       />

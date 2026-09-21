@@ -14,8 +14,7 @@ describe("UpdateRailCard", () => {
     );
 
     expect(markup).toContain('role="status"');
-    expect(markup).toContain("Updated to 0.1.25");
-    expect(markup).toContain("What&#x27;s new");
+    expect(markup).toContain("Mise à jour installée · 0.1.25");
     expect(markup).toContain('aria-label="Dismiss update notification"');
   });
 

@@ -18,6 +18,7 @@ export const SOUNDS_CHANGE_EVENT = "monocode:sounds-change";
 
 export type SoundCue =
   | "turnFinished"
+  | "agentInput"
   | "inboxUnseen"
   | "linkedActivity"
   | "updateAvailable"
@@ -26,6 +27,7 @@ export type SoundCue =
 
 const CUES: Record<SoundCue, SoundName> = {
   turnFinished: "success",
+  agentInput: "droplet",
   inboxUnseen: "bloom",
   linkedActivity: "chime",
   updateAvailable: "arrival",

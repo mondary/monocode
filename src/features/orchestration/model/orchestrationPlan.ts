@@ -1,4 +1,4 @@
-import { HARNESSES, type Block, type HarnessId, type Session } from "../../sessions/model/session";
+import { HARNESSES, isCustomHarness, type Block, type HarnessId, type Session } from "../../sessions/model/session";
 import { isEqualOrInside, pathKey } from "../../../shared/lib/paths";
 
 export type OrchestrationChoice = {
@@ -135,7 +135,8 @@ export function validateOrchestrationSettings(
   const choices = input.choices.map((value) => {
     const item = record(value);
     const harness = required(item.harness, "a harness", 32) as HarnessId;
-    if (!HARNESSES.includes(harness as (typeof HARNESSES)[number])) throw new Error("Unknown worker harness");
+    if (!isCustomHarness(harness) && !HARNESSES.includes(harness))
+      throw new Error("Unknown worker harness");
     return {
       harness,
       model: required(item.model, "a model", 256),

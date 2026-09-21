@@ -12,6 +12,7 @@ mod fs;
 mod gitlab;
 mod harness;
 mod inbox_media;
+mod keybindings;
 mod linear;
 mod link_preview;
 #[cfg(target_os = "macos")]
@@ -19,6 +20,8 @@ mod macos;
 mod menu;
 mod notes;
 mod notifications;
+mod project_init;
+mod custom_providers;
 mod pasteboard;
 mod project_logo;
 mod pty;
@@ -42,12 +45,11 @@ mod worktrees;
 /// Project directory for new sessions — prefer cwd, else home.
 #[tauri::command]
 fn default_cwd() -> String {
-    if let Ok(cwd) = std::env::current_dir() {
-        return fs::path_to_js(&cwd);
-    }
-    dirs_home()
-        .map(|home| fs::path_to_js(std::path::Path::new(&home)))
-        .unwrap_or_else(|| "~".into())
+    // Finder-launched apps inherit an implementation-defined cwd, often the
+    // user's Documents folder. Returning it makes the frontend index that
+    // folder on every launch and repeatedly triggers macOS TCC prompts.
+    // Projects are opened explicitly through the project picker instead.
+    dirs_home().unwrap_or_else(|| "~".into())
 }
 
 #[tauri::command]
@@ -191,6 +193,95 @@ fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
     window::open_new_window(&app)
 }
 
+/// Relaunch the bundle through LaunchServices on macOS. Starting the nested
+/// Contents/MacOS executable directly can terminate the old process without
+/// opening a new application instance after an in-place updater install.
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let bundle = executable
+            .parent()
+            .and_then(|path| path.parent())
+            .and_then(|path| path.parent())
+            .ok_or_else(|| "could not determine application bundle".to_string())?;
+        std::process::Command::new("open")
+            .arg("-n")
+            .arg(bundle)
+            .spawn()
+            .map_err(|error| error.to_string())?;
+        app.exit(0);
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        app.request_restart();
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn pk_upstream_info() -> Result<String, String> {
+    let project_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+    // Reports both update axes of the PK fork in one shot:
+    //   - upstream: official release version not yet represented by the fork
+    //   - origin:   PK commits pushed from another machine (pkbehind) and
+    //               local commits not pushed yet (pkahead)
+    let script = r#"set -e
+branch=$(git rev-parse --abbrev-ref HEAD)
+source_branch=perso/pk
+ahead=0
+if [ "$branch" != "stable/pk" ]; then
+  ahead=$(git rev-list --count "origin/$source_branch..HEAD" 2>/dev/null || echo 0)
+fi
+git fetch -q upstream
+git fetch -q origin "$source_branch" 2>/dev/null || true
+version=$(git show upstream/main:package.json 2>/dev/null | sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+local_version=$(git show HEAD:package.json 2>/dev/null | sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+source_behind=$(git rev-list --count HEAD..upstream/main)
+official_behind=$source_behind
+if [ -n "$version" ] && [ "$version" = "$local_version" ]; then official_behind=0; fi
+echo tag=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null) version=$version behind=$official_behind sourcebehind=$source_behind pkbehind=$(git rev-list --count "HEAD..origin/$source_branch" 2>/dev/null || echo 0) pkahead=$ahead
+echo ---commits---
+git log --oneline -12 HEAD..upstream/main
+echo ---pk-commits---
+git log --oneline -12 "HEAD..origin/$source_branch" 2>/dev/null || true
+"#;
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(script)
+        .current_dir(project_dir)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).into_owned());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[tauri::command]
+fn sync_pk_upstream(app: tauri::AppHandle) -> Result<(), String> {
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/sync-pk-update.sh");
+    // The dev variant rebuilds and relaunches itself, not the daily app.
+    let variant = if app.config().identifier.ends_with(".dev") {
+        "dev"
+    } else {
+        "stable"
+    };
+    std::process::Command::new("bash")
+        .arg(script)
+        .arg(variant)
+        .spawn()
+        .map(|_| {
+            // Keep the in-app "update launched" dialog visible long enough to be read.
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            app.exit(0);
+        })
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(windows)]
@@ -245,6 +336,10 @@ pub fn run() {
             control::control_turn_finished,
             default_cwd,
             home_dir,
+            pk_upstream_info,
+            sync_pk_upstream,
+            keybindings::get_keybindings,
+            keybindings::save_keybindings,
             notifications::notification_permission,
             notifications::request_notification_permission,
             notifications::show_notification,
@@ -350,6 +445,10 @@ pub fn run() {
             fs::copy_path,
             fs::move_path,
             fs::reveal_path,
+            fs::open_project_path,
+            project_init::initialize_project,
+            custom_providers::custom_provider_test,
+            custom_providers::custom_provider_sync,
             pasteboard::clipboard_file_paths,
             pasteboard::copy_file_to_clipboard,
             fs::clone_repo,
@@ -388,6 +487,7 @@ pub fn run() {
             harness::harness_exec,
             harness::provider_account_remove,
             rate_limits::fetch_claude_usage,
+            rate_limits::fetch_codexbar_usage,
             rate_limits::fetch_opencode_go_usage,
             pty::pty_spawn,
             pty::pty_write,
@@ -413,6 +513,8 @@ pub fn run() {
             notes::notes_get,
             notes::notes_upsert,
             notes::notes_delete,
+            notes::notes_export,
+            notes::notes_export_all,
             notes::notes_save_image,
             notes::notes_image_path,
             checkpoint::session_checkpoint_ensure,
@@ -429,6 +531,7 @@ pub fn run() {
             set_window_background_blur,
             set_dock_badge,
             open_new_window,
+            relaunch_app,
             window::hide_window,
             window::destroy_window,
             window::quit_poll_reply,
