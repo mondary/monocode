@@ -1,6 +1,167 @@
 import { asRecord } from "../../../integrations/harness/providers/codex/codexProtocol";
 
-export type RateLimitProvider = "claude" | "codex" | "opencode";
+export type RateLimitProvider = string;
+
+export type UsageDisplayMode = "used" | "remaining";
+export type UsageWindowVisibility = "all" | "session" | "weekly";
+
+/** Stable PK quota picker: discovery must never silently add footer chips. */
+export const USAGE_PROVIDER_IDS = [
+  "claude",
+  "codex",
+  "zai",
+  "opencodego",
+  "mimo",
+  "cursor",
+  "grok",
+  "antigravity",
+  "gemini",
+  "openrouter",
+  "nvidia",
+  "pi",
+  "omp",
+  "fx",
+  "devin",
+  "kilocode",
+  "codebuff",
+] as const;
+
+/** Canonicalize CodexBar/provider labels before applying Settings selections. */
+export function normalizeUsageProviderId(provider: string): string {
+  const value = provider.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  if (value === "kilo" || value === "kilocode") return "kilocode";
+  if (value === "codebuff" || value === "codebuffai") return "codebuff";
+  if (value === "opencode") return "opencodego";
+  return value;
+}
+const DEFAULT_USAGE_PROVIDER_IDS = new Set([
+  "claude",
+  "codex",
+  "zai",
+  "opencodego",
+  "mimo",
+]);
+
+const USAGE_DISPLAY_MODE_KEY = "monocode.usageDisplayMode";
+const USAGE_WINDOW_VISIBILITY_KEY = "monocode.usageWindowVisibility";
+export const USAGE_DISPLAY_MODE_CHANGE_EVENT = "monocode:usage-display-mode";
+export const USAGE_WINDOW_VISIBILITY_CHANGE_EVENT = "monocode:usage-window-visibility";
+export const USAGE_PROVIDER_ORDER_CHANGE_EVENT = "monocode:usage-provider-order";
+const USAGE_PROVIDER_ORDER_KEY = "monocode.usageProviderOrder";
+
+export function loadUsageDisplayMode(): UsageDisplayMode {
+  try {
+    return localStorage.getItem(USAGE_DISPLAY_MODE_KEY) === "used"
+      ? "used"
+      : "remaining";
+  } catch {
+    return "remaining";
+  }
+}
+
+export function saveUsageDisplayMode(mode: UsageDisplayMode): void {
+  try {
+    localStorage.setItem(USAGE_DISPLAY_MODE_KEY, mode);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_DISPLAY_MODE_CHANGE_EVENT));
+}
+
+export function loadUsageWindowVisibility(): UsageWindowVisibility {
+  try {
+    const value = localStorage.getItem(USAGE_WINDOW_VISIBILITY_KEY);
+    return value === "weekly" || value === "all" ? value : "session";
+  } catch {
+    return "session";
+  }
+}
+
+export function saveUsageWindowVisibility(value: UsageWindowVisibility): void {
+  try {
+    localStorage.setItem(USAGE_WINDOW_VISIBILITY_KEY, value);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_WINDOW_VISIBILITY_CHANGE_EVENT));
+}
+
+export type UsageScope = "active" | "custom";
+
+const USAGE_SCOPE_KEY = "monocode.usageScope";
+const USAGE_HIDDEN_PROVIDERS_KEY = "monocode.usageHiddenProviders";
+const USAGE_PROVIDER_SELECTION_INITIALIZED_KEY =
+  "monocode.usageProviderSelectionInitialized";
+export const USAGE_SCOPE_CHANGE_EVENT = "monocode:usage-scope-change";
+
+export function loadUsageScope(): UsageScope {
+  try {
+    return localStorage.getItem(USAGE_SCOPE_KEY) === "active"
+      ? "active"
+      : "custom";
+  } catch {
+    return "custom";
+  }
+}
+
+export function saveUsageScope(scope: UsageScope): void {
+  try {
+    localStorage.setItem(USAGE_SCOPE_KEY, scope);
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
+}
+
+export function loadHiddenUsageProviders(): string[] {
+  try {
+    const stored = localStorage.getItem(USAGE_HIDDEN_PROVIDERS_KEY);
+    if (stored == null) {
+      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
+    }
+    const raw = JSON.parse(stored);
+    if (!Array.isArray(raw)) return [];
+    if (
+      raw.length === 0 &&
+      localStorage.getItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY) !== "1"
+    ) {
+      return USAGE_PROVIDER_IDS.filter((id) => !DEFAULT_USAGE_PROVIDER_IDS.has(id));
+    }
+    return raw
+      .filter((value): value is string => typeof value === "string")
+      .map(normalizeUsageProviderId);
+  } catch {
+    return [];
+  }
+}
+
+export function saveHiddenUsageProviders(ids: string[]): void {
+  try {
+    localStorage.setItem(USAGE_HIDDEN_PROVIDERS_KEY, JSON.stringify(ids));
+    localStorage.setItem(USAGE_PROVIDER_SELECTION_INITIALIZED_KEY, "1");
+  } catch {
+    // private mode / quota
+  }
+  window.dispatchEvent(new Event(USAGE_SCOPE_CHANGE_EVENT));
+}
+
+export function loadUsageProviderOrder(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(USAGE_PROVIDER_ORDER_KEY) ?? "[]");
+    if (!Array.isArray(raw)) return [...USAGE_PROVIDER_IDS];
+    const known = raw.filter((value): value is string =>
+      typeof value === "string" && USAGE_PROVIDER_IDS.includes(value as never),
+    );
+    return [...known, ...USAGE_PROVIDER_IDS.filter((id) => !known.includes(id))];
+  } catch {
+    return [...USAGE_PROVIDER_IDS];
+  }
+}
+
+export function saveUsageProviderOrder(order: string[]): void {
+  try { localStorage.setItem(USAGE_PROVIDER_ORDER_KEY, JSON.stringify(order)); } catch { /* private mode */ }
+  window.dispatchEvent(new Event(USAGE_PROVIDER_ORDER_CHANGE_EVENT));
+}
 
 export type RateLimitStatus =
   "idle" | "fetching" | "ok" | "error" | "unavailable";
@@ -177,6 +338,14 @@ export function clampUsedPercent(value: number): number {
 
 export function formatUsagePercent(usedPercent: number): string {
   return `${Math.round(clampUsedPercent(usedPercent))}%`;
+}
+
+export function formatDisplayedUsagePercent(
+  usedPercent: number,
+  mode: UsageDisplayMode,
+): string {
+  const value = clampUsedPercent(usedPercent);
+  return `${Math.round(mode === "remaining" ? 100 - value : value)}%`;
 }
 
 /**
@@ -364,6 +533,63 @@ export function parseOpencodeGoUsage(result: unknown): ProviderRateLimits {
   };
 }
 
+export function parseCodexBarUsage(body: string): ProviderRateLimits[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return [];
+  }
+  const records = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(asRecord(parsed)?.providers)
+      ? (asRecord(parsed)?.providers as unknown[])
+      : [parsed];
+  return records.flatMap((value) => {
+    const record = asRecord(value);
+    const usage = asRecord(record?.usage) ?? record;
+    const provider =
+      stringField(record, "provider") ??
+      stringField(record, "providerId") ??
+      stringField(record, "id");
+    if (!provider || !usage) return [];
+    const windows = [
+      mapCodexBarWindow(usage.primary),
+      mapCodexBarWindow(usage.secondary),
+      mapCodexBarWindow(usage.tertiary),
+    ].filter((window): window is RateLimitWindow => window != null);
+    if (windows.length === 0) return [];
+    return [{
+      provider,
+      session: windows[0] ?? null,
+      weekly: windows[1] ?? null,
+      monthly: windows[2] ?? null,
+      resetCredits: null,
+      updatedAt: Date.now(),
+      error: null,
+      status: "ok",
+    }];
+  });
+}
+function mapCodexBarWindow(value: unknown): RateLimitWindow | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const used =
+    numberField(record, "usedPercent") ??
+    numberField(record, "used_percentage") ??
+    numberField(record, "utilization");
+  if (used == null) return null;
+  const duration =
+    numberField(record, "windowMinutes") ??
+    numberField(record, "windowDurationMins") ??
+    SESSION_WINDOW_MINUTES;
+  return {
+    usedPercent: clampUsedPercent(used),
+    windowMinutes: duration,
+    resetsAt: parseResetTimestamp(record.resetsAt ?? record.resets_at),
+  };
+}
+
 function mapOpencodeGoWindow(
   raw: unknown,
   windowMinutes: number,
@@ -519,7 +745,7 @@ function numberField(rec: Record<string, unknown>, key: string): number | null {
   return null;
 }
 
-function stringField(rec: Record<string, unknown>, key: string): string | null {
-  const value = rec[key];
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+function stringField(rec: Record<string, unknown> | null, key: string): string | null {
+  const value = rec?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

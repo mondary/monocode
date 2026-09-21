@@ -1023,7 +1023,7 @@ export class Orchestrator {
           throw new Error("This run has reached its 40-task limit");
         const harness = text(input.harness, "harness") as HarnessId;
         if (
-          !HARNESSES.includes(harness) ||
+          !HARNESSES.includes(harness as (typeof HARNESSES)[number]) ||
           !run.allowedHarnesses.includes(harness)
         )
           throw new Error(

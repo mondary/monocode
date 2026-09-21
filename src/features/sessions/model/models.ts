@@ -200,6 +200,11 @@ export const DEFAULT_MODEL_ID: Record<HarnessId, string> = {
   fx: "fx:zai/glm-5.2-fast",
   hermes: "hermes:default",
   antigravity: "antigravity:gemini-3.8-flash-high",
+  zai: "zai:glm-5.2",
+  mimo: "mimo:default",
+  openrouter: "openrouter:default",
+  nvidia: "nvidia:default",
+  gemini: "gemini:default",
 };
 
 const FAVORITES_KEY = "monocode.favoriteModels";

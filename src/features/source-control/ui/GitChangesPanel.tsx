@@ -1429,6 +1429,8 @@ function useDiffIndex(
           files: next.files.length,
           additions: next.additions,
           deletions: next.deletions,
+          ahead: 0,
+          behind: 0,
         });
         if (prev) {
           const paths = changedFilePaths(prev, next);

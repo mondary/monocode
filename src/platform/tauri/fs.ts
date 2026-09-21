@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { slash } from "../../shared/lib/paths";
 import type { InterjectionMeta } from "../../features/sessions/model/session";
-
+import type { ProjectInitSettings } from "../../features/settings/model/projectInit";
 export type OmpInterjectionAnchor = InterjectionMeta & {
   id: string;
   afterAssistantText: string;
@@ -36,6 +36,8 @@ export interface OmpAssistantText {
 export function ompActiveAssistantTexts(providerSessionId: string): Promise<OmpAssistantText[]> {
   return invoke<OmpAssistantText[]>("omp_active_assistant_texts", { providerSessionId });
 }
+
+
 
 export type FsEntry = {
   name: string;
@@ -124,6 +126,8 @@ export type GitDiffStats = {
   files: number;
   additions: number;
   deletions: number;
+  ahead: number;
+  behind: number;
 };
 
 export function gitDiffStats(cwd: string): Promise<GitDiffStats> {
@@ -147,6 +151,7 @@ export type GitDiffIndex = {
   additions: number;
   deletions: number;
   remote: string | null;
+  remoteUrl: string | null;
   upstream: string | null;
   defaultBranch: string | null;
   ahead: number;
@@ -419,6 +424,27 @@ export function copyFileToClipboard(path: string): Promise<void> {
 
 export function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
+}
+
+export type ProjectInitResult = {
+  created: string[];
+  updated: string[];
+  existing: string[];
+  skipped: string[];
+  missing: string[];
+  metadataCreated: string[];
+  gitignoreUpdated: boolean;
+};
+
+export function initializeProject(
+  cwd: string,
+  settings: ProjectInitSettings,
+): Promise<ProjectInitResult> {
+  return invoke<ProjectInitResult>("initialize_project", { cwd, settings });
+}
+
+export function openProjectPath(path: string): Promise<void> {
+  return invoke<void>("open_project_path", { path });
 }
 
 export function homeDir(): Promise<string> {

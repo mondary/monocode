@@ -287,14 +287,14 @@ export function UsageFooter({
       const operation = (async () => {
         try {
           await (accountId === "default"
-            ? loginHarness(provider)
-            : loginHarness(provider, accountId));
+            ? loginHarness(provider as HarnessId)
+            : loginHarness(provider as HarnessId, accountId));
           const value = await fetchLimits();
           setLimits(value);
           if (value.status !== "ok") {
             throw new Error(
               value.error ||
-                `${HARNESS_TITLE[provider]} sign-in could not be verified`,
+                `${HARNESS_TITLE[provider as HarnessId]} sign-in could not be verified`,
             );
           }
         } catch (error) {
