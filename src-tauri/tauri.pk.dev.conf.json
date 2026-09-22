@@ -1,0 +1,31 @@
+{
+  "productName": "MonoCode PK 2026.09.45",
+  "identifier": "com.monocode.desktop",
+  "bundle": {
+    "icon": [
+      "icons/icon-dev.icns"
+    ],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "signingIdentity": "Apple Development: cleeement@gmail.com (8CZKU67BTY)"
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MonoCode PK 2026.09.45",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 520,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "backgroundColor": "#171717",
+        "backgroundThrottling": "throttle",
+        "shadow": true
+      }
+    ]
+  }
+}
