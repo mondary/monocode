@@ -1,5 +1,9 @@
 # 03 — Terminal comme onglet
 
+**Catégorie :** 🗂️ Onglets & Workspace  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** terminalTab.ts natif (OSC cwd, running) ; vérifier parité avec V44
+
 **Statut :** pending  
 **Lot historique :** 18
 

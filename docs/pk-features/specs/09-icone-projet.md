@@ -1,5 +1,9 @@
 # 09 — Icône de projet depuis icon.png ou icon.jpg
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** projectLogos.ts natif (droppable + src) ; vérifier icon.png/icon.jpg
+
 **Statut :** pending  
 **Lot historique :** 15
 

@@ -1,5 +1,9 @@
 # 10 — Ordre de la liste des projets
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** reorderSubset/railOrder natifs dans ProjectRail
+
 **Statut :** pending  
 **Lot historique :** 14/15
 

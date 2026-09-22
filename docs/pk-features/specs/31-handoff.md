@@ -1,5 +1,9 @@
 # 31 — Handoff et transfert de session
 
+**Catégorie :** 🤝 Collaboration & sessions  
+**Audit 0.1.53 :** ✅ OK  
+**Note d audit :** Natif (handoff.ts, handoffTurn.ts, HandoffMiniCard)
+
 **Statut :** pending  
 **Lot historique :** 10
 

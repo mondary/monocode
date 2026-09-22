@@ -1,5 +1,9 @@
 # 01 — Focus de l’onglet actif
 
+**Catégorie :** 🗂️ Onglets & Workspace  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** SurfaceTabs.tsx déplacé en src/features/workspace/ui/ ; logique sélection native, style PK à réappliquer
+
 **Statut :** pending  
 **Lot historique :** 01/02  
 **Dépendances :** modèle d’onglets upstream

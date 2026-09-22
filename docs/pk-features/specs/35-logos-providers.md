@@ -1,5 +1,9 @@
 # 35 — Logos et icônes des providers
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** 5 SVG manquants : gemini, mimo, nvidia, openrouter, zai
+
 **Statut :** pending  
 **Lot historique :** 08/11/12
 

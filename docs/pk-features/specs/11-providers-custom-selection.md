@@ -1,5 +1,9 @@
 # 11 — Sélection des providers custom
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** customProviders.ts + backend custom_providers.rs entièrement absents
+
 **Statut :** pending  
 **Lot historique :** 08/09
 

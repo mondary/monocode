@@ -1,5 +1,9 @@
 # 36 — Groupes et organisation des projets
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** projectGroups.ts natif ; vérifier UI rail vs V44
+
 **Statut :** pending  
 **Lot historique :** 14/15
 

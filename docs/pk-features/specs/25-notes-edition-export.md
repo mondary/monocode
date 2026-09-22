@@ -1,5 +1,9 @@
 # 25 — Notes, tags, déplacement et export Markdown
 
+**Catégorie :** 📝 Notes  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** Notes natives ; vérifier tags/export vs V44
+
 **Statut :** pending  
 **Lot historique :** 03/04/05
 

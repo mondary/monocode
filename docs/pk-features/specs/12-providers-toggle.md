@@ -1,5 +1,9 @@
 # 12 — Providers activables et désactivables
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Idem 11
+
 **Statut :** pending  
 **Lot historique :** 08/09/12
 

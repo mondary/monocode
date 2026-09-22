@@ -1,5 +1,9 @@
 # 26 — Initialisation projet et skills
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** projectInit.ts + backend absents ; SkillsPage.tsx natif à étendre
+
 **Statut :** pending  
 **Lot historique :** 20
 

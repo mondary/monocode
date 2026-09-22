@@ -1,5 +1,9 @@
 # 15 — Fenêtres de quota
 
+**Catégorie :** 📊 Quotas & usage  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Dépend de 14
+
 **Statut :** pending  
 **Lot historique :** 12
 

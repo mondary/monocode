@@ -1,5 +1,9 @@
 # 34 — Notifications par projet
 
+**Catégorie :** 🤝 Collaboration & sessions  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** useNotificationProjects/useProjectNotificationPreferences natifs ; vérifier
+
 **Statut :** pending  
 **Lot historique :** 06
 

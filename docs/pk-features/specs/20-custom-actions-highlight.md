@@ -1,5 +1,9 @@
 # 20 — Custom actions et highlight
 
+**Catégorie :** 🎨 Identité & UI PK  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** MenuBar natif, actions PK à reporter
+
 **Statut :** pending  
 **Lot historique :** 07/17
 

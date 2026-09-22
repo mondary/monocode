@@ -1,5 +1,9 @@
 # 27 — Rail activité, revue et projets
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** ProjectRail natif ; hooks PK d activité à reporter
+
 **Statut :** pending  
 **Lot historique :** 06/14/15
 

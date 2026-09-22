@@ -1,5 +1,9 @@
 # 23 — Providers PK et modèles supplémentaires
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** Modèles GLM/MiniMax/Kimi/Qwen/DeepSeek natifs ; vérifier catalogue V44
+
 **Statut :** pending  
 **Lot historique :** 08/10
 

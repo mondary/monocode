@@ -1,5 +1,9 @@
 # 19 — Accent color et Working glow color
 
+**Catégorie :** 🎨 Identité & UI PK  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Accent natif ; busyGlowSettings.ts absent à porter
+
 **Statut :** pending  
 **Lot historique :** 17
 

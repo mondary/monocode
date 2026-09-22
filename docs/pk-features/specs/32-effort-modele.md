@@ -1,5 +1,9 @@
 # 32 — Niveau d’effort et cible modèle
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** effort présent dans ModelPicker mais pas d EffortPicker PK
+
 **Statut :** pending  
 **Lot historique :** 10
 

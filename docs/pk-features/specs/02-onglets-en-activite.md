@@ -1,5 +1,9 @@
 # 02 — Focus des onglets qui travaillent
 
+**Catégorie :** 🗂️ Onglets & Workspace  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** busyHarnesses/doneHarnesses natifs dans TitleBar ; vérifier visuel PK (glow)
+
 **Statut :** pending  
 **Lot historique :** 01/02
 

@@ -1,5 +1,9 @@
 # 06 — Badge PK sur les features modifiées
 
+**Catégorie :** 🎨 Identité & UI PK  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** pkVariant.ts/pkVersion.ts absents ; à recréer
+
 **Statut :** pending  
 **Lot historique :** 22
 

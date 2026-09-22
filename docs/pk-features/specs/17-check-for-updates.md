@@ -1,5 +1,9 @@
 # 17 — Check for Updates en haut des Settings
 
+**Catégorie :** 🔄 Mises à jour  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** UpdateRow natif mais en bas (About) ; déplacer + style PK
+
 **Statut :** pending  
 **Lot historique :** 21/22
 

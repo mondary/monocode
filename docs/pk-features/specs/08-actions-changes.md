@@ -1,5 +1,9 @@
 # 08 — Actions Changes
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Actions PK sur GitChangesPanel.tsx (src/features/source-control/ui/) à reporter
+
 **Statut :** pending  
 **Lot historique :** 14/23
 

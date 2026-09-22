@@ -1,5 +1,9 @@
 # 14 — Plusieurs quotas dans la barre inférieure
 
+**Catégorie :** 📊 Quotas & usage  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** rateLimits.ts natif (525 l.) mais mono-provider ; V44 avait multi (751 l.)
+
 **Statut :** pending  
 **Lot historique :** 11/12
 

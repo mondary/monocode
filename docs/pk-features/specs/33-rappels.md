@@ -1,5 +1,9 @@
 # 33 — Rappels de sessions
 
+**Catégorie :** 🤝 Collaboration & sessions  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** useSessionReminders natif ; vérifier parité presets V44
+
 **Statut :** pending  
 **Lot historique :** 02
 

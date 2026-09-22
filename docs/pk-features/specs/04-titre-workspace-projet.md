@@ -1,5 +1,9 @@
 # 04 — Titre Workspace ou nom du projet
 
+**Catégorie :** 🗂️ Onglets & Workspace  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Titre = conversation uniquement ; PK ajoutait mode projet (projectTitle.ts à recréer dans src/features/settings/model/)
+
 **Statut :** pending  
 **Lot historique :** 15/22
 

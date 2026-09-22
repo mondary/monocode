@@ -1,5 +1,9 @@
 # 29 — Build, identité PK, icône et distribution
 
+**Catégorie :** 🎨 Identité & UI PK  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** tauri.pk.conf.json, scripts build, icônes — socle déjà posé en V45 (commit 4ed448e)
+
 **Statut :** pending  
 **Lot historique :** 22/23
 

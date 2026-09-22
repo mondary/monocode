@@ -1,5 +1,9 @@
 # 16 — Affichage used ou remaining
 
+**Catégorie :** 📊 Quotas & usage  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Dépend de 14 ; UsageFooter.tsx natif à étendre
+
 **Statut :** pending  
 **Lot historique :** 12
 

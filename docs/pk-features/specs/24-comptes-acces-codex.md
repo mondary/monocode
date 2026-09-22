@@ -1,5 +1,9 @@
 # 24 — Comptes, authentification et modes d’accès Codex
 
+**Catégorie :** 🔌 Providers & modèles  
+**Audit 0.1.53 :** ✅ OK  
+**Note d audit :** providerAccounts.ts natif complet (création, renommage, credentials)
+
 **Statut :** pending  
 **Lot historique :** 11/13
 

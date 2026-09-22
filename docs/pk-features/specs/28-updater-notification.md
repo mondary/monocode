@@ -1,5 +1,9 @@
 # 28 — Updater à deux axes et notification après relance
 
+**Catégorie :** 🔄 Mises à jour  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Updater natif mono-axe (plugin-updater) ; port pkUpdateDialog + sync-pk-update.sh + releaseNotes.ts
+
 **Statut :** pending  
 **Lot historique :** 21
 

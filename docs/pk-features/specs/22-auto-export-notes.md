@@ -1,5 +1,9 @@
 # 22 — Auto-export des notes vers le projet
 
+**Catégorie :** 📝 Notes  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Absent ; à porter (notes.ts, notes.rs)
+
 **Statut :** pending  
 **Lot historique :** 05/07
 

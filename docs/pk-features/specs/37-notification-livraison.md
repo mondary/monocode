@@ -1,5 +1,9 @@
 # 37 — Notification de livraison après mise à jour
 
+**Catégorie :** 🔄 Mises à jour  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** updateNotice.ts/appLifecycle.ts natifs ; vérifier flux PK (28)
+
 **Statut :** pending  
 **Lot historique :** 21
 

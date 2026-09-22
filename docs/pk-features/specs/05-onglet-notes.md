@@ -1,5 +1,9 @@
 # 05 — Onglet Notes dans le workspace
 
+**Catégorie :** 🗂️ Onglets & Workspace  
+**Audit 0.1.53 :** 🟡 OK*  
+**Note d audit :** NotesView natif + toggle App.tsx ; vérifier ouverture en onglet workspace
+
 **Statut :** pending  
 **Lot historique :** 03/04/05
 

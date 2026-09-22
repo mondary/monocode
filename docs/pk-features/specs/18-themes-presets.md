@@ -1,5 +1,9 @@
 # 18 — Presets de thèmes PK
 
+**Catégorie :** 🎨 Identité & UI PK  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** appearance.ts natif (hue/sat/lightness) sans presets ; V44 en avait
+
 **Statut :** pending  
 **Lot historique :** 17
 

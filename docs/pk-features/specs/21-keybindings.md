@@ -1,5 +1,9 @@
 # 21 — Keybindings personnalisables
 
+**Catégorie :** ⌨️ Système  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Backend keybindings.rs + keybindings.ts absents (port lourd)
+
 **Statut :** pending  
 **Lot historique :** 19
 

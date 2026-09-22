@@ -1,5 +1,9 @@
 # 07 — Actions Explorer
 
+**Catégorie :** 📁 Projets  
+**Audit 0.1.53 :** 🔧 PORT  
+**Note d audit :** Reveal in Finder/Initialize project absents ; backend project_init.rs à porter
+
 **Statut :** pending  
 **Lot historique :** 20/23
 
