@@ -6,7 +6,10 @@ const RAIL_PINNED_KEY = "monocode.projectRailPinned";
 const ARCHIVED_KEY = "monocode.archivedProjects";
 const ARCHIVED_CHANGED = "monocode:archived-projects-changed";
 const PROJECT_PATHS_CHANGED = "monocode:project-paths-changed";
-const MAX = 20;
+// PRJ-08 : le rail doit rester illimité — upstream est repassé de 200 à 20
+// en v0.15.0, ce qui faisait sortir les projets ouverts de la liste (et de
+// leurs groupes). 1000 plutôt qu'infini : garde le localStorage borné.
+const MAX = 1000;
 
 export type RecentProject = {
   path: string;
