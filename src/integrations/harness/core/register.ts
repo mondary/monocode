@@ -4,7 +4,10 @@ import { ensureCursorRegistered } from "../providers/cursor/cursorAdapter";
 import { ensureFxRegistered } from "../providers/fx/fxAdapter";
 import { ensureGrokRegistered } from "../providers/grok/grokAdapter";
 import { ensureHermesRegistered } from "../providers/hermes/hermesAdapter";
-import { ensureOpenCodeRegistered } from "../providers/opencode/opencodeAdapter";
+import {
+  ensureOpenCodeProviderRegistered,
+  ensureOpenCodeRegistered,
+} from "../providers/opencode/opencodeAdapter";
 import { ensureOmpRegistered } from "../providers/omp/ompAdapter";
 import { ensurePiRegistered } from "../providers/pi/piAdapter";
 import { ensureAntigravityRegistered } from "../providers/antigravity/antigravityAdapter";
@@ -16,6 +19,9 @@ export function registerBuiltinHarnesses(): void {
   ensureCodexRegistered();
   ensureGrokRegistered();
   ensureOpenCodeRegistered();
+  ensureOpenCodeProviderRegistered("zai");
+  ensureOpenCodeProviderRegistered("mimo");
+  ensureOpenCodeProviderRegistered("gemini");
   ensurePiRegistered();
   ensureOmpRegistered();
   ensureFxRegistered();

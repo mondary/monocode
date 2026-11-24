@@ -19,6 +19,9 @@ export type HarnessId =
   | "cursor"
   | "grok"
   | "opencode"
+  | "zai"
+  | "mimo"
+  | "gemini"
   | "pi"
   | "omp"
   | "fx"
@@ -31,6 +34,9 @@ export const HARNESSES: HarnessId[] = [
   "cursor",
   "grok",
   "opencode",
+  "zai",
+  "mimo",
+  "gemini",
   "pi",
   "omp",
   "fx",
@@ -403,6 +409,9 @@ export const HARNESS_LABEL: Record<HarnessId, string> = {
   cursor: "cursor",
   grok: "grok",
   opencode: "opencode",
+  zai: "zai",
+  mimo: "mimo",
+  gemini: "gemini",
   pi: "pi",
   omp: "omp",
   fx: "fx",
@@ -416,6 +425,9 @@ export const HARNESS_TITLE: Record<HarnessId, string> = {
   cursor: "Cursor",
   grok: "Grok Build",
   opencode: "OpenCode",
+  zai: "Z.AI",
+  mimo: "MiMo",
+  gemini: "Gemini",
   pi: "Pi",
   omp: "omp",
   fx: "fx",

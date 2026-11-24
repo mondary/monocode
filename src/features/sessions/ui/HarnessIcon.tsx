@@ -9,6 +9,9 @@ import omp from "../../../assets/providers/omp.svg";
 import opencode from "../../../assets/providers/opencode.svg";
 import pi from "../../../assets/providers/pi.svg";
 import antigravity from "../../../assets/providers/antigravity.svg";
+import gemini from "../../../assets/providers/gemini.svg";
+import mimo from "../../../assets/providers/mimo.svg";
+import zai from "../../../assets/providers/zai.svg";
 import type { HarnessId } from "../model/session";
 
 export const HARNESS_ICONS: Record<HarnessId, string> = {
@@ -17,6 +20,9 @@ export const HARNESS_ICONS: Record<HarnessId, string> = {
   cursor,
   grok,
   opencode,
+  zai,
+  mimo,
+  gemini,
   pi,
   omp,
   fx,
