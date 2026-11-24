@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  expandTilde,
   gitCommit,
   gitHeadMessage,
   isCheckoutBlockedByChanges,
@@ -117,5 +118,22 @@ describe("gitHeadMessage", () => {
     vi.mocked(invoke).mockResolvedValueOnce("Subject\n\nBody");
     await expect(gitHeadMessage("/repo")).resolves.toBe("Subject\n\nBody");
     expect(invoke).toHaveBeenCalledWith("git_head_message", { cwd: "/repo" });
+  });
+});
+
+describe("expandTilde", () => {
+  it("expands the ~ sentinel to the real home", async () => {
+    vi.mocked(invoke).mockResolvedValue("/Users/me");
+    await expect(expandTilde("~")).resolves.toBe("/Users/me");
+    await expect(expandTilde("~/Documents")).resolves.toBe(
+      "/Users/me/Documents",
+    );
+  });
+
+  it("leaves absolute paths untouched and survives a missing home", async () => {
+    vi.mocked(invoke).mockResolvedValue("/Users/me");
+    await expect(expandTilde("/tmp/x")).resolves.toBe("/tmp/x");
+    vi.mocked(invoke).mockRejectedValue(new Error("no home"));
+    await expect(expandTilde("~")).resolves.toBe("~");
   });
 });

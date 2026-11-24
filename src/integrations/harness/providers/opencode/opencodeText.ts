@@ -1,4 +1,5 @@
 import { modelsFor } from "../../../../features/sessions/model/models";
+import { expandTilde } from "../../../../platform/tauri/fs";
 import {
   execChild,
   freeHarnessPort,
@@ -66,7 +67,7 @@ async function promptOnLive(input: {
   prompt: string;
   timeoutMs?: number;
 }): Promise<string> {
-  const session = await ensureLive(input.cwd);
+  const session = await ensureLive(await expandTilde(input.cwd));
   try {
     const result = await session.client.prompt({
       sessionID: session.sessionId,

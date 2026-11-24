@@ -1,5 +1,6 @@
 import type { HarnessId } from "../../../features/sessions/model/session";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { expandTilde } from "../../../platform/tauri/fs";
 import type { GeneratedSessionTitle } from "../../../features/sessions/model/sessionTitle";
 import type { PrContent } from "../../../features/source-control/model/gitText";
 import { hasLiveCatalog } from "../../../features/sessions/model/models";
@@ -191,14 +192,15 @@ export function sendHarnessTurn(input: SendTurnInput & { harness: HarnessId }) {
     }
     cancelIdlePark(input.sessionId);
     const controlled = typeof isTauri === "function" && isTauri();
+    const cwd = await expandTilde(input.cwd);
     if (controlled)
       await invoke("control_authorize_turn", {
         sessionId: input.sessionId,
-        cwd: input.cwd,
+        cwd,
       });
     activeTurnSessions.add(input.sessionId);
     try {
-      await adapter.sendTurn(input);
+      await adapter.sendTurn({ ...input, cwd });
     } finally {
       activeTurnSessions.delete(input.sessionId);
       if (controlled)

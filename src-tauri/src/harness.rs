@@ -432,13 +432,14 @@ pub fn harness_spawn(
         ));
     }
 
-    let mut cmd = Command::new(&command);
-    cmd.args(&args)
+    let (shell, argv) = wrap_bun_spawn(&command, &args);
+    let mut cmd = Command::new(&shell);
+    cmd.args(&argv)
         .current_dir(&workdir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    prepare_child(&mut cmd, &command);
+    prepare_child(&mut cmd, &shell);
     apply_provider_account(&app, &mut cmd, account.as_ref())?;
 
     crate::control::configure_child(&app, &session_id, &mut cmd);
@@ -906,13 +907,33 @@ pub async fn harness_exec(
     .map_err(|e| e.to_string())?
 }
 
+/// Bun-based CLIs (opencode) abort at startup with "An unknown error
+/// occurred" when spawned directly from the GUI process, while the exact
+/// same binary runs fine as a child of a shell (the built-in terminal
+/// proves it). Route opencode spawns through zsh so bun starts in a
+/// shell-normalized context; other CLIs spawn unchanged.
+fn wrap_bun_spawn(command: &str, args: &[String]) -> (String, Vec<String>) {
+    if command_basename(command) != "opencode" {
+        return (command.to_string(), args.to_vec());
+    }
+    let mut wrapped = vec![
+        "-c".to_string(),
+        "exec \"$@\"".to_string(),
+        "monocode".to_string(),
+        command.to_string(),
+    ];
+    wrapped.extend(args.iter().cloned());
+    ("/bin/zsh".to_string(), wrapped)
+}
+
 fn exec_capture(command: &str, args: &[String], cwd: Option<&str>) -> Result<String, String> {
-    let mut cmd = Command::new(command);
-    cmd.args(args)
+    let (shell, argv) = wrap_bun_spawn(command, args);
+    let mut cmd = Command::new(&shell);
+    cmd.args(&argv)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    prepare_child(&mut cmd, command);
+    prepare_child(&mut cmd, &shell);
     if let Some(dir) = cwd {
         let workdir = expand_home(dir);
         if workdir.is_dir() {
@@ -2138,6 +2159,45 @@ fn prepare_child(cmd: &mut Command, command: &str) {
         apply_grok_env(cmd);
     }
     isolate_child(cmd);
+    raise_fd_limit(cmd);
+}
+
+/// GUI apps inherit launchd's low RLIMIT_NOFILE, and bun-based CLIs
+/// (opencode) die at startup or mid-run (EMFILE while watching files) on
+/// that limit. Raise the soft limit before exec, the way a login shell
+/// would: to the hard limit, capped at 1M when it is unlimited.
+fn raise_fd_limit(cmd: &mut Command) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // getrlimit/setrlimit are async-signal-safe syscalls.
+        unsafe {
+            cmd.pre_exec(|| {
+                let mut rl = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                if libc::getrlimit(libc::RLIMIT_NOFILE, &mut rl) != 0 {
+                    return Ok(());
+                }
+                const ONE_MB: u64 = 1 << 20;
+                let target = if rl.rlim_max == libc::RLIM_INFINITY {
+                    ONE_MB
+                } else {
+                    rl.rlim_max.min(ONE_MB)
+                };
+                if target > rl.rlim_cur {
+                    rl.rlim_cur = target;
+                    let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &rl);
+                }
+                Ok(())
+            });
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = cmd;
+    }
 }
 
 /// fx keeps its Gateway credential in the macOS Keychain and reads it by

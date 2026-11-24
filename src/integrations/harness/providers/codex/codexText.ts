@@ -1,4 +1,5 @@
 import { modelsFor } from "../../../../features/sessions/model/models";
+import { expandTilde } from "../../../../platform/tauri/fs";
 import {
   killChild,
   resolveCodexBinary,
@@ -95,7 +96,7 @@ async function promptOnLive(input: {
   prompt: string;
   timeoutMs?: number;
 }): Promise<string> {
-  const session = await ensureLive(input.cwd, input.providerAccountId);
+  const session = await ensureLive(await expandTilde(input.cwd), input.providerAccountId);
   session.output = "";
   session.collecting = true;
   const timeoutMs = input.timeoutMs ?? REQUEST_TIMEOUT_MS;

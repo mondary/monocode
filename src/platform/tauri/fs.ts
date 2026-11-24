@@ -425,6 +425,16 @@ export function homeDir(): Promise<string> {
   return invoke<string>("home_dir");
 }
 
+/**
+ * Expand the "~" sentinel to the real home before handing a cwd to a child
+ * process. The server resolves "~" relative to its own cwd (/Users/x/~).
+ */
+export async function expandTilde(cwd: string): Promise<string> {
+  if (cwd !== "~" && !cwd.startsWith("~/")) return cwd;
+  const home = await homeDir().catch(() => "");
+  return home ? (cwd === "~" ? home : `${home}/${cwd.slice(2)}`) : cwd;
+}
+
 export async function pickFolder(title = "Open project"): Promise<string | null> {
   const selected = await open({
     directory: true,
