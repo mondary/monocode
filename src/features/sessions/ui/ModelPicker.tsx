@@ -51,6 +51,11 @@ import { LAYER } from "../../../shared/lib/layers";
 import { HarnessIcon } from "./HarnessIcon";
 import { Popover } from "../../../shared/ui/Popover";
 import { MOD } from "../../../platform/tauri/platform";
+import {
+  legacyModelPickerSnapshot,
+  subscribeLegacyModelPicker,
+} from "../model/modelPickerStyle";
+import { ModelPickerLegacy } from "./ModelPickerLegacy";
 
 type Props = {
   harness: HarnessId;
@@ -117,6 +122,18 @@ const PILL_ORDER = [
 
 function isEffortSetting(setting: ModelSetting): boolean {
   return isEffortSettingId(setting.id);
+}
+
+export function ModelPicker(props: Props) {
+  const legacyVersion = useSyncExternalStore(
+    subscribeLegacyModelPicker,
+    legacyModelPickerSnapshot,
+    legacyModelPickerSnapshot,
+  );
+  if (legacyVersion === 1) {
+    return <ModelPickerLegacy {...props} hideEffort={props.hideSettings} />;
+  }
+  return <ModelPickerModern {...props} />;
 }
 
 function effortSetting(model: AgentModel): ModelSetting | undefined {
@@ -204,7 +221,7 @@ function modelGroups(tab: ModelPickerTab, models: AgentModel[]): ModelGroup[] {
   return [...groups.values()];
 }
 
-export function ModelPicker({
+function ModelPickerModern({
   harness,
   model,
   values,

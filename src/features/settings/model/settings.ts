@@ -286,6 +286,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
       "effort thinking reasoning fast service tier model picker composer",
   },
   {
+    id: "legacy-model-picker",
+    section: "chat",
+    label: "Legacy model picker",
+    keywords: "old model picker provider tabs logos classic monocode pk",
+  },
+  {
     id: "composer-mascot",
     section: "chat",
     label: "Composer mascot",

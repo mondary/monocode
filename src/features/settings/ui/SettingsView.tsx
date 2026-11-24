@@ -247,6 +247,10 @@ import {
 } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import {
+  loadLegacyModelPicker,
+  saveLegacyModelPicker,
+} from "../../sessions/model/modelPickerStyle";
+import {
   cachedNotificationPermission,
   loadNotificationsEnabled,
   openNotificationSettings,
@@ -788,6 +792,15 @@ function GeneralPage({
 }
 
 function ChatPage() {
+  const [legacyModelPicker, setLegacyModelPicker] = useState(
+    loadLegacyModelPicker,
+  );
+
+  const onLegacyModelPicker = (next: boolean) => {
+    saveLegacyModelPicker(next);
+    setLegacyModelPicker(next);
+  };
+
   const [transcriptLayout, setTranscriptLayout] =
     useState<TranscriptLayout>(loadTranscriptLayout);
   const [transcriptAnchor, setTranscriptAnchor] =
@@ -913,6 +926,17 @@ function ChatPage() {
               { value: "beside", label: "Beside" },
             ]}
             onChange={onModelControls}
+          />
+        </Row>
+        <Row
+          id="legacy-model-picker"
+          label="Legacy model picker"
+          description="Use the MonoCode PK model picker (provider tabs with logos) instead of the new combined picker."
+        >
+          <Toggle
+            label="Legacy model picker"
+            on={legacyModelPicker}
+            onChange={onLegacyModelPicker}
           />
         </Row>
       </Group>

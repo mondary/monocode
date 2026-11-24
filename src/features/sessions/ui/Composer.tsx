@@ -127,6 +127,10 @@ import {
   subscribeNotesEnabled,
 } from "../../settings/model/settings";
 import {
+  legacyModelPickerSnapshot,
+  subscribeLegacyModelPicker,
+} from "../model/modelPickerStyle";
+import {
   isNoteMentionPath,
   loadNotes,
   peekNotes,
@@ -566,7 +570,13 @@ export function Composer({
     loadModelControls,
     () => "menu" as const,
   );
-  const controlsBeside = modelControls === "beside";
+  const legacyModelPicker = useSyncExternalStore(
+    subscribeLegacyModelPicker,
+    legacyModelPickerSnapshot,
+    legacyModelPickerSnapshot,
+  );
+  // V43 rendered the model options beside the legacy model button.
+  const controlsBeside = modelControls === "beside" || legacyModelPicker === 1;
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
