@@ -17,15 +17,16 @@ mkdir -p "$TMP"
 # unexpected channel layout, which tauri's generate_context! rejects with
 # "icon ... is not RGBA".
 for size in 16 32 128 256 512; do
-  magick "$MASTER" -resize "${size}x${size}" "PNG32:$TMP/icon_${size}x${size}.png"
-  magick "$MASTER" -resize "$((size * 2))x$((size * 2))" "PNG32:$TMP/icon_${size}x${size}@2x.png"
+  magick "$MASTER" -resize "${size}x${size}" -type TrueColorAlpha "PNG32:$TMP/icon_${size}x${size}.png"
+  magick "$MASTER" -resize "$((size * 2))x$((size * 2))" -type TrueColorAlpha "PNG32:$TMP/icon_${size}x${size}@2x.png"
 done
 
 iconutil -c icns "$TMP" -o src-tauri/icons/icon.icns
+cp src-tauri/icons/icon.icns src-tauri/icons/icon-dev.icns
 cp "$TMP/icon_32x32.png" src-tauri/icons/32x32.png
 cp "$TMP/icon_128x128.png" src-tauri/icons/128x128.png
 cp "$TMP/icon_128x128@2x.png" src-tauri/icons/128x128@2x.png
-magick "$MASTER" -resize "512x512" "PNG32:src-tauri/icons/icon.png"
+magick "$MASTER" -resize "512x512" -type TrueColorAlpha "PNG32:src-tauri/icons/icon.png"
 rm -rf "$(dirname "$TMP")"
 
 # Note: src-tauri/macos/Assets.car (compiled AppIcon catalog) stays in place —
